@@ -9,7 +9,7 @@
     <PackageId>SimpleCommandLine</PackageId>
     <Authors>archi-Doc</Authors>
     <Product>SimpleCommandLine</Product>
-    <Description>Simple command line library for .NET console applications</Description>
+    <Description>Simple command-line parser for .NET console applications.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/archi-Doc/SimpleCommandLine</PackageProjectUrl>
     <RepositoryUrl>https://github.com/archi-Doc/SimpleCommandLine</RepositoryUrl>
