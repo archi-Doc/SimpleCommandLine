@@ -2,7 +2,7 @@
 
 ![Nuget](https://img.shields.io/nuget/v/SimpleCommandLine) ![Build and Test](https://github.com/archi-Doc/SimpleCommandLine/workflows/Build%20and%20Test/badge.svg)
 
-Simple command line library for .NET console applications.
+Simple command-line parser for .NET console applications.
 
 
 
