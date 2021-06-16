@@ -13,9 +13,22 @@ using System.Threading.Tasks;
 
 namespace SimpleCommandLine
 {
+    public interface ISimpleCommand<T>
+        where T : new()
+    {
+        Task Run(T option, string[] args);
+    }
+
     public interface ISimpleCommand
     {
-        void Run();
+        Task Run(string[] args);
+    }
+
+    public static class SimpleParserExtensions
+    {
+        public static string[] SplitAtSpace(this string text) => text.Split((char[])null!, StringSplitOptions.RemoveEmptyEntries);
+
+        public static bool IsOptionString(this string text) => text.StartsWith('-');
     }
 
     /// <summary>
@@ -169,7 +182,7 @@ namespace SimpleCommandLine
 
                 for (var n = start; n < args.Length; n++)
                 {
-                    if (SimpleParser.IsOption(args[n]))
+                    if (args[n].IsOptionString())
                     {// -option
                         var name = args[n].Trim('-');
                         Option? option;
@@ -182,7 +195,7 @@ namespace SimpleCommandLine
                         {// Option found
                             if (n + 1 < args.Length)
                             {
-                                if (!SimpleParser.IsOption(args[n + 1]))
+                                if (!args[n + 1].IsOptionString())
                                 {
                                     n++;
                                     if (option.Parse(args[n], this.Instance))
@@ -236,7 +249,7 @@ namespace SimpleCommandLine
                 return true;
             }
 
-            public void Run()
+            /*public void Run()
             {
                 if (this.Instance == null)
                 {
@@ -267,7 +280,7 @@ namespace SimpleCommandLine
 
                 // No Run method
                 throw new InvalidOperationException($"{methodName}() or {methodName}(string[] args) method is required in Type {this.CommandType.ToString()}.");
-            }
+            }*/
 
             public async Task RunAsync()
             {
@@ -284,23 +297,35 @@ namespace SimpleCommandLine
                     {
                         continue;
                     }
-                    else if (x.ReturnType != typeof(Task))
-                    {
-                        continue;
-                    }
 
                     var parameters = x.GetParameters();
-                    if (parameters.Length == 0)
-                    {// Command.Run()
-                        var task = (Task)x.Invoke(this.Instance, null);
-                        await task;
-                        return;
+                    if (x.ReturnType == typeof(void))
+                    {
+                        /*if (parameters.Length == 0)
+                        {// Command.Run()
+                            x.Invoke(this.Instance, null);
+                            return;
+                        }
+                        else */if (parameters.Length == 1 && parameters[0].ParameterType == typeof(string[]))
+                        {// Command.Run(args)
+                            x.Invoke(this.Instance, new object[] { this.RemainingArguments ?? Array.Empty<string>() });
+                            return;
+                        }
                     }
-                    else if (parameters.Length == 1 && parameters[0].ParameterType == typeof(string[]))
-                    {// Command.Run(args)
-                        var task = (Task)x.Invoke(this.Instance, new object[] { this.RemainingArguments ?? Array.Empty<string>() });
-                        await task;
-                        return;
+                    else if (x.ReturnType == typeof(Task))
+                    {
+                        /*if (parameters.Length == 0)
+                        {// Command.Run()
+                            var task = (Task)x.Invoke(this.Instance, null);
+                            await task;
+                            return;
+                        }
+                        else */if (parameters.Length == 1 && parameters[0].ParameterType == typeof(string[]))
+                        {// Command.Run(args)
+                            var task = (Task)x.Invoke(this.Instance, new object[] { this.RemainingArguments ?? Array.Empty<string>() });
+                            await task;
+                            return;
+                        }
                     }
                 }
 
@@ -559,7 +584,7 @@ namespace SimpleCommandLine
             }
         }
 
-        public static void ParseAndRun(IEnumerable<Type> simpleCommands, string arg) => ParseAndRun(simpleCommands, arg.SplitAtSpace());
+        /*public static void ParseAndRun(IEnumerable<Type> simpleCommands, string arg) => ParseAndRun(simpleCommands, arg.SplitAtSpace());
 
         public static void ParseAndRun(IEnumerable<Type> simpleCommands, string[] args)
         {
@@ -576,25 +601,14 @@ namespace SimpleCommandLine
             {
                 p.Run();
             }
-        }
+        }*/
 
         public static Task ParseAndRunAsync(IEnumerable<Type> simpleCommands, string arg) => ParseAndRunAsync(simpleCommands, arg.Split((char[])null!, StringSplitOptions.RemoveEmptyEntries));
 
         public static async Task ParseAndRunAsync(IEnumerable<Type> simpleCommands, string[] args)
         {
             var p = Parse(simpleCommands, args);
-            if (p.HelpCommand != null)
-            {
-                p.ShowHelp();
-            }
-            else if (p.VersionCommand)
-            {
-                p.ShowVersion();
-            }
-            else
-            {
-                await p.RunAsync();
-            }
+            await p.RunAsync();
         }
 
         public static SimpleParser Parse(Type simpleCommand, string[] args) => Parse(new Type[] { simpleCommand }, args);
@@ -613,7 +627,7 @@ namespace SimpleCommandLine
             var start = 0;
             if (args.Length >= 1)
             {
-                if (!SimpleParser.IsOption(args[0]))
+                if (!args[0].IsOptionString())
                 {// Command
                     if (p.SimpleCommands.ContainsKey(args[0]))
                     {// Found
@@ -663,7 +677,7 @@ namespace SimpleCommandLine
                 else
                 {
                     p.HelpCommand = commandSpecified ? commandName : string.Empty;
-                    if (args.Any(x => SimpleParser.IsOption(x) && OptionEquals(x, HelpString)))
+                    if (args.Any(x => x.IsOptionString() && OptionEquals(x, HelpString)))
                     {// -help option. Clear error messages.
                         p.ErrorMessage.Clear();
                     }
@@ -673,16 +687,22 @@ namespace SimpleCommandLine
             return p;
         }
 
-        public void Run()
-        {
-            this.CurrentCommand?.Run();
-        }
-
         public async Task RunAsync()
         {
-            if (this.CurrentCommand != null)
+            if (this.HelpCommand != null)
             {
-                await this.CurrentCommand.RunAsync();
+                this.ShowHelp();
+            }
+            else if (this.VersionCommand)
+            {
+                this.ShowVersion();
+            }
+            else
+            {
+                if (this.CurrentCommand != null)
+                {
+                    await this.CurrentCommand.RunAsync();
+                }
             }
         }
 
@@ -771,8 +791,6 @@ namespace SimpleCommandLine
 
         internal static bool OptionEquals(string arg, string command) => arg.Trim('-').Equals(command, StringComparison.OrdinalIgnoreCase);
 
-        internal static bool IsOption(string arg) => arg.StartsWith('-');
-
         private void AppendUsage(StringBuilder sb, string? commandName)
         {
             if (commandName == null)
@@ -839,10 +857,5 @@ namespace SimpleCommandLine
             this.TypeConverter.Add(typeof(string), static x => x);
             this.TypeConverter.Add(typeof(char), static x => Convert.ToChar(x, CultureInfo.InvariantCulture));
         }
-    }
-
-    internal static class SimpleParserExtension
-    {
-        internal static string[] SplitAtSpace(this string text) => text.Split((char[])null!, StringSplitOptions.RemoveEmptyEntries);
     }
 }
