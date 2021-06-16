@@ -6,12 +6,18 @@ using SimpleCommandLine;
 namespace ConsoleApp1
 {
     [SimpleCommand("test")]
-    public class TestCommand
+    public class TestCommand : ISimpleCommand
     {
         [SimpleOption("number", "n")]
         public int N { get; set; } = 10;
 
         public void Run()
+        {
+            Console.WriteLine("Test command");
+            Console.WriteLine($"N is {this.N}");
+        }
+
+        public void Run(string[] args)
         {
             Console.WriteLine("Test command");
             Console.WriteLine($"N is {this.N}");
@@ -27,9 +33,16 @@ namespace ConsoleApp1
                 typeof(TestCommand),
             };
 
-            var p = SimpleParser.Parse(commandTypes, args);
+            var commands = new ISimpleCommand[]
+            {
+                new TestCommand(),
+            };
+
+            SimpleParser.ParseAndRun(commandTypes, "-help     -version  a　b     c   d e");
+
+            /*var p = SimpleParser.Parse(commandTypes, args);
             p.Run();
-            p.ShowHelp();
+            p.ShowHelp();*/
         }
     }
 }
