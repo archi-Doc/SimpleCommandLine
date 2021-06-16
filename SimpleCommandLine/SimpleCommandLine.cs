@@ -519,6 +519,8 @@ namespace SimpleCommandLine
             }
         }
 
+        public static SimpleParser ParseAndRun(IEnumerable<Type> simpleCommands, string arg) => ParseAndRun(simpleCommands, arg.Split((char[])null!, StringSplitOptions.RemoveEmptyEntries));
+
         public static SimpleParser ParseAndRun(IEnumerable<Type> simpleCommands, string[] args)
         {
             var p = Parse(simpleCommands, args);
