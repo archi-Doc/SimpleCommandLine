@@ -1,11 +1,12 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System;
+using System.Threading.Tasks;
 using SimpleCommandLine;
 
 namespace ConsoleApp1
 {
-    [SimpleCommand("test")]
+    [SimpleCommand("test", Runner)]
     public class TestCommand : ISimpleCommand
     {
         [SimpleOption("number", "n")]
@@ -17,8 +18,9 @@ namespace ConsoleApp1
             Console.WriteLine($"N is {this.N}");
         }
 
-        public void Run(string[] args)
+        public async Task Run(string[] args)
         {
+            await Task.Delay(4000);
             Console.WriteLine("Test command");
             Console.WriteLine($"N is {this.N}");
         }
@@ -26,7 +28,7 @@ namespace ConsoleApp1
 
     public class Program
     {
-        public static void Main(string[] args)
+        public static async Task Main(string[] args)
         {
             var commandTypes = new Type[]
             {
@@ -38,7 +40,9 @@ namespace ConsoleApp1
                 new TestCommand(),
             };
 
-            SimpleParser.ParseAndRun(commandTypes, "-help     -version  a　b     c   d e");
+            await SimpleParser.ParseAndRunAsync(commandTypes, "");
+
+            var p = SimpleParser.Parse(commandTypes, "");
 
             /*var p = SimpleParser.Parse(commandTypes, args);
             p.Run();

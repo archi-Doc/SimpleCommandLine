@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Threading.Tasks;
 
 #pragma warning disable SA1009 // Closing parenthesis should be spaced correctly
 
@@ -268,6 +269,45 @@ namespace SimpleCommandLine
                 throw new InvalidOperationException($"{methodName}() or {methodName}(string[] args) method is required in Type {this.CommandType.ToString()}.");
             }
 
+            public async Task RunAsync()
+            {
+                if (this.Instance == null)
+                {
+                    return;
+                }
+
+                var methods = this.CommandType.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
+                var methodName = RunMethodString;
+                foreach (var x in methods)
+                {
+                    if (x.Name != methodName)
+                    {
+                        continue;
+                    }
+                    else if (x.ReturnType != typeof(Task))
+                    {
+                        continue;
+                    }
+
+                    var parameters = x.GetParameters();
+                    if (parameters.Length == 0)
+                    {// Command.Run()
+                        var task = (Task)x.Invoke(this.Instance, null);
+                        await task;
+                        return;
+                    }
+                    else if (parameters.Length == 1 && parameters[0].ParameterType == typeof(string[]))
+                    {// Command.Run(args)
+                        var task = (Task)x.Invoke(this.Instance, new object[] { this.RemainingArguments ?? Array.Empty<string>() });
+                        await task;
+                        return;
+                    }
+                }
+
+                // No Run method
+                throw new InvalidOperationException($"{methodName}() or {methodName}(string[] args) method is required in Type {this.CommandType.ToString()}.");
+            }
+
             public SimpleParser Parser { get; }
 
             public Type CommandType { get; }
@@ -519,9 +559,9 @@ namespace SimpleCommandLine
             }
         }
 
-        public static SimpleParser ParseAndRun(IEnumerable<Type> simpleCommands, string arg) => ParseAndRun(simpleCommands, arg.Split((char[])null!, StringSplitOptions.RemoveEmptyEntries));
+        public static void ParseAndRun(IEnumerable<Type> simpleCommands, string arg) => ParseAndRun(simpleCommands, arg.SplitAtSpace());
 
-        public static SimpleParser ParseAndRun(IEnumerable<Type> simpleCommands, string[] args)
+        public static void ParseAndRun(IEnumerable<Type> simpleCommands, string[] args)
         {
             var p = Parse(simpleCommands, args);
             if (p.HelpCommand != null)
@@ -536,11 +576,32 @@ namespace SimpleCommandLine
             {
                 p.Run();
             }
+        }
 
-            return p;
+        public static Task ParseAndRunAsync(IEnumerable<Type> simpleCommands, string arg) => ParseAndRunAsync(simpleCommands, arg.Split((char[])null!, StringSplitOptions.RemoveEmptyEntries));
+
+        public static async Task ParseAndRunAsync(IEnumerable<Type> simpleCommands, string[] args)
+        {
+            var p = Parse(simpleCommands, args);
+            if (p.HelpCommand != null)
+            {
+                p.ShowHelp();
+            }
+            else if (p.VersionCommand)
+            {
+                p.ShowVersion();
+            }
+            else
+            {
+                await p.RunAsync();
+            }
         }
 
         public static SimpleParser Parse(Type simpleCommand, string[] args) => Parse(new Type[] { simpleCommand }, args);
+
+        public static SimpleParser Parse(Type simpleCommand, string args) => Parse(new Type[] { simpleCommand }, args.SplitAtSpace());
+
+        public static SimpleParser Parse(IEnumerable<Type> simpleCommands, string arg) => Parse(simpleCommands, arg.SplitAtSpace());
 
         public static SimpleParser Parse(IEnumerable<Type> simpleCommands, string[] args)
         {
@@ -615,6 +676,14 @@ namespace SimpleCommandLine
         public void Run()
         {
             this.CurrentCommand?.Run();
+        }
+
+        public async Task RunAsync()
+        {
+            if (this.CurrentCommand != null)
+            {
+                await this.CurrentCommand.RunAsync();
+            }
         }
 
         public void ShowHelp(string? command = null)
@@ -770,5 +839,10 @@ namespace SimpleCommandLine
             this.TypeConverter.Add(typeof(string), static x => x);
             this.TypeConverter.Add(typeof(char), static x => Convert.ToChar(x, CultureInfo.InvariantCulture));
         }
+    }
+
+    internal static class SimpleParserExtension
+    {
+        internal static string[] SplitAtSpace(this string text) => text.Split((char[])null!, StringSplitOptions.RemoveEmptyEntries);
     }
 }
