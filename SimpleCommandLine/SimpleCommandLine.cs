@@ -134,6 +134,37 @@ namespace SimpleCommandLine
                 this.CommandName = commandName;
                 this.Default = @default;
 
+                foreach (var y in commandType.GetInterfaces())
+                {
+                    if (y == typeof(ISimpleCommand))
+                    {
+                        if (this.OptionType == null)
+                        {
+                            this.OptionType = typeof(void);
+                        }
+                        else
+                        {
+                            throw new InvalidOperationException($"Type \"{commandType.ToString()}\" can implement only one ISimpleCommand or ISimpleCommand<T>.");
+                        }
+                    }
+                    else if (y.IsGenericType && y.GetGenericTypeDefinition() == typeof(ISimpleCommand<>))
+                    {
+                        if (this.OptionType == null)
+                        {
+                            this.OptionType = y.GetGenericArguments()[0];
+                        }
+                        else
+                        {
+                            throw new InvalidOperationException($"Type \"{commandType.ToString()}\" can implement only one ISimpleCommand or ISimpleCommand<T>.");
+                        }
+                    }
+                }
+
+                if (this.OptionType == null)
+                {
+                    throw new InvalidOperationException($"Type \"{commandType.ToString()}\" must implement ISimpleCommand or ISimpleCommand<T>.");
+                }
+
                 if (this.CommandType.GetConstructor(Type.EmptyTypes) == null)
                 {
                     throw new InvalidOperationException($"Default constructor (parameterless constructor) is required for type '{commandType.ToString()}'.");
@@ -142,7 +173,7 @@ namespace SimpleCommandLine
                 this.Options = new();
                 this.LongNameToOption = new(StringComparer.InvariantCultureIgnoreCase);
                 this.ShortNameToOption = new(StringComparer.InvariantCultureIgnoreCase);
-                foreach (var x in this.CommandType.GetMembers(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+                foreach (var x in this.OptionType.GetMembers(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
                 {
                     if (x.MemberType != MemberTypes.Field && x.MemberType != MemberTypes.Property)
                     {
@@ -198,7 +229,7 @@ namespace SimpleCommandLine
                                 if (!args[n + 1].IsOptionString())
                                 {
                                     n++;
-                                    if (option.Parse(args[n], this.Instance))
+                                    if (option.Parse(args[n], this.OptionInstance))
                                     {
                                         option.ValueIsSet = true;
                                     }
@@ -284,11 +315,6 @@ namespace SimpleCommandLine
 
             public async Task RunAsync()
             {
-                if (this.Instance == null)
-                {
-                    return;
-                }
-
                 var methods = this.CommandType.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
                 var methodName = RunMethodString;
                 foreach (var x in methods)
@@ -298,33 +324,27 @@ namespace SimpleCommandLine
                         continue;
                     }
 
-                    var parameters = x.GetParameters();
-                    if (x.ReturnType == typeof(void))
+                    if (x.ReturnType == typeof(Task))
                     {
-                        /*if (parameters.Length == 0)
-                        {// Command.Run()
-                            x.Invoke(this.Instance, null);
-                            return;
+                        var parameters = x.GetParameters();
+                        var args = this.RemainingArguments ?? Array.Empty<string>();
+                        if (this.OptionType == typeof(void))
+                        {
+                            if (parameters.Length == 1 && parameters[0].ParameterType == typeof(string[]))
+                            {// Task Run(string[] args);
+                                var task = (Task)x.Invoke(this.CommandInstance, new object[] { args });
+                                await task;
+                                return;
+                            }
                         }
-                        else */if (parameters.Length == 1 && parameters[0].ParameterType == typeof(string[]))
-                        {// Command.Run(args)
-                            x.Invoke(this.Instance, new object[] { this.RemainingArguments ?? Array.Empty<string>() });
-                            return;
-                        }
-                    }
-                    else if (x.ReturnType == typeof(Task))
-                    {
-                        /*if (parameters.Length == 0)
-                        {// Command.Run()
-                            var task = (Task)x.Invoke(this.Instance, null);
-                            await task;
-                            return;
-                        }
-                        else */if (parameters.Length == 1 && parameters[0].ParameterType == typeof(string[]))
-                        {// Command.Run(args)
-                            var task = (Task)x.Invoke(this.Instance, new object[] { this.RemainingArguments ?? Array.Empty<string>() });
-                            await task;
-                            return;
+                        else
+                        {
+                            if (parameters.Length == 2 && parameters[0].ParameterType == this.OptionType && parameters[1].ParameterType == typeof(string[]))
+                            {// Task Run(T option, string[] args);
+                                var task = (Task)x.Invoke(this.CommandInstance, new object[] { this.OptionInstance, args });
+                                await task;
+                                return;
+                            }
                         }
                     }
                 }
@@ -337,6 +357,8 @@ namespace SimpleCommandLine
 
             public Type CommandType { get; }
 
+            public Type OptionType { get; }
+
             public string CommandName { get; }
 
             public bool Default { get; internal set; }
@@ -347,18 +369,14 @@ namespace SimpleCommandLine
 
             public Dictionary<string, Option> ShortNameToOption { get; }
 
-            public object Instance => this.instance != null ? this.instance : (this.instance = Activator.CreateInstance(this.CommandType)!);
+            public object CommandInstance => this.commandInstance != null ? this.commandInstance : (this.commandInstance = Activator.CreateInstance(this.CommandType)!);
+
+            public object OptionInstance => this.optionInstance != null ? this.optionInstance : (this.optionInstance = this.OptionType == typeof(void) ? new object() : Activator.CreateInstance(this.OptionType)!);
 
             public string[]? RemainingArguments { get; private set; }
 
             internal void Append(StringBuilder sb)
             {
-                var instance = Activator.CreateInstance(this.CommandType);
-                if (this.instance == null)
-                {
-                    this.instance = instance;
-                }
-
                 if (this.Default)
                 {
                     sb.AppendLine($"{this.CommandName} (default) options:");
@@ -366,6 +384,12 @@ namespace SimpleCommandLine
                 else
                 {
                     sb.AppendLine($"{this.CommandName} options:");
+                }
+
+                if (this.Options.Count == 0)
+                {
+                    sb.AppendLine();
+                    return;
                 }
 
                 var maxWidth = this.Options.Max(x => x.OptionText.Length);
@@ -406,7 +430,7 @@ namespace SimpleCommandLine
                     }
                     else
                     {
-                        var value = x.GetValue(instance);
+                        var value = x.GetValue(this.OptionInstance);
                         if (value == null)
                         {
                             sb.Append($" (Optional)");
@@ -427,7 +451,8 @@ namespace SimpleCommandLine
                 sb.AppendLine();
             }
 
-            private object? instance;
+            private object? commandInstance;
+            private object? optionInstance;
         }
 
         public class Option
@@ -539,11 +564,6 @@ namespace SimpleCommandLine
             this.ErrorMessage = new();
             foreach (var x in simpleCommands)
             {
-                /*if (!x.GetInterfaces().Contains(typeof(ISimpleCommand)))
-                {
-                    throw new InvalidOperationException($"Type \"{x.ToString()}\" must implement ISimpleCommand.");
-                }*/
-
                 // Get SimpleCommandAttribute
                 var attribute = x.GetCustomAttributes<SimpleCommandAttribute>(true).FirstOrDefault();
                 if (attribute == null)
