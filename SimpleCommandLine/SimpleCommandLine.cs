@@ -14,7 +14,7 @@ using System.Threading.Tasks;
 namespace SimpleCommandLine
 {
     /// <summary>
-    /// A simple command class with options class T requires an implementation of <seealso cref="ISimpleCommandAsync{T}"/>.
+    /// A simple command class with options class requires an implementation of <seealso cref="ISimpleCommandAsync{T}"/>.
     /// </summary>
     /// <typeparam name="T">The type of options class.</typeparam>
     public interface ISimpleCommandAsync<T>
@@ -30,7 +30,7 @@ namespace SimpleCommandLine
     }
 
     /// <summary>
-    /// A simple command class with options class T requires an implementation of <seealso cref="ISimpleCommand{T}"/>.
+    /// A simple command class with options class requires an implementation of <seealso cref="ISimpleCommand{T}"/>.
     /// </summary>
     /// <typeparam name="T">The type of options class.</typeparam>
     public interface ISimpleCommand<T>
