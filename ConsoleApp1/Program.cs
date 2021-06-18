@@ -8,26 +8,24 @@ using SimpleCommandLine;
 
 namespace ConsoleApp1
 {
-    /// <summary>
-    /// A class that stores command options.
-    /// </summary>
     public class TestOptions
-    {
-        [SimpleOption("number", "n", "test number")] // Annotate SimpleOptionAttribute and specify a long/short option name.
+    {// A class that stores command options.
+        [SimpleOption("number", "n", "test number")] // Annotate SimpleOptionAttribute and specify a long/short option name and description.
         public int Number { get; set; } = 10; // Set a default value.
 
         [SimpleOption("text", "t", "test text.", Required = true)] // Set Required to true if you want to make the option required.
         public string Text { get; set; } = string.Empty;
     }
 
-    /// <summary>
-    /// A class that process the command function.
-    /// </summary>
-    [SimpleCommand("test", "Test command.")] // Annotate SimpleCommandAttribute and specify a command name.
+    [SimpleCommand("test", "Test command.", Default = true)] // Annotate SimpleCommandAttribute and specify a command name and description.
     public class TestCommand : ISimpleCommandAsync<TestOptions> // Implementation of either ISimpleCommandAsync<T> or ISimpleCommand<T> is required.
-    {
+    {// A class that handles the command function.
+        // Run() method will be called if you specify "test" command-line argument.
         public async Task Run(TestOptions option, string[] args)
         {
+            // TestOption class is parsed from command-line arguments.
+            // args is the remaining arguments.
+
             Console.WriteLine("Test command");
             Console.WriteLine($"Number is {option.Number}");
             Console.WriteLine($"Text is {option.Text}");
@@ -38,16 +36,23 @@ namespace ConsoleApp1
     {
         public static async Task Main(string[] args)
         {
+            // An array of command types.
+            // Command type must have SimpleCommandAttribute and implement ISimpleCommandAsync<T> or ISimpleCommand<T>.
             var commandTypes = new Type[]
             {
                 typeof(TestCommand),
             };
 
-            await SimpleParser.ParseAndRunAsync(commandTypes, "-Number 1 -Text \"tes\"");
+            // Parse arguments and call appropriate command method.
+            await SimpleParser.ParseAndRunAsync(commandTypes, "-number 1 -text sample");
+            Console.WriteLine();
 
             var p = new SimpleParser(commandTypes);
-            p.ShowVersion();
-            p.ShowHelp();
+
+            p.ShowVersion(); // Show application version (1.0.0)
+            Console.WriteLine();
+
+            p.ShowHelp(); // Show help text.
         }
     }
 }
