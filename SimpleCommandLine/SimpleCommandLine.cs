@@ -1014,7 +1014,7 @@ namespace SimpleCommandLine
         public void ShowHelp(string? command = null)
         {
             var sb = new StringBuilder();
-            if (command == null && this.ErrorMessage.Count > 0)
+            if (this.ErrorMessage.Count > 0)
             {
                 sb.Append("Error: ");
                 sb.AppendLine(this.OriginalArguments);

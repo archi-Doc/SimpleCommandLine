@@ -48,7 +48,8 @@ namespace ConsoleApp1
 
             // You can manually create a parser and parse an argument string.
             var p = new SimpleParser(commandTypes);
-            await SimpleParser.ParseAndRunAsync(commandTypes, "-number 1 -text sample");
+            p.Parse("-number 1 -text sample");
+            await p.RunAsync();
             Console.WriteLine();
 
             p.ShowVersion(); // Show application version (1.0.0)
