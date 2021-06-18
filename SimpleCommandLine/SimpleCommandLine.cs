@@ -343,6 +343,20 @@ namespace SimpleCommandLine
                         else
                         {// Not found
                             remaining.Add(args[n]);
+
+                            if (this.Parser.ParserOptions.RequireStrictOptionName)
+                            {
+                                if (this.OptionType == null)
+                                {
+                                    this.Parser.AddErrorMessage($"Option '{name}' is invalid");
+                                }
+                                else
+                                {
+                                    this.Parser.AddErrorMessage($"Option '{name}' is not found in Type: {this.OptionType.ToString()}");
+                                }
+
+                                errorFlag = true;
+                            }
                         }
                     }
                     else
@@ -734,11 +748,13 @@ namespace SimpleCommandLine
         /// Initializes a new instance of the <see cref="SimpleParser"/> class that is a parser class for Simple command.
         /// </summary>
         /// <param name="simpleCommands">The <seealso cref="IEnumerable{T}"/> whose simple command types are used to parse arguments and execute the command.</param>
-        public SimpleParser(IEnumerable<Type> simpleCommands)
+        /// <param name="parserOptions">The parser options. Use <c>null</c> to use default options.</param>
+        public SimpleParser(IEnumerable<Type> simpleCommands, SimpleParserOptions? parserOptions = null)
         {
+            this.ParserOptions = parserOptions ?? SimpleParserOptions.Standard;
             this.InitializeTypeConverter();
 
-            // Command? firstOrDefault = null;
+            Command? firstOrDefault = null;
             this.SimpleCommands = new(StringComparer.InvariantCultureIgnoreCase);
             this.ErrorMessage = new();
             foreach (var x in simpleCommands)
@@ -765,27 +781,34 @@ namespace SimpleCommandLine
                     command = new(this, x, attribute);
                     this.SimpleCommands.Add(name, command);
 
+                    /* // Option 2: The first default command is the default command.
                     if (command.Default && this.DefaultCommandName == null)
                     {
                         this.DefaultCommandName = command.CommandName;
-                    }
+                    }*/
 
-                    /*if (firstOrDefault == null)
+                    // Option 1: Regards the first command as the default command.
+                    if (firstOrDefault == null)
                     {
                         firstOrDefault = command;
                     }
                     else if (!firstOrDefault.Default && command.Default)
                     {
                         firstOrDefault = command;
-                    }*/
+                    }
                 }
             }
 
-            /*if (firstOrDefault != null)
+            if (firstOrDefault != null)
             {
                 firstOrDefault.Default = true;
                 this.DefaultCommandName = firstOrDefault.CommandName;
-            }*/
+            }
+
+            if (this.ParserOptions.RequireStrictCommandName)
+            {// No default command
+                this.DefaultCommandName = null;
+            }
         }
 
         /// <summary>
@@ -793,18 +816,20 @@ namespace SimpleCommandLine
         /// </summary>
         /// <param name="simpleCommands">The <seealso cref="IEnumerable{T}"/> whose simple command types are used to parse arguments and execute the command.</param>
         /// <param name="arg">The arguments for specifying commands and options.</param>
+        /// <param name="parserOptions">The parser options. Use <c>null</c> to use default options.</param>
         /// <returns>A task that represents the command execution.</returns>
-        public static Task ParseAndRunAsync(IEnumerable<Type> simpleCommands, string arg) => ParseAndRunAsync(simpleCommands, arg.Split((char[])null!, StringSplitOptions.RemoveEmptyEntries));
+        public static Task ParseAndRunAsync(IEnumerable<Type> simpleCommands, string arg, SimpleParserOptions? parserOptions = null) => ParseAndRunAsync(simpleCommands, arg.Split((char[])null!, StringSplitOptions.RemoveEmptyEntries), parserOptions);
 
         /// <summary>
         /// Parse the arguments and executes the specified command asynchronously.
         /// </summary>
         /// <param name="simpleCommands">The <seealso cref="IEnumerable{T}"/> whose simple command types are used to parse arguments and execute the command.</param>
         /// <param name="args">The arguments for specifying commands and options.</param>
+        /// <param name="parserOptions">The parser options. Use <c>null</c> to use default options.</param>
         /// <returns>A task that represents the command execution.</returns>
-        public static async Task ParseAndRunAsync(IEnumerable<Type> simpleCommands, string[] args)
+        public static async Task ParseAndRunAsync(IEnumerable<Type> simpleCommands, string[] args, SimpleParserOptions? parserOptions = null)
         {
-            var p = new SimpleParser(simpleCommands);
+            var p = new SimpleParser(simpleCommands, parserOptions);
             p.Parse(args);
             await p.RunAsync();
         }
@@ -814,23 +839,21 @@ namespace SimpleCommandLine
         /// </summary>
         /// <param name="simpleCommands">The <seealso cref="IEnumerable{T}"/> whose simple command types are used to parse arguments and execute the command.</param>
         /// <param name="arg">The arguments for specifying commands and options.</param>
-        public static void ParseAndRun(IEnumerable<Type> simpleCommands, string arg) => ParseAndRun(simpleCommands, arg.Split((char[])null!, StringSplitOptions.RemoveEmptyEntries));
+        /// <param name="parserOptions">The parser options. Use <c>null</c> to use default options.</param>
+        public static void ParseAndRun(IEnumerable<Type> simpleCommands, string arg, SimpleParserOptions? parserOptions = null) => ParseAndRun(simpleCommands, arg.Split((char[])null!, StringSplitOptions.RemoveEmptyEntries), parserOptions);
 
         /// <summary>
         /// Parse the arguments and executes the specified command.
         /// </summary>
         /// <param name="simpleCommands">The <seealso cref="IEnumerable{T}"/> whose simple command types are used to parse arguments and execute the command.</param>
         /// <param name="args">The arguments for specifying commands and options.</param>
-        public static void ParseAndRun(IEnumerable<Type> simpleCommands, string[] args)
+        /// <param name="parserOptions">The parser options. Use <c>null</c> to use default options.</param>
+        public static void ParseAndRun(IEnumerable<Type> simpleCommands, string[] args, SimpleParserOptions? parserOptions = null)
         {
-            var p = new SimpleParser(simpleCommands);
+            var p = new SimpleParser(simpleCommands, parserOptions);
             p.Parse(args);
             p.Run();
         }
-
-        // public static SimpleParser Parse(Type simpleCommand, string[] args) => Parse(new Type[] { simpleCommand }, args);
-
-        // public static SimpleParser Parse(Type simpleCommand, string args) => Parse(new Type[] { simpleCommand }, args.SplitAtSpace());
 
         /// <summary>
         /// Parse the arguments.
@@ -892,16 +915,16 @@ namespace SimpleCommandLine
                 }
             }
 
-            if (commandName == null)
-            {
-                this.AddErrorMessage("Specify the command name");
-                ret = false;
-                this.HelpCommand = string.Empty;
-            }
-
             if (this.HelpCommand != null || this.VersionCommand)
             {
                 return ret;
+            }
+
+            if (commandName == null)
+            {
+                this.AddErrorMessage("Specify the command name");
+                this.HelpCommand = string.Empty;
+                return false;
             }
 
             if (commandName != null && this.SimpleCommands.TryGetValue(commandName, out var command))
@@ -1043,6 +1066,8 @@ namespace SimpleCommandLine
 
         public void AddErrorMessage(string message) => this.ErrorMessage.Add(message);
 
+        public SimpleParserOptions ParserOptions { get; }
+
         /// <summary>
         /// Gets the original arguments which is passed to Parse() method.
         /// </summary>
@@ -1117,6 +1142,7 @@ namespace SimpleCommandLine
         private void InitializeTypeConverter()
         {
             this.TypeConverter = new();
+
             this.TypeConverter.Add(typeof(bool), static x =>
             {
                 var st = x.ToLower();
@@ -1134,6 +1160,16 @@ namespace SimpleCommandLine
                 }
             });
 
+            this.TypeConverter.Add(typeof(string), static x =>
+            {
+                if (x.Length >= 2 && x.StartsWith('\"') && x.EndsWith('\"'))
+                {
+                    return x.Substring(1, x.Length - 2);
+                }
+
+                return x;
+            });
+
             this.TypeConverter.Add(typeof(sbyte), static x => Convert.ToSByte(x, CultureInfo.InvariantCulture));
             this.TypeConverter.Add(typeof(byte), static x => Convert.ToByte(x, CultureInfo.InvariantCulture));
             this.TypeConverter.Add(typeof(short), static x => Convert.ToInt16(x, CultureInfo.InvariantCulture));
@@ -1145,8 +1181,99 @@ namespace SimpleCommandLine
             this.TypeConverter.Add(typeof(float), static x => Convert.ToSingle(x, CultureInfo.InvariantCulture));
             this.TypeConverter.Add(typeof(double), static x => Convert.ToDouble(x, CultureInfo.InvariantCulture));
             this.TypeConverter.Add(typeof(decimal), static x => Convert.ToDecimal(x, CultureInfo.InvariantCulture));
-            this.TypeConverter.Add(typeof(string), static x => x);
             this.TypeConverter.Add(typeof(char), static x => Convert.ToChar(x, CultureInfo.InvariantCulture));
+        }
+    }
+
+    public class SimpleParserOptions
+    {
+        public static SimpleParserOptions Standard { get; } = new SimpleParserOptions();
+
+        /// <summary>
+        /// Gets the parser option which requires to specify the command name (no default command).
+        /// </summary>
+        public static SimpleParserOptions StrictCommandName { get; } = Standard.WithStrictCommandName(true);
+
+        /// <summary>
+        /// Gets the parser option which requires the strict option name (unregistered options will result in an error).
+        /// </summary>
+        public static SimpleParserOptions StrictOptionName { get; } = Standard.WithStrictOptionName(true);
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="SimpleParserOptions"/> class.
+        /// </summary>
+        protected internal SimpleParserOptions()
+        {
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="SimpleParserOptions"/> class
+        /// with members initialized from an existing instance.
+        /// </summary>
+        /// <param name="copyFrom">The options to copy from.</param>
+        protected SimpleParserOptions(SimpleParserOptions copyFrom)
+        {
+            this.RequireStrictCommandName = copyFrom.RequireStrictCommandName;
+            this.RequireStrictOptionName = copyFrom.RequireStrictOptionName;
+        }
+
+        /// <summary>
+        /// Gets a value indicating whether or not to require to specify the command name (no default command).
+        /// </summary>
+        public bool RequireStrictCommandName { get; private set; } = false;
+
+        /// <summary>
+        /// Gets a value indicating whether or not to requires the strict option name (unregistered options will result in an error).
+        /// </summary>
+        public bool RequireStrictOptionName { get; private set; } = false;
+
+        /// <summary>
+        /// Gets a copy of these options with the <see cref="RequireStrictCommandName"/> property set to a new value.
+        /// </summary>
+        /// <param name="requireStrictCommandName">The new value for the <see cref="RequireStrictCommandName"/> property.</param>
+        /// <returns>The new instance; or the original if the value is unchanged.</returns>
+        public SimpleParserOptions WithStrictCommandName(bool requireStrictCommandName)
+        {
+            if (this.RequireStrictCommandName == requireStrictCommandName)
+            {
+                return this;
+            }
+
+            var result = this.Clone();
+            result.RequireStrictCommandName = requireStrictCommandName;
+            return result;
+        }
+
+        /// <summary>
+        /// Gets a copy of these options with the <see cref="RequireStrictOptionName"/> property set to a new value.
+        /// </summary>
+        /// <param name="requireStrictOptionName">The new value for the <see cref="RequireStrictOptionName"/> property.</param>
+        /// <returns>The new instance; or the original if the value is unchanged.</returns>
+        public SimpleParserOptions WithStrictOptionName(bool requireStrictOptionName)
+        {
+            if (this.RequireStrictOptionName == requireStrictOptionName)
+            {
+                return this;
+            }
+
+            var result = this.Clone();
+            result.RequireStrictOptionName = requireStrictOptionName;
+            return result;
+        }
+
+        /// <summary>
+        /// Creates a clone of this instance with the same properties set.
+        /// </summary>
+        /// <returns>The cloned instance. Guaranteed to be a new instance.</returns>
+        /// <exception cref="NotSupportedException">Thrown if this instance is a derived type that doesn't override this method.</exception>
+        protected virtual SimpleParserOptions Clone()
+        {
+            if (this.GetType() != typeof(SimpleParserOptions))
+            {
+                throw new NotSupportedException($"The derived type {this.GetType().FullName} did not override the {nameof(this.Clone)} method as required.");
+            }
+
+            return new SimpleParserOptions(this);
         }
     }
 }

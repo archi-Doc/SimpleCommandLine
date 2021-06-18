@@ -44,7 +44,7 @@ namespace ConsoleApp1
             };
 
             // Parse arguments and call appropriate command method.
-            await SimpleParser.ParseAndRunAsync(commandTypes, "-Number 1 -Text \"tes\"");
+            await SimpleParser.ParseAndRunAsync(commandTypes, "-number 1 -text sample");
             Console.WriteLine();
 
             var p = new SimpleParser(commandTypes);

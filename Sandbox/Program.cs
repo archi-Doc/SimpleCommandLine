@@ -72,10 +72,6 @@ namespace ConsoleApp1
         public void Run(string[] args)
         {
         }
-
-        public void Run(object option, string[] args)
-        {
-        }
     }
 
     [SimpleCommand("test2")]
@@ -100,12 +96,14 @@ namespace ConsoleApp1
 
             await RunArg("");
 
-            var p = new SimpleParser(commandTypes);
-            p.Parse("-help");
+            var o = SimpleParserOptions.Standard.WithStrictCommandName(true).WithStrictOptionName(true);
+            var p = new SimpleParser(commandTypes, o);
+
+            // p.Parse("-help");
             await p.RunAsync();
 
-            p.Parse("");
-            p.Run();
+            p.Parse("test -n 43");
+            await p.RunAsync();
 
             /*var p = SimpleParser.Parse(commandTypes, args);
             p.Run();
