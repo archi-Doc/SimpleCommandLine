@@ -33,6 +33,7 @@ namespace ConsoleApp1
     {
         public async Task Run(TestOptions options, string[] args)
         {
+            Console.WriteLine("test command");
             if (args.Length == 0)
             {
                 return;
@@ -71,6 +72,10 @@ namespace ConsoleApp1
         public void Run(string[] args)
         {
         }
+
+        public void Run(object option, string[] args)
+        {
+        }
     }
 
     [SimpleCommand("test2")]
@@ -95,8 +100,12 @@ namespace ConsoleApp1
 
             await RunArg("");
 
-            var p = SimpleParser.Parse(commandTypes, "-help");
+            var p = new SimpleParser(commandTypes);
+            p.Parse("-help");
             await p.RunAsync();
+
+            p.Parse("");
+            p.Run();
 
             /*var p = SimpleParser.Parse(commandTypes, args);
             p.Run();

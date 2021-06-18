@@ -722,6 +722,10 @@ namespace SimpleCommandLine
             }
         }
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="SimpleParser"/> class that is a parser class for Simple command.
+        /// </summary>
+        /// <param name="simpleCommands">The <seealso cref="IEnumerable{T}"/> whose simple command types are used to parse arguments and execute the command.</param>
         public SimpleParser(IEnumerable<Type> simpleCommands)
         {
             this.InitializeTypeConverter();
@@ -787,7 +791,8 @@ namespace SimpleCommandLine
         /// <returns>A task that represents the command execution.</returns>
         public static async Task ParseAndRunAsync(IEnumerable<Type> simpleCommands, string[] args)
         {
-            var p = Parse(simpleCommands, args);
+            var p = new SimpleParser(simpleCommands);
+            p.Parse(args);
             await p.RunAsync();
         }
 
@@ -805,7 +810,8 @@ namespace SimpleCommandLine
         /// <param name="args">The arguments for specifying commands and options.</param>
         public static void ParseAndRun(IEnumerable<Type> simpleCommands, string[] args)
         {
-            var p = Parse(simpleCommands, args);
+            var p = new SimpleParser(simpleCommands);
+            p.Parse(args);
             p.Run();
         }
 
@@ -816,30 +822,30 @@ namespace SimpleCommandLine
         /// <summary>
         /// Parse the arguments.
         /// </summary>
-        /// <param name="simpleCommands">The <seealso cref="IEnumerable{T}"/> whose simple command types are used to parse arguments and execute the command.</param>
         /// <param name="arg">The arguments for specifying commands and options.</param>
-        /// <returns>An instance of <seealso cref="SimpleParser"/>.</returns>
-        public static SimpleParser Parse(IEnumerable<Type> simpleCommands, string arg) => Parse(simpleCommands, arg.SplitAtSpace());
+        /// <returns>True if the arguments are successfully parsed.</returns>
+        public bool Parse(string arg) => this.Parse(arg.SplitAtSpace());
 
         /// <summary>
         /// Parse the arguments.
         /// </summary>
-        /// <param name="simpleCommands">The <seealso cref="IEnumerable{T}"/> whose simple command types are used to parse arguments and execute the command.</param>
         /// <param name="args">The arguments for specifying commands and options.</param>
-        /// <returns>An instance of <seealso cref="SimpleParser"/>.</returns>
-        public static SimpleParser Parse(IEnumerable<Type> simpleCommands, string[] args)
+        /// <returns>True if the arguments are successfully parsed.</returns>
+        public bool Parse(string[] args)
         {
-            var p = new SimpleParser(simpleCommands);
-            p.OriginalArguments = string.Join(' ', args);
+            var ret = true;
+            this.OriginalArguments = string.Join(' ', args);
+            this.HelpCommand = null;
+            this.VersionCommand = false;
 
-            var commandName = p.DefaultCommandName;
+            var commandName = this.DefaultCommandName;
             var commandSpecified = false;
             var start = 0;
             if (args.Length >= 1)
             {
                 if (!args[0].IsOptionString())
                 {// Command
-                    if (p.SimpleCommands.ContainsKey(args[0]))
+                    if (this.SimpleCommands.ContainsKey(args[0]))
                     {// Found
                         commandName = args[0];
                         commandSpecified = true;
@@ -849,11 +855,11 @@ namespace SimpleCommandLine
                     {// Not found
                         if (OptionEquals(args[0], HelpString))
                         {// Help
-                            p.HelpCommand = string.Empty;
+                            this.HelpCommand = string.Empty;
                         }
                         else if (OptionEquals(args[0], VersionString))
                         {// Version
-                            p.VersionCommand = true;
+                            this.VersionCommand = true;
                         }
                         else
                         {
@@ -864,37 +870,38 @@ namespace SimpleCommandLine
                 {// Other
                     if (OptionEquals(args[0], HelpString))
                     {// Help
-                        p.HelpCommand = string.Empty;
+                        this.HelpCommand = string.Empty;
                     }
                     else if (OptionEquals(args[0], VersionString))
                     {// Version
-                        p.VersionCommand = true;
+                        this.VersionCommand = true;
                     }
                 }
             }
 
-            if (p.HelpCommand != null || p.VersionCommand)
+            if (this.HelpCommand != null || this.VersionCommand)
             {
-                return p;
+                return ret;
             }
 
-            if (commandName != null && p.SimpleCommands.TryGetValue(commandName, out var command))
+            if (commandName != null && this.SimpleCommands.TryGetValue(commandName, out var command))
             {
                 if (command.Parse(args, start))
-                {
-                    p.CurrentCommand = command;
+                {// Success
+                    this.CurrentCommand = command;
                 }
                 else
                 {
-                    p.HelpCommand = commandSpecified ? commandName : string.Empty;
+                    ret = false;
+                    this.HelpCommand = commandSpecified ? commandName : string.Empty;
                     if (args.Any(x => x.IsOptionString() && OptionEquals(x, HelpString)))
                     {// -help option. Clear error messages.
-                        p.ErrorMessage.Clear();
+                        this.ErrorMessage.Clear();
                     }
                 }
             }
 
-            return p;
+            return ret;
         }
 
         /// <summary>
