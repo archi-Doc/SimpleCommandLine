@@ -13,20 +13,19 @@ namespace ConsoleApp1
         [SimpleOption("number", "n", "test number")] // Annotate SimpleOptionAttribute and specify a long/short option name and description.
         public int Number { get; set; } = 10; // Set a default value.
 
-        [SimpleOption("text", "t", "test text.", Required = true)] // Set Required to true if you want to make the option required.
+        [SimpleOption("text", "t", "test text.", Required = true)] // Set Required property to true if you want to make the option required.
         public string Text { get; set; } = string.Empty;
     }
 
-    [SimpleCommand("test", "Test command.", Default = true)] // Annotate SimpleCommandAttribute and specify a command name and description.
+    [SimpleCommand("test", "Test command.")] // Annotate SimpleCommandAttribute and specify a command name and description.
     public class TestCommand : ISimpleCommandAsync<TestOptions> // Implementation of either ISimpleCommandAsync<T> or ISimpleCommand<T> is required.
     {// A class that handles the command function.
-        // Run() method will be called if you specify "test" command-line argument.
         public async Task Run(TestOptions option, string[] args)
-        {
+        {// Run() method will be called if you specify "test" command-line argument.
             // TestOption class is parsed from command-line arguments.
             // args is the remaining arguments.
 
-            Console.WriteLine("Test command");
+            Console.WriteLine("Test command:");
             Console.WriteLine($"Number is {option.Number}");
             Console.WriteLine($"Text is {option.Text}");
         }
@@ -43,16 +42,20 @@ namespace ConsoleApp1
                 typeof(TestCommand),
             };
 
-            // Parse arguments and call appropriate command method.
-            await SimpleParser.ParseAndRunAsync(commandTypes, "-number 1 -text sample");
+            // Parse arguments and call the appropriate command method.
+            await SimpleParser.ParseAndRunAsync(commandTypes, args); // If you do not specify a text option with a valid value, an error will occur.
             Console.WriteLine();
 
+            // You can manually create a parser and parse an argument string.
             var p = new SimpleParser(commandTypes);
+            await SimpleParser.ParseAndRunAsync(commandTypes, "-number 1 -text sample");
+            Console.WriteLine();
 
             p.ShowVersion(); // Show application version (1.0.0)
             Console.WriteLine();
 
             p.ShowHelp(); // Show help text.
+            Console.WriteLine();
         }
     }
 }

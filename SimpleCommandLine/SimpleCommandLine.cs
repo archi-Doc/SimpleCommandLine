@@ -889,29 +889,12 @@ namespace SimpleCommandLine
                     }
                     else
                     {// Not found
-                        if (OptionEquals(args[0], HelpString))
-                        {// Help
-                            this.HelpCommand = string.Empty;
-                        }
-                        else if (OptionEquals(args[0], VersionString))
-                        {// Version
-                            this.VersionCommand = true;
-                        }
-                        else
-                        {
-                        }
+                        TryProcessHelpAndVersion(); // "app.exe help", "app.exe version"
                     }
                 }
                 else
-                {// Other
-                    if (OptionEquals(args[0], HelpString))
-                    {// Help
-                        this.HelpCommand = string.Empty;
-                    }
-                    else if (OptionEquals(args[0], VersionString))
-                    {// Version
-                        this.VersionCommand = true;
-                    }
+                {// Other (option or value)
+                    TryProcessHelpAndVersion(); // "app.exe -help", "app.exe -version"
                 }
             }
 
@@ -927,8 +910,21 @@ namespace SimpleCommandLine
                 return false;
             }
 
-            if (commandName != null && this.SimpleCommands.TryGetValue(commandName, out var command))
+            if (this.SimpleCommands.TryGetValue(commandName, out var command))
             {
+                if (commandSpecified && args.Length > start && OptionEquals(args[start], HelpString))
+                {
+                    if (args[start].IsOptionString() &&
+                        (command.LongNameToOption.ContainsKey(HelpString) || command.ShortNameToOption.ContainsKey(HelpString)))
+                    {// "app.exe command -help"
+                    }
+                    else
+                    {// "app.exe command help"
+                        this.HelpCommand = commandName;
+                        return true;
+                    }
+                }
+
                 if (command.Parse(args, start))
                 {// Success
                     this.CurrentCommand = command;
@@ -937,14 +933,33 @@ namespace SimpleCommandLine
                 {
                     ret = false;
                     this.HelpCommand = commandSpecified ? commandName : string.Empty;
-                    if (args.Any(x => x.IsOptionString() && OptionEquals(x, HelpString)))
+                    /*if (args.Any(x => x.IsOptionString() && OptionEquals(x, HelpString)))
                     {// -help option. Clear error messages.
                         this.ErrorMessage.Clear();
-                    }
+                    }*/
                 }
             }
 
             return ret;
+
+            void TryProcessHelpAndVersion()
+            {
+                if (OptionEquals(args[0], HelpString))
+                {// Help
+                    if (args.Length >= 2 && !args[1].IsOptionString() && this.SimpleCommands.ContainsKey(args[1]))
+                    {// help command
+                        this.HelpCommand = args[1];
+                    }
+                    else
+                    {
+                        this.HelpCommand = string.Empty;
+                    }
+                }
+                else if (OptionEquals(args[0], VersionString))
+                {// Version
+                    this.VersionCommand = true;
+                }
+            }
         }
 
         /// <summary>
@@ -955,7 +970,7 @@ namespace SimpleCommandLine
         {
             if (this.HelpCommand != null)
             {
-                this.ShowHelp();
+                this.ShowHelp(this.HelpCommand);
             }
             else if (this.VersionCommand)
             {
@@ -977,7 +992,7 @@ namespace SimpleCommandLine
         {
             if (this.HelpCommand != null)
             {
-                this.ShowHelp();
+                this.ShowHelp(this.HelpCommand);
             }
             else if (this.VersionCommand)
             {
