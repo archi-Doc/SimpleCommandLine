@@ -7,15 +7,81 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Threading.Tasks;
 
 #pragma warning disable SA1009 // Closing parenthesis should be spaced correctly
 
 namespace SimpleCommandLine
 {
+    /// <summary>
+    /// A simple command class with options class requires an implementation of <seealso cref="ISimpleCommandAsync{T}"/>.
+    /// </summary>
+    /// <typeparam name="T">The type of options class.</typeparam>
+    public interface ISimpleCommandAsync<T>
+        where T : new()
+    {
+        /// <summary>
+        /// The method called when the command is executed.
+        /// </summary>
+        /// <param name="option">The command-line options class.</param>
+        /// <param name="args">The remaining command-line arguments.</param>
+        /// <returns>A task that represents the command execution.</returns>
+        Task Run(T option, string[] args);
+    }
+
+    /// <summary>
+    /// A simple command class with options class requires an implementation of <seealso cref="ISimpleCommand{T}"/>.
+    /// </summary>
+    /// <typeparam name="T">The type of options class.</typeparam>
+    public interface ISimpleCommand<T>
+        where T : new()
+    {
+        /// <summary>
+        /// The method called when the command is executed.
+        /// </summary>
+        /// <param name="option">The command-line options class.</param>
+        /// <param name="args">The remaining command-line arguments.</param>
+        void Run(T option, string[] args);
+    }
+
+    /// <summary>
+    /// A simple command class without options requires an implementation of <seealso cref="ISimpleCommandAsync"/>.
+    /// </summary>
+    public interface ISimpleCommandAsync
+    {
+        /// <summary>
+        /// The method called when the command is executed.
+        /// </summary>
+        /// <param name="args"> The command-line arguments.</param>
+        /// <returns>A task that represents the command execution.</returns>
+        Task Run(string[] args);
+    }
+
+    /// <summary>
+    /// A simple command class without options requires an implementation of <seealso cref="ISimpleCommand"/>.
+    /// </summary>
     public interface ISimpleCommand
     {
-        void Run();
+        /// <summary>
+        /// The method called when the command is executed.
+        /// </summary>
+        /// <param name="args"> The command-line arguments.</param>
+        void Run(string[] args);
     }
+
+    public static class SimpleParserExtensions
+    {
+        public static string[] SplitAtSpace(this string text) => text.Split((char[])null!, StringSplitOptions.RemoveEmptyEntries);
+
+        public static bool IsOptionString(this string text) => text.StartsWith('-');
+    }
+
+    /*/// <summary>
+    /// A class with no options.
+    /// </summary>
+    public sealed class WithoutOption
+    {
+    }*/
 
     /// <summary>
     /// Specifies the command name and other properties of the simple command.
@@ -115,43 +181,105 @@ namespace SimpleCommandLine
         {
             public Command(SimpleParser parser, Type commandType, string commandName, bool @default)
             {
+                const string MultipleInterfacesException = "Type {0} can implement only one ISimpleCommand or ISimpleCommandAsync interface.";
+
                 this.Parser = parser;
                 this.CommandType = commandType;
                 this.CommandName = commandName;
                 this.Default = @default;
+
+                foreach (var y in commandType.GetInterfaces())
+                {
+                    if (y == typeof(ISimpleCommand))
+                    {
+                        if (this.CommandInterface == null)
+                        {
+                            this.CommandInterface = y;
+                        }
+                        else
+                        {
+                            throw new InvalidOperationException(string.Format(MultipleInterfacesException, commandType.ToString()));
+                        }
+                    }
+                    else if (y == typeof(ISimpleCommandAsync))
+                    {
+                        if (this.CommandInterface == null)
+                        {
+                            this.CommandInterface = y;
+                        }
+                        else
+                        {
+                            throw new InvalidOperationException(string.Format(MultipleInterfacesException, commandType.ToString()));
+                        }
+                    }
+                    else if (y.IsGenericType)
+                    {
+                        var z = y.GetGenericTypeDefinition();
+                        if (z == typeof(ISimpleCommand<>) || z == typeof(ISimpleCommandAsync<>))
+                        {
+                            if (this.CommandInterface == null)
+                            {
+                                this.CommandInterface = z;
+                                this.OptionType = y.GetGenericArguments()[0];
+                            }
+                            else
+                            {
+                                throw new InvalidOperationException(string.Format(MultipleInterfacesException, commandType.ToString()));
+                            }
+                        }
+                    }
+                }
+
+                if (this.CommandInterface == null)
+                {
+                    throw new InvalidOperationException($"Type \"{commandType.ToString()}\" must implement ISimpleCommand or ISimpleCommandAsync.");
+                }
 
                 if (this.CommandType.GetConstructor(Type.EmptyTypes) == null)
                 {
                     throw new InvalidOperationException($"Default constructor (parameterless constructor) is required for type '{commandType.ToString()}'.");
                 }
 
+                var mi = this.FindMethod();
+                if (mi == null)
+                {// No Run method
+                    throw new InvalidOperationException($"{RunMethodString}() method is required in Type {this.CommandType.ToString()}.");
+                }
+                else
+                {
+                    this.runMethod = mi;
+                }
+
                 this.Options = new();
                 this.LongNameToOption = new(StringComparer.InvariantCultureIgnoreCase);
                 this.ShortNameToOption = new(StringComparer.InvariantCultureIgnoreCase);
-                foreach (var x in this.CommandType.GetMembers(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+                if (this.OptionType != null)
                 {
-                    if (x.MemberType != MemberTypes.Field && x.MemberType != MemberTypes.Property)
+                    foreach (var x in this.OptionType.GetMembers(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
                     {
-                        continue;
-                    }
+                        if (x.MemberType != MemberTypes.Field && x.MemberType != MemberTypes.Property)
+                        {
+                            continue;
+                        }
 
-                    var attribute = x.GetCustomAttributes<SimpleOptionAttribute>(true).FirstOrDefault();
-                    if (attribute == null)
-                    {
-                        continue;
-                    }
+                        var attribute = x.GetCustomAttributes<SimpleOptionAttribute>(true).FirstOrDefault();
+                        if (attribute == null)
+                        {
+                            continue;
+                        }
 
-                    var option = new Option(parser, x, attribute);
-                    this.Options.Add(option);
+                        var option = new Option(parser, x, attribute);
+                        this.Options.Add(option);
 
-                    if (!this.LongNameToOption.TryAdd(option.LongName, option))
-                    {
-                        throw new InvalidOperationException($"Long option name '{option.LongName}' ({commandType.ToString()}) already exists.");
-                    }
+                        if (!this.LongNameToOption.TryAdd(option.LongName, option))
+                        {
+                            throw new InvalidOperationException($"Long option name '{option.LongName}' ({commandType.ToString()}) already exists.");
+                        }
 
-                    if (option.ShortName != null && !this.LongNameToOption.TryAdd(option.ShortName, option))
-                    {
-                        throw new InvalidOperationException($"Short option name '{option.ShortName}' ({commandType.ToString()}) already exists.");
+                        if (option.ShortName != null && !this.LongNameToOption.TryAdd(option.ShortName, option))
+                        {
+                            throw new InvalidOperationException($"Short option name '{option.ShortName}' ({commandType.ToString()}) already exists.");
+                        }
                     }
                 }
             }
@@ -168,7 +296,7 @@ namespace SimpleCommandLine
 
                 for (var n = start; n < args.Length; n++)
                 {
-                    if (SimpleParser.IsOption(args[n]))
+                    if (args[n].IsOptionString())
                     {// -option
                         var name = args[n].Trim('-');
                         Option? option;
@@ -181,10 +309,10 @@ namespace SimpleCommandLine
                         {// Option found
                             if (n + 1 < args.Length)
                             {
-                                if (!SimpleParser.IsOption(args[n + 1]))
+                                if (!args[n + 1].IsOptionString())
                                 {
                                     n++;
-                                    if (option.Parse(args[n], this.Instance))
+                                    if (option.Parse(args[n], this.OptionInstance))
                                     {
                                         option.ValueIsSet = true;
                                     }
@@ -221,7 +349,7 @@ namespace SimpleCommandLine
                 {
                     if (x.Required && !x.ValueIsSet)
                     {// Value required.
-                        this.Parser.AddErrorMessage($"Set a valid value for option '{x.LongName}'");
+                        this.Parser.AddErrorMessage($"Value is required for option '{x.LongName}'");
                         errorFlag = true;
                     }
                 }
@@ -235,7 +363,7 @@ namespace SimpleCommandLine
                 return true;
             }
 
-            public void Run()
+            /*public void Run()
             {
                 if (this.Instance == null)
                 {
@@ -266,11 +394,63 @@ namespace SimpleCommandLine
 
                 // No Run method
                 throw new InvalidOperationException($"{methodName}() or {methodName}(string[] args) method is required in Type {this.CommandType.ToString()}.");
+            }*/
+
+            public async Task RunAsync()
+            {
+                var args = this.RemainingArguments ?? Array.Empty<string>();
+
+                if (this.CommandInterface == typeof(ISimpleCommand))
+                {// void Run(string[] args);
+                    this.runMethod.Invoke(this.CommandInstance, new object[] { args });
+                }
+                else if (this.CommandInterface == typeof(ISimpleCommand<>))
+                {// void Run(Options option, string[] args);
+                    this.runMethod.Invoke(this.CommandInstance, new object[] { this.OptionInstance!, args });
+                }
+                else if (this.CommandInterface == typeof(ISimpleCommandAsync))
+                {// Task Run(string[] args);
+                    var task = (Task)this.runMethod.Invoke(this.CommandInstance, new object[] { args });
+                    await task;
+                }
+                else if (this.CommandInterface == typeof(ISimpleCommandAsync<>))
+                {// Task Run(Options option, string[] args);
+                    var task = (Task)this.runMethod.Invoke(this.CommandInstance, new object[] { this.OptionInstance!, args });
+                    await task;
+                }
+            }
+
+            public void Run()
+            {
+                var args = this.RemainingArguments ?? Array.Empty<string>();
+
+                if (this.CommandInterface == typeof(ISimpleCommand))
+                {// void Run(string[] args);
+                    this.runMethod.Invoke(this.CommandInstance, new object[] { args });
+                }
+                else if (this.CommandInterface == typeof(ISimpleCommand<>))
+                {// void Run(Options option, string[] args);
+                    this.runMethod.Invoke(this.CommandInstance, new object[] { this.OptionInstance!, args });
+                }
+                else if (this.CommandInterface == typeof(ISimpleCommandAsync))
+                {// Task Run(string[] args);
+                    var task = (Task)this.runMethod.Invoke(this.CommandInstance, new object[] { args });
+                    task.Wait();
+                }
+                else if (this.CommandInterface == typeof(ISimpleCommandAsync<>))
+                {// Task Run(Options option, string[] args);
+                    var task = (Task)this.runMethod.Invoke(this.CommandInstance, new object[] { this.OptionInstance!, args });
+                    task.Wait();
+                }
             }
 
             public SimpleParser Parser { get; }
 
             public Type CommandType { get; }
+
+            public Type CommandInterface { get; }
+
+            public Type? OptionType { get; }
 
             public string CommandName { get; }
 
@@ -282,18 +462,14 @@ namespace SimpleCommandLine
 
             public Dictionary<string, Option> ShortNameToOption { get; }
 
-            public object Instance => this.instance != null ? this.instance : (this.instance = Activator.CreateInstance(this.CommandType)!);
+            public object CommandInstance => this.commandInstance != null ? this.commandInstance : (this.commandInstance = Activator.CreateInstance(this.CommandType)!);
+
+            public object? OptionInstance => this.optionInstance != null ? this.optionInstance : (this.optionInstance = this.OptionType == null ? null : Activator.CreateInstance(this.OptionType)!);
 
             public string[]? RemainingArguments { get; private set; }
 
-            internal void Append(StringBuilder sb)
+            internal void AppendCommand(StringBuilder sb)
             {
-                var instance = Activator.CreateInstance(this.CommandType);
-                if (this.instance == null)
-                {
-                    this.instance = instance;
-                }
-
                 if (this.Default)
                 {
                     sb.AppendLine($"{this.CommandName} (default) options:");
@@ -301,6 +477,12 @@ namespace SimpleCommandLine
                 else
                 {
                     sb.AppendLine($"{this.CommandName} options:");
+                }
+
+                if (this.Options.Count == 0)
+                {
+                    sb.AppendLine();
+                    return;
                 }
 
                 var maxWidth = this.Options.Max(x => x.OptionText.Length);
@@ -341,7 +523,7 @@ namespace SimpleCommandLine
                     }
                     else
                     {
-                        var value = x.GetValue(instance);
+                        var value = x.GetValue(this.OptionInstance);
                         if (value == null)
                         {
                             sb.Append($" (Optional)");
@@ -362,7 +544,73 @@ namespace SimpleCommandLine
                 sb.AppendLine();
             }
 
-            private object? instance;
+            private object? commandInstance;
+            private object? optionInstance;
+            private MethodInfo runMethod;
+
+            private MethodInfo? FindMethod()
+            {
+                var methods = this.CommandType.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly).Where(x => x.Name == RunMethodString);
+
+                if (this.CommandInterface == typeof(ISimpleCommand))
+                {
+                    foreach (var x in methods)
+                    {
+                        if (x.ReturnType == typeof(void))
+                        {
+                            var parameters = x.GetParameters();
+                            if (parameters.Length == 1 && parameters[0].ParameterType == typeof(string[]))
+                            {// void Run(string[] args);
+                                return x;
+                            }
+                        }
+                    }
+                }
+                else if (this.CommandInterface == typeof(ISimpleCommand<>))
+                {
+                    foreach (var x in methods)
+                    {
+                        if (x.ReturnType == typeof(void))
+                        {
+                            var parameters = x.GetParameters();
+                            if (parameters.Length == 2 && parameters[0].ParameterType == this.OptionType && parameters[1].ParameterType == typeof(string[]))
+                            {// void Run(Options option, string[] args);
+                                return x;
+                            }
+                        }
+                    }
+                }
+                else if (this.CommandInterface == typeof(ISimpleCommandAsync))
+                {
+                    foreach (var x in methods)
+                    {
+                        if (x.ReturnType == typeof(Task))
+                        {
+                            var parameters = x.GetParameters();
+                            if (parameters.Length == 1 && parameters[0].ParameterType == typeof(string[]))
+                            {// Task Run(string[] args);
+                                return x;
+                            }
+                        }
+                    }
+                }
+                else if (this.CommandInterface == typeof(ISimpleCommandAsync<>))
+                {
+                    foreach (var x in methods)
+                    {
+                        if (x.ReturnType == typeof(Task))
+                        {
+                            var parameters = x.GetParameters();
+                            if (parameters.Length == 2 && parameters[0].ParameterType == this.OptionType && parameters[1].ParameterType == typeof(string[]))
+                            {// Task Run(Options option, string[] args);
+                                return x;
+                            }
+                        }
+                    }
+                }
+
+                return null;
+            }
         }
 
         public class Option
@@ -400,6 +648,11 @@ namespace SimpleCommandLine
 
             public bool Parse(string arg, object? instance)
             {
+                if (instance == null)
+                {
+                    return false;
+                }
+
                 object value;
                 try
                 {
@@ -450,7 +703,11 @@ namespace SimpleCommandLine
 
             internal object? GetValue(object? instance)
             {
-                if (this.PropertyInfo?.GetGetMethod() is { } mi)
+                if (instance == null)
+                {
+                    return null;
+                }
+                else if (this.PropertyInfo?.GetGetMethod() is { } mi)
                 {// Get property
                     return mi.Invoke(instance, Array.Empty<object>());
                 }
@@ -465,7 +722,11 @@ namespace SimpleCommandLine
             }
         }
 
-        private SimpleParser(IEnumerable<Type> simpleCommands)
+        /// <summary>
+        /// Initializes a new instance of the <see cref="SimpleParser"/> class that is a parser class for Simple command.
+        /// </summary>
+        /// <param name="simpleCommands">The <seealso cref="IEnumerable{T}"/> whose simple command types are used to parse arguments and execute the command.</param>
+        public SimpleParser(IEnumerable<Type> simpleCommands)
         {
             this.InitializeTypeConverter();
 
@@ -474,11 +735,6 @@ namespace SimpleCommandLine
             this.ErrorMessage = new();
             foreach (var x in simpleCommands)
             {
-                /*if (!x.GetInterfaces().Contains(typeof(ISimpleCommand)))
-                {
-                    throw new InvalidOperationException($"Type \"{x.ToString()}\" must implement ISimpleCommand.");
-                }*/
-
                 // Get SimpleCommandAttribute
                 var attribute = x.GetCustomAttributes<SimpleCommandAttribute>(true).FirstOrDefault();
                 if (attribute == null)
@@ -519,42 +775,77 @@ namespace SimpleCommandLine
             }
         }
 
-        public static SimpleParser ParseAndRun(IEnumerable<Type> simpleCommands, string arg) => ParseAndRun(simpleCommands, arg.Split((char[])null!, StringSplitOptions.RemoveEmptyEntries));
+        /// <summary>
+        /// Parse the arguments and executes the specified command asynchronously.
+        /// </summary>
+        /// <param name="simpleCommands">The <seealso cref="IEnumerable{T}"/> whose simple command types are used to parse arguments and execute the command.</param>
+        /// <param name="arg">The arguments for specifying commands and options.</param>
+        /// <returns>A task that represents the command execution.</returns>
+        public static Task ParseAndRunAsync(IEnumerable<Type> simpleCommands, string arg) => ParseAndRunAsync(simpleCommands, arg.Split((char[])null!, StringSplitOptions.RemoveEmptyEntries));
 
-        public static SimpleParser ParseAndRun(IEnumerable<Type> simpleCommands, string[] args)
-        {
-            var p = Parse(simpleCommands, args);
-            if (p.HelpCommand != null)
-            {
-                p.ShowHelp();
-            }
-            else if (p.VersionCommand)
-            {
-                p.ShowVersion();
-            }
-            else
-            {
-                p.Run();
-            }
-
-            return p;
-        }
-
-        public static SimpleParser Parse(Type simpleCommand, string[] args) => Parse(new Type[] { simpleCommand }, args);
-
-        public static SimpleParser Parse(IEnumerable<Type> simpleCommands, string[] args)
+        /// <summary>
+        /// Parse the arguments and executes the specified command asynchronously.
+        /// </summary>
+        /// <param name="simpleCommands">The <seealso cref="IEnumerable{T}"/> whose simple command types are used to parse arguments and execute the command.</param>
+        /// <param name="args">The arguments for specifying commands and options.</param>
+        /// <returns>A task that represents the command execution.</returns>
+        public static async Task ParseAndRunAsync(IEnumerable<Type> simpleCommands, string[] args)
         {
             var p = new SimpleParser(simpleCommands);
-            p.CommandLine = string.Join(' ', args);
+            p.Parse(args);
+            await p.RunAsync();
+        }
 
-            var commandName = p.DefaultCommandName;
+        /// <summary>
+        /// Parse the arguments and executes the specified command.
+        /// </summary>
+        /// <param name="simpleCommands">The <seealso cref="IEnumerable{T}"/> whose simple command types are used to parse arguments and execute the command.</param>
+        /// <param name="arg">The arguments for specifying commands and options.</param>
+        public static void ParseAndRun(IEnumerable<Type> simpleCommands, string arg) => ParseAndRun(simpleCommands, arg.Split((char[])null!, StringSplitOptions.RemoveEmptyEntries));
+
+        /// <summary>
+        /// Parse the arguments and executes the specified command.
+        /// </summary>
+        /// <param name="simpleCommands">The <seealso cref="IEnumerable{T}"/> whose simple command types are used to parse arguments and execute the command.</param>
+        /// <param name="args">The arguments for specifying commands and options.</param>
+        public static void ParseAndRun(IEnumerable<Type> simpleCommands, string[] args)
+        {
+            var p = new SimpleParser(simpleCommands);
+            p.Parse(args);
+            p.Run();
+        }
+
+        // public static SimpleParser Parse(Type simpleCommand, string[] args) => Parse(new Type[] { simpleCommand }, args);
+
+        // public static SimpleParser Parse(Type simpleCommand, string args) => Parse(new Type[] { simpleCommand }, args.SplitAtSpace());
+
+        /// <summary>
+        /// Parse the arguments.
+        /// </summary>
+        /// <param name="arg">The arguments for specifying commands and options.</param>
+        /// <returns>True if the arguments are successfully parsed.</returns>
+        public bool Parse(string arg) => this.Parse(arg.SplitAtSpace());
+
+        /// <summary>
+        /// Parse the arguments.
+        /// </summary>
+        /// <param name="args">The arguments for specifying commands and options.</param>
+        /// <returns>True if the arguments are successfully parsed.</returns>
+        public bool Parse(string[] args)
+        {
+            var ret = true;
+            this.OriginalArguments = string.Join(' ', args);
+            this.HelpCommand = null;
+            this.VersionCommand = false;
+
+            var commandName = this.DefaultCommandName;
             var commandSpecified = false;
             var start = 0;
             if (args.Length >= 1)
             {
-                if (!SimpleParser.IsOption(args[0]))
+                if (!args[0].IsOptionString())
                 {// Command
-                    if (p.SimpleCommands.ContainsKey(args[0]))
+                    if (this.SimpleCommands.ContainsKey(args[0]))
                     {// Found
                         commandName = args[0];
                         commandSpecified = true;
@@ -564,11 +855,11 @@ namespace SimpleCommandLine
                     {// Not found
                         if (OptionEquals(args[0], HelpString))
                         {// Help
-                            p.HelpCommand = string.Empty;
+                            this.HelpCommand = string.Empty;
                         }
                         else if (OptionEquals(args[0], VersionString))
                         {// Version
-                            p.VersionCommand = true;
+                            this.VersionCommand = true;
                         }
                         else
                         {
@@ -579,51 +870,96 @@ namespace SimpleCommandLine
                 {// Other
                     if (OptionEquals(args[0], HelpString))
                     {// Help
-                        p.HelpCommand = string.Empty;
+                        this.HelpCommand = string.Empty;
                     }
                     else if (OptionEquals(args[0], VersionString))
                     {// Version
-                        p.VersionCommand = true;
+                        this.VersionCommand = true;
                     }
                 }
             }
 
-            if (p.HelpCommand != null || p.VersionCommand)
+            if (this.HelpCommand != null || this.VersionCommand)
             {
-                return p;
+                return ret;
             }
 
-            if (commandName != null && p.SimpleCommands.TryGetValue(commandName, out var command))
+            if (commandName != null && this.SimpleCommands.TryGetValue(commandName, out var command))
             {
                 if (command.Parse(args, start))
-                {
-                    p.CurrentCommand = command;
+                {// Success
+                    this.CurrentCommand = command;
                 }
                 else
                 {
-                    p.HelpCommand = commandSpecified ? commandName : string.Empty;
-                    if (args.Any(x => SimpleParser.IsOption(x) && OptionEquals(x, HelpString)))
+                    ret = false;
+                    this.HelpCommand = commandSpecified ? commandName : string.Empty;
+                    if (args.Any(x => x.IsOptionString() && OptionEquals(x, HelpString)))
                     {// -help option. Clear error messages.
-                        p.ErrorMessage.Clear();
+                        this.ErrorMessage.Clear();
                     }
                 }
             }
 
-            return p;
+            return ret;
         }
 
+        /// <summary>
+        /// Executes the currently specified command asynchronously or help/version command if needed.
+        /// </summary>
+        /// <returns>A task that represents the command execution.</returns>
+        public async Task RunAsync()
+        {
+            if (this.HelpCommand != null)
+            {
+                this.ShowHelp();
+            }
+            else if (this.VersionCommand)
+            {
+                this.ShowVersion();
+            }
+            else
+            {
+                if (this.CurrentCommand != null)
+                {
+                    await this.CurrentCommand.RunAsync();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Executes the currently specified command or help/version command if needed.
+        /// </summary>
         public void Run()
         {
-            this.CurrentCommand?.Run();
+            if (this.HelpCommand != null)
+            {
+                this.ShowHelp();
+            }
+            else if (this.VersionCommand)
+            {
+                this.ShowVersion();
+            }
+            else
+            {
+                if (this.CurrentCommand != null)
+                {
+                    this.CurrentCommand.Run();
+                }
+            }
         }
 
+        /// <summary>
+        /// Shows help messages.
+        /// </summary>
+        /// <param name="command">The name of the command for which help message will be displayed (string.Empty targets all commands).</param>
         public void ShowHelp(string? command = null)
         {
             var sb = new StringBuilder();
             if (command == null && this.ErrorMessage.Count > 0)
             {
                 sb.Append("Error: ");
-                sb.AppendLine(this.CommandLine);
+                sb.AppendLine(this.OriginalArguments);
                 foreach (var x in this.ErrorMessage)
                 {
                     sb.Append(IndentString);
@@ -650,17 +986,20 @@ namespace SimpleCommandLine
                 this.AppendCommandList(sb);
                 foreach (var x in this.SimpleCommands)
                 {
-                    x.Value.Append(sb);
+                    x.Value.AppendCommand(sb);
                 }
             }
             else
             {
-                c.Append(sb);
+                c.AppendCommand(sb);
             }
 
             Console.WriteLine(sb.ToString());
         }
 
+        /// <summary>
+        /// Show version.
+        /// </summary>
         public void ShowVersion()
         {
             var asm = Assembly.GetEntryAssembly();
@@ -684,25 +1023,44 @@ namespace SimpleCommandLine
 
         public void AddErrorMessage(string message) => this.ErrorMessage.Add(message);
 
-        public string CommandLine { get; private set; } = string.Empty;
+        /// <summary>
+        /// Gets the original arguments which is passed to Parse() method.
+        /// </summary>
+        public string OriginalArguments { get; private set; } = string.Empty;
 
+        /// <summary>
+        /// Gets the name of the default command.
+        /// </summary>
         public string? DefaultCommandName { get; }
 
+        /// <summary>
+        /// Gets the currently specified command.
+        /// </summary>
         public Command? CurrentCommand { get; private set; }
 
+        /// <summary>
+        /// Gets the name of the command for which help message will be displayed (string.Empty targets all commands).
+        /// </summary>
         public string? HelpCommand { get; private set; }
 
+        /// <summary>
+        /// Gets a value indicating whether the version command is specified.
+        /// </summary>
         public bool VersionCommand { get; private set; }
 
+        /// <summary>
+        /// Gets the collection of simple commands.
+        /// </summary>
         public Dictionary<string, Command> SimpleCommands { get; private set; }
 
+        /// <summary>
+        /// Gets the collection of type converters.
+        /// </summary>
         public Dictionary<Type, Func<string, object?>> TypeConverter { get; private set; } = default!;
 
         private List<string> ErrorMessage { get; }
 
         internal static bool OptionEquals(string arg, string command) => arg.Trim('-').Equals(command, StringComparison.OrdinalIgnoreCase);
-
-        internal static bool IsOption(string arg) => arg.StartsWith('-');
 
         private void AppendUsage(StringBuilder sb, string? commandName)
         {
