@@ -4,6 +4,8 @@ using System;
 using System.Threading.Tasks;
 using SimpleCommandLine;
 
+#pragma warning disable CS1998 // Async method lacks 'await' operators and will run synchronously
+
 namespace ConsoleApp1
 {
     [SimpleCommand("test")]
@@ -27,7 +29,7 @@ namespace ConsoleApp1
     }
 
     [SimpleCommand("test")]
-    public class TestCommand : ISimpleCommand<TestOptions>
+    public class TestCommand : ISimpleCommandAsync<TestOptions>
     {
         public async Task Run(TestOptions options, string[] args)
         {
@@ -63,8 +65,16 @@ namespace ConsoleApp1
         }
     }
 
+    [SimpleCommand("sync")]
+    public class SyncCommand : ISimpleCommand
+    {
+        public void Run(string[] args)
+        {
+        }
+    }
+
     [SimpleCommand("test2")]
-    public class TestCommand2 : ISimpleCommand
+    public class TestCommand2 : ISimpleCommandAsync
     {
         public async Task Run(string[] args)
         {
@@ -80,6 +90,7 @@ namespace ConsoleApp1
                 typeof(TestCommand),
                 typeof(TestCommand2),
                 typeof(DerivedCommand),
+                typeof(SyncCommand),
             };
 
             await RunArg("");

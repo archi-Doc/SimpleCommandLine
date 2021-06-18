@@ -240,6 +240,16 @@ namespace SimpleCommandLine
                     throw new InvalidOperationException($"Default constructor (parameterless constructor) is required for type '{commandType.ToString()}'.");
                 }
 
+                var mi = this.FindMethod();
+                if (mi == null)
+                {// No Run method
+                    throw new InvalidOperationException($"{RunMethodString}() method is required in Type {this.CommandType.ToString()}.");
+                }
+                else
+                {
+                    this.runMethod = mi;
+                }
+
                 this.Options = new();
                 this.LongNameToOption = new(StringComparer.InvariantCultureIgnoreCase);
                 this.ShortNameToOption = new(StringComparer.InvariantCultureIgnoreCase);
@@ -388,44 +398,50 @@ namespace SimpleCommandLine
 
             public async Task RunAsync()
             {
-                var mi = this.GetMethod(this.CommandInterface);
+                var args = this.RemainingArguments ?? Array.Empty<string>();
 
-                var methods = this.CommandType.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
-                var methodName = RunMethodString;
-                foreach (var x in methods)
-                {
-                    if (x.Name != methodName)
-                    {
-                        continue;
-                    }
-
-                    if (x.ReturnType == typeof(Task))
-                    {
-                        var parameters = x.GetParameters();
-                        var args = this.RemainingArguments ?? Array.Empty<string>();
-                        if (this.OptionType == typeof(void))
-                        {
-                            if (parameters.Length == 1 && parameters[0].ParameterType == typeof(string[]))
-                            {// Task Run(string[] args);
-                                var task = (Task)x.Invoke(this.CommandInstance, new object[] { args });
-                                await task;
-                                return;
-                            }
-                        }
-                        else
-                        {
-                            if (parameters.Length == 2 && parameters[0].ParameterType == this.OptionType && parameters[1].ParameterType == typeof(string[]))
-                            {// Task Run(T option, string[] args);
-                                var task = (Task)x.Invoke(this.CommandInstance, new object[] { this.OptionInstance!, args });
-                                await task;
-                                return;
-                            }
-                        }
-                    }
+                if (this.CommandInterface == typeof(ISimpleCommand))
+                {// void Run(string[] args);
+                    this.runMethod.Invoke(this.CommandInstance, new object[] { args });
                 }
+                else if (this.CommandInterface == typeof(ISimpleCommand<>))
+                {// void Run(Options option, string[] args);
+                    this.runMethod.Invoke(this.CommandInstance, new object[] { this.OptionInstance!, args });
+                }
+                else if (this.CommandInterface == typeof(ISimpleCommandAsync))
+                {// Task Run(string[] args);
+                    var task = (Task)this.runMethod.Invoke(this.CommandInstance, new object[] { args });
+                    await task;
+                }
+                else if (this.CommandInterface == typeof(ISimpleCommandAsync<>))
+                {// Task Run(Options option, string[] args);
+                    var task = (Task)this.runMethod.Invoke(this.CommandInstance, new object[] { this.OptionInstance!, args });
+                    await task;
+                }
+            }
 
-                // No Run method
-                throw new InvalidOperationException($"{methodName}() or {methodName}(string[] args) method is required in Type {this.CommandType.ToString()}.");
+            public void Run()
+            {
+                var args = this.RemainingArguments ?? Array.Empty<string>();
+
+                if (this.CommandInterface == typeof(ISimpleCommand))
+                {// void Run(string[] args);
+                    this.runMethod.Invoke(this.CommandInstance, new object[] { args });
+                }
+                else if (this.CommandInterface == typeof(ISimpleCommand<>))
+                {// void Run(Options option, string[] args);
+                    this.runMethod.Invoke(this.CommandInstance, new object[] { this.OptionInstance!, args });
+                }
+                else if (this.CommandInterface == typeof(ISimpleCommandAsync))
+                {// Task Run(string[] args);
+                    var task = (Task)this.runMethod.Invoke(this.CommandInstance, new object[] { args });
+                    task.Wait();
+                }
+                else if (this.CommandInterface == typeof(ISimpleCommandAsync<>))
+                {// Task Run(Options option, string[] args);
+                    var task = (Task)this.runMethod.Invoke(this.CommandInstance, new object[] { this.OptionInstance!, args });
+                    task.Wait();
+                }
             }
 
             public SimpleParser Parser { get; }
@@ -530,11 +546,11 @@ namespace SimpleCommandLine
 
             private object? commandInstance;
             private object? optionInstance;
+            private MethodInfo runMethod;
 
-            private MethodInfo GetMethod()
+            private MethodInfo? FindMethod()
             {
-                var methodName = RunMethodString;
-                var methods = this.CommandType.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly).Where(a => a.Name == methodName);
+                var methods = this.CommandType.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly).Where(x => x.Name == RunMethodString);
 
                 if (this.CommandInterface == typeof(ISimpleCommand))
                 {
@@ -544,25 +560,56 @@ namespace SimpleCommandLine
                         {
                             var parameters = x.GetParameters();
                             if (parameters.Length == 1 && parameters[0].ParameterType == typeof(string[]))
-                            {// Task Run(string[] args);
-                                var task = (Task)x.Invoke(this.CommandInstance, new object[] { args });
-                                await task;
-                                return;
+                            {// void Run(string[] args);
+                                return x;
                             }
                         }
                     }
                 }
-                else if (interfaceType == typeof(ISimpleCommand<>))
+                else if (this.CommandInterface == typeof(ISimpleCommand<>))
+                {
+                    foreach (var x in methods)
+                    {
+                        if (x.ReturnType == typeof(void))
+                        {
+                            var parameters = x.GetParameters();
+                            if (parameters.Length == 2 && parameters[0].ParameterType == this.OptionType && parameters[1].ParameterType == typeof(string[]))
+                            {// void Run(Options option, string[] args);
+                                return x;
+                            }
+                        }
+                    }
+                }
+                else if (this.CommandInterface == typeof(ISimpleCommandAsync))
                 {
                     foreach (var x in methods)
                     {
                         if (x.ReturnType == typeof(Task))
                         {
+                            var parameters = x.GetParameters();
+                            if (parameters.Length == 1 && parameters[0].ParameterType == typeof(string[]))
+                            {// Task Run(string[] args);
+                                return x;
+                            }
                         }
                     }
+                }
+                else if (this.CommandInterface == typeof(ISimpleCommandAsync<>))
+                {
+                    foreach (var x in methods)
+                    {
+                        if (x.ReturnType == typeof(Task))
+                        {
+                            var parameters = x.GetParameters();
+                            if (parameters.Length == 2 && parameters[0].ParameterType == this.OptionType && parameters[1].ParameterType == typeof(string[]))
+                            {// Task Run(Options option, string[] args);
+                                return x;
+                            }
+                        }
+                    }
+                }
 
-                    // No Run method
-                    throw new InvalidOperationException($"{methodName}() or {methodName}(string[] args) method is required in Type {this.CommandType.ToString()}.");
+                return null;
             }
         }
 
@@ -675,7 +722,7 @@ namespace SimpleCommandLine
             }
         }
 
-        private SimpleParser(IEnumerable<Type> simpleCommands)
+        public SimpleParser(IEnumerable<Type> simpleCommands)
         {
             this.InitializeTypeConverter();
 
