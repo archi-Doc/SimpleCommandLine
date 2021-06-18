@@ -23,7 +23,7 @@ namespace SimpleCommandLine
         /// <summary>
         /// The method called when the command is executed.
         /// </summary>
-        /// <param name="option">The command-line options class.</param>
+        /// <param name="option">The command options class parsed from command-line arguments.</param>
         /// <param name="args">The remaining command-line arguments.</param>
         /// <returns>A task that represents the command execution.</returns>
         Task Run(T option, string[] args);
@@ -133,26 +133,26 @@ namespace SimpleCommandLine
         public string? ShortName { get; }
 
         /// <summary>
-        /// Gets or sets the description of the commandline option.
+        /// Gets or sets the description of the command-line option.
         /// </summary>
         public string? Description { get; set; }
 
         /// <summary>
-        /// Gets or sets the default value text of the commandline option.
+        /// Gets or sets the default value text of the command-line option.
         /// </summary>
         public string? DefaultValueText { get; set; }
 
         /// <summary>
-        /// Gets or sets a value indicating whether this commandline option is required [the default is false].
+        /// Gets or sets a value indicating whether this command-line option is required [the default is false].
         /// </summary>
         public bool Required { get; set; }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="SimpleOptionAttribute"/> class.
         /// </summary>
-        /// <param name="longName">The long commandline name.</param>
-        /// <param name="shortName">The short commandline name. Null if you don't want use short name.</param>
-        /// <param name="description">The description of the commandline option.</param>
+        /// <param name="longName">The long command-line name.</param>
+        /// <param name="shortName">The short command-line name. Null if you don't want use short name.</param>
+        /// <param name="description">The description of the command-line option.</param>
         public SimpleOptionAttribute(string longName, string? shortName = null, string? description = null)
         {
             if (string.IsNullOrWhiteSpace(longName))
@@ -187,6 +187,10 @@ namespace SimpleCommandLine
                 this.CommandType = commandType;
                 this.CommandName = commandName;
                 this.Default = @default;
+                if (this.CommandName == string.Empty)
+                {
+                    this.Default = true;
+                }
 
                 foreach (var y in commandType.GetInterfaces())
                 {
@@ -730,7 +734,7 @@ namespace SimpleCommandLine
         {
             this.InitializeTypeConverter();
 
-            Command? firstOrDefault = null;
+            // Command? firstOrDefault = null;
             this.SimpleCommands = new(StringComparer.InvariantCultureIgnoreCase);
             this.ErrorMessage = new();
             foreach (var x in simpleCommands)
@@ -757,22 +761,27 @@ namespace SimpleCommandLine
                     command = new(this, x, name, attribute.Default);
                     this.SimpleCommands.Add(name, command);
 
-                    if (firstOrDefault == null)
+                    if (command.Default && this.DefaultCommandName == null)
+                    {
+                        this.DefaultCommandName = command.CommandName;
+                    }
+
+                    /*if (firstOrDefault == null)
                     {
                         firstOrDefault = command;
                     }
                     else if (!firstOrDefault.Default && command.Default)
                     {
                         firstOrDefault = command;
-                    }
+                    }*/
                 }
             }
 
-            if (firstOrDefault != null)
+            /*if (firstOrDefault != null)
             {
                 firstOrDefault.Default = true;
                 this.DefaultCommandName = firstOrDefault.CommandName;
-            }
+            }*/
         }
 
         /// <summary>
@@ -877,6 +886,13 @@ namespace SimpleCommandLine
                         this.VersionCommand = true;
                     }
                 }
+            }
+
+            if (commandName == null)
+            {
+                this.AddErrorMessage("Specify the command name");
+                ret = false;
+                this.HelpCommand = string.Empty;
             }
 
             if (this.HelpCommand != null || this.VersionCommand)
