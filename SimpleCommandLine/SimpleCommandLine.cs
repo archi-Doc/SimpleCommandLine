@@ -179,14 +179,16 @@ namespace SimpleCommandLine
 
         public class Command
         {
-            public Command(SimpleParser parser, Type commandType, string commandName, bool @default)
+            public Command(SimpleParser parser, Type commandType, SimpleCommandAttribute attribute)
             {
                 const string MultipleInterfacesException = "Type {0} can implement only one ISimpleCommand or ISimpleCommandAsync interface.";
 
                 this.Parser = parser;
                 this.CommandType = commandType;
-                this.CommandName = commandName;
-                this.Default = @default;
+                this.CommandName = attribute.CommandName;
+                this.Default = attribute.Default;
+                this.Description = attribute.Description;
+
                 if (this.CommandName == string.Empty)
                 {
                     this.Default = true;
@@ -266,13 +268,13 @@ namespace SimpleCommandLine
                             continue;
                         }
 
-                        var attribute = x.GetCustomAttributes<SimpleOptionAttribute>(true).FirstOrDefault();
-                        if (attribute == null)
+                        var optionAttribute = x.GetCustomAttributes<SimpleOptionAttribute>(true).FirstOrDefault();
+                        if (optionAttribute == null)
                         {
                             continue;
                         }
 
-                        var option = new Option(parser, x, attribute);
+                        var option = new Option(parser, x, optionAttribute);
                         this.Options.Add(option);
 
                         if (!this.LongNameToOption.TryAdd(option.LongName, option))
@@ -460,6 +462,8 @@ namespace SimpleCommandLine
 
             public bool Default { get; internal set; }
 
+            public string? Description { get; }
+
             public List<Option> Options { get; }
 
             public Dictionary<string, Option> LongNameToOption { get; }
@@ -474,13 +478,13 @@ namespace SimpleCommandLine
 
             internal void AppendCommand(StringBuilder sb)
             {
-                if (this.Default)
+                if (this.CommandName == string.Empty)
                 {
-                    sb.AppendLine($"{this.CommandName} (default) options:");
+                    sb.AppendLine($"{this.Description}");
                 }
                 else
                 {
-                    sb.AppendLine($"{this.CommandName} options:");
+                    sb.AppendLine($"{this.CommandName}: {this.Description}");
                 }
 
                 if (this.Options.Count == 0)
@@ -758,7 +762,7 @@ namespace SimpleCommandLine
                 }
                 else
                 {
-                    command = new(this, x, name, attribute.Default);
+                    command = new(this, x, attribute);
                     this.SimpleCommands.Add(name, command);
 
                     if (command.Default && this.DefaultCommandName == null)
