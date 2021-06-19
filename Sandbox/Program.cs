@@ -43,8 +43,26 @@ namespace ConsoleApp1
 
     public class TestOptions
     {
-        [SimpleOption("number", "n")]
-        public int N { get; set; } = 10;
+        [SimpleOption("directory", null, "base directory for storing application data")]
+        public string Directory { get; set; } = string.Empty;
+
+        [SimpleOption("mode", null, "mode(receive, transfer)")]
+        public string Mode { get; private set; } = "receive";
+
+        [SimpleOption("port", null, "local port number to transfer packets")]
+        public int Port { get; } = 2000;
+
+        [SimpleOption("targetip", null, "target ip address", Required = true)]
+        public string TargetIp { get; } = string.Empty;
+
+        [SimpleOption("targetport", null, "target port number")]
+        public int TargetPort { get; } = 1000;
+
+        [SimpleOption("receiver", null, "true if the node is receiver")]
+        public bool Receiveer { get; } = true;
+
+        [SimpleOption("n", null, "test N")]
+        public int N { get; } = 4;
     }
 
     [SimpleCommand("test")]
@@ -58,22 +76,6 @@ namespace ConsoleApp1
         public async Task Run(TestOptions options, string[] args)
         {
             Console.WriteLine("test command");
-            if (args.Length == 0)
-            {
-                return;
-            }
-
-            switch (args[0])
-            {
-                case "a":
-                    await Test1(options);
-                    break;
-            }
-        }
-
-        public async Task Test1(TestOptions options)
-        {
-            await Task.Delay(1000);
         }
 
         public ICommandService CommandService { get; }
@@ -137,14 +139,11 @@ namespace ConsoleApp1
                 RequireStrictOptionName = true
             };
 
-            await RunArg("", parserOptions);
+            // await RunArg("", parserOptions);
 
             var p = new SimpleParser(commandTypes, parserOptions);
 
-            // p.Parse("-help");
-            await p.RunAsync();
-
-            p.Parse("test -n 43");
+            p.Parse("test -mode receive -port 12211 -targetip 3.18.216.240 -targetport 49152");
             await p.RunAsync();
 
             /*var p = SimpleParser.Parse(commandTypes, args);
@@ -154,7 +153,7 @@ namespace ConsoleApp1
             async Task RunArg(string arg, SimpleParserOptions options)
             {
                 Console.WriteLine(arg);
-                await SimpleParser.ParseAndRunAsync(commandTypes, arg, options);
+                await SimpleParser.ParseAndRunAsync(commandTypes!, arg, options);
             }
 
             container.Dispose();
