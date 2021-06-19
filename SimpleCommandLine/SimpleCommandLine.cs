@@ -241,7 +241,7 @@ namespace SimpleCommandLine
                     throw new InvalidOperationException($"Type \"{commandType.ToString()}\" must implement ISimpleCommand or ISimpleCommandAsync.");
                 }
 
-                if (this.CommandType.GetConstructor(Type.EmptyTypes) == null)
+                if (this.Parser.ParserOptions.ServiceProvider == null && this.CommandType.GetConstructor(Type.EmptyTypes) == null)
                 {
                     throw new InvalidOperationException($"Default constructor (parameterless constructor) is required for type '{commandType.ToString()}'.");
                 }
@@ -490,7 +490,27 @@ namespace SimpleCommandLine
 
             public Dictionary<string, Option> ShortNameToOption { get; }
 
-            public object CommandInstance => this.commandInstance != null ? this.commandInstance : (this.commandInstance = Activator.CreateInstance(this.CommandType)!);
+            // public object CommandInstance => this.commandInstance != null ? this.commandInstance : (this.commandInstance = Activator.CreateInstance(this.CommandType)!);
+            public object CommandInstance
+            {
+                get
+                {
+                    if (this.commandInstance == null)
+                    {
+                        if (this.Parser.ParserOptions.ServiceProvider != null)
+                        {
+                            this.commandInstance = this.Parser.ParserOptions.ServiceProvider.GetService(this.CommandType);
+                        }
+
+                        if (this.commandInstance == null)
+                        {
+                            this.commandInstance = Activator.CreateInstance(this.CommandType)!;
+                        }
+                    }
+
+                    return this.commandInstance;
+                }
+            }
 
             public object? OptionInstance => this.optionInstance != null ? this.optionInstance : (this.optionInstance = this.OptionType == null ? null : Activator.CreateInstance(this.OptionType)!);
 
@@ -1226,6 +1246,11 @@ namespace SimpleCommandLine
         protected internal SimpleParserOptions()
         {
         }
+
+        /// <summary>
+        /// Gets an <seealso cref="IServiceProvider"/> that is used to create command instances.
+        /// </summary>
+        public IServiceProvider? ServiceProvider { get; init; }
 
         /// <summary>
         /// Gets a value indicating whether or not to require to specify the command name (no default command).

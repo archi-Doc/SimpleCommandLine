@@ -2,12 +2,31 @@
 
 using System;
 using System.Threading.Tasks;
+using DryIoc;
 using SimpleCommandLine;
 
 #pragma warning disable CS1998 // Async method lacks 'await' operators and will run synchronously
 
 namespace ConsoleApp1
 {
+    public interface ICommandService
+    {
+        void Enter(string directory);
+
+        void Exit();
+    }
+
+    public class CommandService : ICommandService
+    {
+        public void Enter(string directory)
+        {
+        }
+
+        public void Exit()
+        {
+        }
+    }
+
     [SimpleCommand("test")]
     public class ObsoleteCommand
     {
@@ -31,6 +50,11 @@ namespace ConsoleApp1
     [SimpleCommand("test")]
     public class TestCommand : ISimpleCommandAsync<TestOptions>
     {
+        public TestCommand(ICommandService commandService)
+        {
+            this.CommandService = commandService;
+        }
+
         public async Task Run(TestOptions options, string[] args)
         {
             Console.WriteLine("test command");
@@ -39,7 +63,7 @@ namespace ConsoleApp1
                 return;
             }
 
-            switch(args[0])
+            switch (args[0])
             {
                 case "a":
                     await Test1(options);
@@ -51,12 +75,15 @@ namespace ConsoleApp1
         {
             await Task.Delay(1000);
         }
+
+        public ICommandService CommandService { get; }
     }
 
     [SimpleCommand("derived")]
     public class DerivedCommand : TestCommand
     {
-        public DerivedCommand()
+        public DerivedCommand(ICommandService commandService)
+            : base(commandService)
         {
         }
 
@@ -94,10 +121,25 @@ namespace ConsoleApp1
                 typeof(SyncCommand),
             };
 
-            await RunArg("");
+            var container = new Container();
+            container.Register<ICommandService, CommandService>(Reuse.Singleton);
+            foreach (var x in commandTypes)
+            {
+                container.Register(x, Reuse.Singleton);
+            }
 
-            var o = SimpleParserOptions.Standard with { RequireStrictCommandName = true, RequireStrictOptionName = true };
-            var p = new SimpleParser(commandTypes, o);
+            container.ValidateAndThrow();
+
+            var parserOptions = SimpleParserOptions.Standard with
+            {
+                ServiceProvider = container,
+                RequireStrictCommandName = true,
+                RequireStrictOptionName = true
+            };
+
+            await RunArg("", parserOptions);
+
+            var p = new SimpleParser(commandTypes, parserOptions);
 
             // p.Parse("-help");
             await p.RunAsync();
@@ -109,11 +151,13 @@ namespace ConsoleApp1
             p.Run();
             p.ShowHelp();*/
 
-            async Task RunArg(string arg)
+            async Task RunArg(string arg, SimpleParserOptions options)
             {
                 Console.WriteLine(arg);
-                await SimpleParser.ParseAndRunAsync(commandTypes, arg);
+                await SimpleParser.ParseAndRunAsync(commandTypes, arg, options);
             }
+
+            container.Dispose();
         }
     }
 }
