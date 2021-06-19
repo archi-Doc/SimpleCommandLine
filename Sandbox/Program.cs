@@ -96,7 +96,7 @@ namespace ConsoleApp1
 
             await RunArg("");
 
-            var o = SimpleParserOptions.Standard.WithStrictCommandName(true).WithStrictOptionName(true);
+            var o = SimpleParserOptions.Standard with { RequireStrictCommandName = true, RequireStrictOptionName = true };
             var p = new SimpleParser(commandTypes, o);
 
             // p.Parse("-help");
