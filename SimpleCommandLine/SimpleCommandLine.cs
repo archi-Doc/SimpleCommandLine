@@ -176,6 +176,7 @@ namespace SimpleCommandLine
         internal const string RunMethodString = "Run";
         internal const string IndentString = "  ";
         internal const string IndentString2 = "    ";
+        internal const string BackingField = "<{0}>k__BackingField";
 
         public class Command
         {
@@ -274,7 +275,7 @@ namespace SimpleCommandLine
                             continue;
                         }
 
-                        var option = new Option(parser, x, optionAttribute);
+                        var option = new Option(this, x, optionAttribute);
                         this.Options.Add(option);
 
                         if (!this.LongNameToOption.TryAdd(option.LongName, option))
@@ -663,12 +664,21 @@ namespace SimpleCommandLine
 
         public class Option
         {
-            public Option(SimpleParser parser, MemberInfo memberInfo, SimpleOptionAttribute attribute)
+            public Option(Command command, MemberInfo memberInfo, SimpleOptionAttribute attribute)
             {
-                this.Parser = parser;
+                this.Parser = command.Parser;
                 this.LongName = attribute.LongName.Trim();
                 this.PropertyInfo = memberInfo as PropertyInfo;
                 this.FieldInfo = memberInfo as FieldInfo;
+                if (this.PropertyInfo != null && this.FieldInfo == null && command.OptionType != null)
+                {
+                    this.FieldInfo = command.OptionType.GetField(string.Format(BackingField, this.PropertyInfo.Name), BindingFlags.Instance | BindingFlags.NonPublic);
+                    if (!this.PropertyInfo.CanWrite && this.FieldInfo == null)
+                    {
+                        throw new InvalidOperationException($"{command.OptionType?.Name}.{this.PropertyInfo.Name} is a getter-only property and inaccessible.");
+                    }
+                }
+
                 if (this.PropertyInfo == null && this.FieldInfo == null)
                 {
                     throw new InvalidOperationException();
