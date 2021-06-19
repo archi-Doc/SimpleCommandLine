@@ -8,7 +8,14 @@ Simple command-line parser for .NET console applications.
 
 ## Table of Contents
 
+- [Requirements](#requirements)
 - [Quick Start](#quick-start)
+
+
+
+## Requirements
+
+**.NET 5** or later
 
 
 

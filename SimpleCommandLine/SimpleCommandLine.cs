@@ -430,13 +430,19 @@ namespace SimpleCommandLine
                 }
                 else if (this.CommandInterface == typeof(ISimpleCommandAsync))
                 {// Task Run(string[] args);
-                    var task = (Task)this.runMethod.Invoke(this.CommandInstance, new object[] { args });
-                    await task;
+                    var task = (Task?)this.runMethod.Invoke(this.CommandInstance, new object?[] { args });
+                    if (task != null)
+                    {
+                        await task;
+                    }
                 }
                 else if (this.CommandInterface == typeof(ISimpleCommandAsync<>))
                 {// Task Run(Options option, string[] args);
-                    var task = (Task)this.runMethod.Invoke(this.CommandInstance, new object[] { this.OptionInstance!, args });
-                    await task;
+                    var task = (Task?)this.runMethod.Invoke(this.CommandInstance, new object?[] { this.OptionInstance, args });
+                    if (task != null)
+                    {
+                        await task;
+                    }
                 }
             }
 
@@ -454,13 +460,13 @@ namespace SimpleCommandLine
                 }
                 else if (this.CommandInterface == typeof(ISimpleCommandAsync))
                 {// Task Run(string[] args);
-                    var task = (Task)this.runMethod.Invoke(this.CommandInstance, new object[] { args });
-                    task.Wait();
+                    var task = (Task?)this.runMethod.Invoke(this.CommandInstance, new object?[] { args });
+                    task?.Wait();
                 }
                 else if (this.CommandInterface == typeof(ISimpleCommandAsync<>))
                 {// Task Run(Options option, string[] args);
-                    var task = (Task)this.runMethod.Invoke(this.CommandInstance, new object[] { this.OptionInstance!, args });
-                    task.Wait();
+                    var task = (Task?)this.runMethod.Invoke(this.CommandInstance, new object?[] { this.OptionInstance, args });
+                    task?.Wait();
                 }
             }
 
@@ -1200,19 +1206,19 @@ namespace SimpleCommandLine
         }
     }
 
-    public class SimpleParserOptions
+    public record SimpleParserOptions
     {
         public static SimpleParserOptions Standard { get; } = new SimpleParserOptions();
 
         /// <summary>
         /// Gets the parser option which requires to specify the command name (no default command).
         /// </summary>
-        public static SimpleParserOptions StrictCommandName { get; } = Standard.WithStrictCommandName(true);
+        public static SimpleParserOptions StrictCommandName { get; } = Standard with { RequireStrictCommandName = true };
 
         /// <summary>
         /// Gets the parser option which requires the strict option name (unregistered options will result in an error).
         /// </summary>
-        public static SimpleParserOptions StrictOptionName { get; } = Standard.WithStrictOptionName(true);
+        public static SimpleParserOptions StrictOptionName { get; } = Standard with { RequireStrictOptionName = true };
 
         /// <summary>
         /// Initializes a new instance of the <see cref="SimpleParserOptions"/> class.
@@ -1222,73 +1228,13 @@ namespace SimpleCommandLine
         }
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="SimpleParserOptions"/> class
-        /// with members initialized from an existing instance.
-        /// </summary>
-        /// <param name="copyFrom">The options to copy from.</param>
-        protected SimpleParserOptions(SimpleParserOptions copyFrom)
-        {
-            this.RequireStrictCommandName = copyFrom.RequireStrictCommandName;
-            this.RequireStrictOptionName = copyFrom.RequireStrictOptionName;
-        }
-
-        /// <summary>
         /// Gets a value indicating whether or not to require to specify the command name (no default command).
         /// </summary>
-        public bool RequireStrictCommandName { get; private set; } = false;
+        public bool RequireStrictCommandName { get; init; } = false;
 
         /// <summary>
         /// Gets a value indicating whether or not to requires the strict option name (unregistered options will result in an error).
         /// </summary>
-        public bool RequireStrictOptionName { get; private set; } = false;
-
-        /// <summary>
-        /// Gets a copy of these options with the <see cref="RequireStrictCommandName"/> property set to a new value.
-        /// </summary>
-        /// <param name="requireStrictCommandName">The new value for the <see cref="RequireStrictCommandName"/> property.</param>
-        /// <returns>The new instance; or the original if the value is unchanged.</returns>
-        public SimpleParserOptions WithStrictCommandName(bool requireStrictCommandName)
-        {
-            if (this.RequireStrictCommandName == requireStrictCommandName)
-            {
-                return this;
-            }
-
-            var result = this.Clone();
-            result.RequireStrictCommandName = requireStrictCommandName;
-            return result;
-        }
-
-        /// <summary>
-        /// Gets a copy of these options with the <see cref="RequireStrictOptionName"/> property set to a new value.
-        /// </summary>
-        /// <param name="requireStrictOptionName">The new value for the <see cref="RequireStrictOptionName"/> property.</param>
-        /// <returns>The new instance; or the original if the value is unchanged.</returns>
-        public SimpleParserOptions WithStrictOptionName(bool requireStrictOptionName)
-        {
-            if (this.RequireStrictOptionName == requireStrictOptionName)
-            {
-                return this;
-            }
-
-            var result = this.Clone();
-            result.RequireStrictOptionName = requireStrictOptionName;
-            return result;
-        }
-
-        /// <summary>
-        /// Creates a clone of this instance with the same properties set.
-        /// </summary>
-        /// <returns>The cloned instance. Guaranteed to be a new instance.</returns>
-        /// <exception cref="NotSupportedException">Thrown if this instance is a derived type that doesn't override this method.</exception>
-        protected virtual SimpleParserOptions Clone()
-        {
-            if (this.GetType() != typeof(SimpleParserOptions))
-            {
-                throw new NotSupportedException($"The derived type {this.GetType().FullName} did not override the {nameof(this.Clone)} method as required.");
-            }
-
-            return new SimpleParserOptions(this);
-        }
+        public bool RequireStrictOptionName { get; init; } = false;
     }
 }
