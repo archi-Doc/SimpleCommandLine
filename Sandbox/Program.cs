@@ -150,7 +150,9 @@ namespace ConsoleApp1
             p.Run();
             p.ShowHelp();*/
 
+#pragma warning disable CS8321 // Local function is declared but never used
             async Task RunArg(string arg, SimpleParserOptions options)
+#pragma warning restore CS8321 // Local function is declared but never used
             {
                 Console.WriteLine(arg);
                 await SimpleParser.ParseAndRunAsync(commandTypes!, arg, options);
