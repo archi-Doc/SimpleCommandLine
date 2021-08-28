@@ -8,7 +8,13 @@ using SimpleCommandLine;
 
 namespace ConsoleApp1
 {
-    public class TestOptions
+    public class BaseOptions
+    {
+        [SimpleOption("directory", "d")]
+        public string Directory { get; set; } = string.Empty;
+    }
+
+    public class TestOptions : BaseOptions
     {
         [SimpleOption("number", "n")]
         public int Number { get; set; } = 10;
@@ -43,8 +49,8 @@ namespace ConsoleApp1
                 typeof(TestCommand2),
             };
 
-            await SimpleParser.ParseAndRunAsync(commandTypes, args);
-            // await SimpleParser.ParseAndRunAsync(commandTypes, "test help");
+            // await SimpleParser.ParseAndRunAsync(commandTypes, args);
+            await SimpleParser.ParseAndRunAsync(commandTypes, "help");
         }
     }
 }

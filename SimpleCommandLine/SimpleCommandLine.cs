@@ -262,31 +262,45 @@ namespace SimpleCommandLine
                 this.ShortNameToOption = new(StringComparer.InvariantCultureIgnoreCase);
                 if (this.OptionType != null)
                 {
-                    foreach (var x in this.OptionType.GetMembers(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+                    var typeList = GetBaseTypesAndThis(this.OptionType).Reverse(); // base type -> derived type
+                    foreach (var y in typeList)
                     {
-                        if (x.MemberType != MemberTypes.Field && x.MemberType != MemberTypes.Property)
+                        foreach (var x in y.GetMembers(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly))
                         {
-                            continue;
-                        }
+                            if (x.MemberType != MemberTypes.Field && x.MemberType != MemberTypes.Property)
+                            {
+                                continue;
+                            }
 
-                        var optionAttribute = x.GetCustomAttributes<SimpleOptionAttribute>(true).FirstOrDefault();
-                        if (optionAttribute == null)
-                        {
-                            continue;
-                        }
+                            var optionAttribute = x.GetCustomAttributes<SimpleOptionAttribute>(true).FirstOrDefault();
+                            if (optionAttribute == null)
+                            {
+                                continue;
+                            }
 
-                        var option = new Option(this, x, optionAttribute);
-                        this.Options.Add(option);
+                            var option = new Option(this, x, optionAttribute);
+                            this.Options.Add(option);
 
-                        if (!this.LongNameToOption.TryAdd(option.LongName, option))
-                        {
-                            throw new InvalidOperationException($"Long option name '{option.LongName}' ({commandType.ToString()}) already exists.");
-                        }
+                            if (!this.LongNameToOption.TryAdd(option.LongName, option))
+                            {
+                                throw new InvalidOperationException($"Long option name '{option.LongName}' ({commandType.ToString()}) already exists.");
+                            }
 
-                        if (option.ShortName != null && !this.LongNameToOption.TryAdd(option.ShortName, option))
-                        {
-                            throw new InvalidOperationException($"Short option name '{option.ShortName}' ({commandType.ToString()}) already exists.");
+                            if (option.ShortName != null && !this.LongNameToOption.TryAdd(option.ShortName, option))
+                            {
+                                throw new InvalidOperationException($"Short option name '{option.ShortName}' ({commandType.ToString()}) already exists.");
+                            }
                         }
+                    }
+                }
+
+                static IEnumerable<Type> GetBaseTypesAndThis(Type symbol)
+                {
+                    var current = symbol;
+                    while (current != null && current != typeof(object))
+                    {
+                        yield return current;
+                        current = current.BaseType;
                     }
                 }
             }
