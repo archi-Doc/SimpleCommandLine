@@ -44,8 +44,8 @@ namespace ConsoleApp1
         [SimpleOption("text", "t")]
         public string Text { get; set; } = string.Empty;
 
-        // [SimpleOption("options")]
-        // public TestOptions Options { get; set; } = default!;
+        [SimpleOption("options")]
+        public TestOptions Options { get; set; } = default!;
     }
 
     [SimpleCommand("test3")]
@@ -69,7 +69,7 @@ namespace ConsoleApp1
                 typeof(TestCommand3),
             };
 
-            await SimpleParser.ParseAndRunAsync(commandTypes, "test3 -t \"ABC\" -options{} -options2 {-A 33 -B 44}");
+            await SimpleParser.ParseAndRunAsync(commandTypes, "test3 -t \"ABC\" -options{}");
 
             // await SimpleParser.ParseAndRunAsync(commandTypes, args);
             // await SimpleParser.ParseAndRunAsync(commandTypes, "help");

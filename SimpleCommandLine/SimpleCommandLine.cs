@@ -794,6 +794,7 @@ AddString:
 
                 if (!this.Parser.TypeConverter.ContainsKey(this.OptionType))
                 {
+                    var nested = new Command(this.Parser, this.OptionType, new SimpleCommandAttribute(string.Empty));
                     //if (this.OptionType.)
                     throw new InvalidOperationException($"Type: '{this.OptionType.Name}' is not supported for SimpleOption.");
                 }
