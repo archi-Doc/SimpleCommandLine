@@ -6,6 +6,7 @@ Console.WriteLine("Arguments test");
 
 Test(string.Empty);
 Test("test");
+Test("-n 99");
 Test("-test 12");
 Test("  -test  1 23  ");
 Test("-text \"abc\"");

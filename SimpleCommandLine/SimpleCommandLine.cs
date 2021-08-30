@@ -157,7 +157,7 @@ AddString:
                 end++;
             }
 
-            if (start < end && end < span.Length)
+            if (start < end && end <= span.Length)
             { // Add string
                 var s = span[start..end].ToString().Trim();
                 if (s.Length > 0)
@@ -372,7 +372,7 @@ AddString:
                                 continue;
                             }
 
-                            var option = new Option(this, x, optionAttribute);
+                            var option = new Option(this.Parser, this.OptionType, x, optionAttribute);
                             this.Options.Add(option);
 
                             if (!this.LongNameToOption.TryAdd(option.LongName, option))
@@ -480,6 +480,18 @@ AddString:
                     {// Value required.
                         this.Parser.AddErrorMessage($"Value is required for option '{x.LongName}'");
                         errorFlag = true;
+                    }
+
+                    if (x.OptionClass != null && !x.ValueIsSet)
+                    {// Set instance.
+                        if (x.Parse(string.Empty, this.OptionInstance))
+                        {
+                            x.ValueIsSet = true;
+                        }
+                        else
+                        {
+                            errorFlag = true;
+                        }
                     }
                 }
 
@@ -770,20 +782,265 @@ AddString:
             }
         }
 
+        public class OptionClass
+        {
+            public OptionClass(SimpleParser parser, Type optionType)
+            {
+                this.Parser = parser;
+                this.OptionType = optionType;
+
+                if (this.Parser.ParserOptions.ServiceProvider == null && this.OptionType.GetConstructor(Type.EmptyTypes) == null)
+                {
+                    throw new InvalidOperationException($"Default constructor (parameterless constructor) is required for type '{this.OptionType.ToString()}'.");
+                }
+
+                this.Options = new();
+                this.LongNameToOption = new(StringComparer.InvariantCultureIgnoreCase);
+                this.ShortNameToOption = new(StringComparer.InvariantCultureIgnoreCase);
+                if (this.OptionType != null)
+                {
+                    var typeList = GetBaseTypesAndThis(this.OptionType).Reverse(); // base type -> derived type
+                    foreach (var y in typeList)
+                    {
+                        foreach (var x in y.GetMembers(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly))
+                        {
+                            if (x.MemberType != MemberTypes.Field && x.MemberType != MemberTypes.Property)
+                            {
+                                continue;
+                            }
+
+                            var optionAttribute = x.GetCustomAttributes<SimpleOptionAttribute>(true).FirstOrDefault();
+                            if (optionAttribute == null)
+                            {
+                                continue;
+                            }
+
+                            var option = new Option(this.Parser, this.OptionType, x, optionAttribute);
+                            this.Options.Add(option);
+
+                            if (!this.LongNameToOption.TryAdd(option.LongName, option))
+                            {
+                                throw new InvalidOperationException($"Long option name '{option.LongName}' ({this.OptionType.ToString()}) already exists.");
+                            }
+
+                            if (option.ShortName != null && !this.LongNameToOption.TryAdd(option.ShortName, option))
+                            {
+                                throw new InvalidOperationException($"Short option name '{option.ShortName}' ({this.OptionType.ToString()}) already exists.");
+                            }
+                        }
+                    }
+                }
+
+                static IEnumerable<Type> GetBaseTypesAndThis(Type symbol)
+                {
+                    var current = symbol;
+                    while (current != null && current != typeof(object))
+                    {
+                        yield return current;
+                        current = current.BaseType;
+                    }
+                }
+            }
+
+            public bool Parse(string[] args, int start)
+            {
+                var errorFlag = false;
+                List<string> remaining = new();
+
+                foreach (var x in this.Options)
+                {
+                    x.ValueIsSet = false;
+                }
+
+                for (var n = start; n < args.Length; n++)
+                {
+                    if (args[n].IsOptionString())
+                    {// -option
+                        var name = args[n].Trim('-');
+                        Option? option;
+                        if (!this.LongNameToOption.TryGetValue(name, out option))
+                        {
+                            this.ShortNameToOption.TryGetValue(name, out option);
+                        }
+
+                        if (option != null)
+                        {// Option found
+                            if (n + 1 < args.Length)
+                            {
+                                if (!args[n + 1].IsOptionString())
+                                {
+                                    n++;
+                                    if (option.Parse(args[n], this.OptionInstance))
+                                    {
+                                        option.ValueIsSet = true;
+                                    }
+                                    else
+                                    {// Parse error
+                                        this.Parser.AddErrorMessage($"Could not convert '{args[n]}' to Type '{option.OptionType.Name}' ({args[n - 1]} {args[n]})");
+                                        errorFlag = true;
+                                    }
+                                }
+                                else
+                                {
+                                    this.Parser.AddErrorMessage($"No corresponding value found for option '{option.LongName}'");
+                                    errorFlag = true;
+                                }
+                            }
+                            else
+                            {// The value for the option '' is required.
+                                this.Parser.AddErrorMessage($"No corresponding value found for option '{option.LongName}'");
+                                errorFlag = true;
+                            }
+                        }
+                        else
+                        {// Not found
+                            remaining.Add(args[n]);
+
+                            if (this.Parser.ParserOptions.RequireStrictOptionName)
+                            {
+                                if (this.OptionType == null)
+                                {
+                                    this.Parser.AddErrorMessage($"Option '{name}' is invalid");
+                                }
+                                else
+                                {
+                                    this.Parser.AddErrorMessage($"Option '{name}' is not found in Type: {this.OptionType.ToString()}");
+                                }
+
+                                errorFlag = true;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        remaining.Add(args[n]);
+                    }
+                }
+
+                foreach (var x in this.Options)
+                {
+                    if (x.Required && !x.ValueIsSet)
+                    {// Value required.
+                        this.Parser.AddErrorMessage($"Value is required for option '{x.LongName}'");
+                        errorFlag = true;
+                    }
+
+                    if (x.OptionClass != null && !x.ValueIsSet)
+                    {// Set instance.
+                        if (x.Parse(string.Empty, this.OptionInstance))
+                        {
+                            x.ValueIsSet = true;
+                        }
+                    }
+                }
+
+                if (errorFlag)
+                {
+                    return !errorFlag;
+                }
+
+                this.RemainingArguments = remaining.ToArray();
+                return true;
+            }
+
+            public SimpleParser Parser { get; }
+
+            public Type? OptionType { get; }
+
+            public List<Option> Options { get; }
+
+            public Dictionary<string, Option> LongNameToOption { get; }
+
+            public Dictionary<string, Option> ShortNameToOption { get; }
+
+            public object? OptionInstance => this.optionInstance != null ? this.optionInstance : (this.optionInstance = this.OptionType == null ? null : Activator.CreateInstance(this.OptionType)!);
+
+            public string[]? RemainingArguments { get; private set; }
+
+            internal void AppendCommand(StringBuilder sb)
+            {
+                if (this.Options.Count == 0)
+                {
+                    sb.AppendLine();
+                    return;
+                }
+
+                var maxWidth = this.Options.Max(x => x.OptionText.Length);
+                foreach (var x in this.Options)
+                {
+                    var padding = maxWidth - x.OptionText.Length;
+                    sb.Append(SimpleParser.IndentString);
+                    sb.Append(x.OptionText);
+                    for (var i = 0; i < padding; i++)
+                    {
+                        sb.Append(' ');
+                    }
+
+                    sb.Append(SimpleParser.IndentString2);
+                    sb.Append(x.Description);
+
+                    if (x.Required)
+                    {
+                        if (x.DefaultValueText != null)
+                        {
+                            sb.Append($" (Required: {x.DefaultValueText})");
+                        }
+                        else
+                        {
+                            sb.Append($" (Required)");
+                        }
+                    }
+                    else if (x.DefaultValueText != null)
+                    {
+                        if (x.OptionType == typeof(string))
+                        {
+                            sb.Append($" (Default: \"{x.DefaultValueText}\")");
+                        }
+                        else
+                        {
+                            sb.Append($" (Default: {x.DefaultValueText})");
+                        }
+                    }
+                    else
+                    {
+                        var value = x.GetValue(this.OptionInstance);
+                        if (value == null)
+                        {
+                            sb.Append($" (Optional)");
+                        }
+                        else if (value is string st)
+                        {
+                            sb.Append($" (Default: \"{value.ToString()}\")");
+                        }
+                        else
+                        {
+                            sb.Append($" (Default: {value.ToString()})");
+                        }
+                    }
+
+                    sb.AppendLine();
+                }
+
+                sb.AppendLine();
+            }
+
+            private object? optionInstance;
+        }
+
         public class Option
         {
-            public Option(Command command, MemberInfo memberInfo, SimpleOptionAttribute attribute)
+            public Option(SimpleParser parser, Type optionType, MemberInfo memberInfo, SimpleOptionAttribute attribute)
             {
-                this.Parser = command.Parser;
+                this.Parser = parser;
                 this.LongName = attribute.LongName.Trim();
                 this.PropertyInfo = memberInfo as PropertyInfo;
                 this.FieldInfo = memberInfo as FieldInfo;
-                if (this.PropertyInfo != null && this.FieldInfo == null && command.OptionType != null)
+                if (this.PropertyInfo != null && this.FieldInfo == null && optionType != null)
                 {
-                    this.FieldInfo = command.OptionType.GetField(string.Format(BackingField, this.PropertyInfo.Name), BindingFlags.Instance | BindingFlags.NonPublic);
+                    this.FieldInfo = optionType.GetField(string.Format(BackingField, this.PropertyInfo.Name), BindingFlags.Instance | BindingFlags.NonPublic);
                     if (!this.PropertyInfo.CanWrite && this.FieldInfo == null)
                     {
-                        throw new InvalidOperationException($"{command.OptionType?.Name}.{this.PropertyInfo.Name} is a getter-only property and inaccessible.");
+                        throw new InvalidOperationException($"{optionType?.Name}.{this.PropertyInfo.Name} is a getter-only property and inaccessible.");
                     }
                 }
 
@@ -794,9 +1051,15 @@ AddString:
 
                 if (!this.Parser.TypeConverter.ContainsKey(this.OptionType))
                 {
-                    var nested = new Command(this.Parser, this.OptionType, new SimpleCommandAttribute(string.Empty));
-                    //if (this.OptionType.)
-                    throw new InvalidOperationException($"Type: '{this.OptionType.Name}' is not supported for SimpleOption.");
+                    var optionClass = new OptionClass(this.Parser, this.OptionType);
+                    if (optionClass.Options.Count > 0)
+                    {
+                        this.OptionClass = optionClass;
+                    }
+                    else
+                    {
+                        throw new InvalidOperationException($"Type: '{this.OptionType.Name}' is not supported for SimpleOption.");
+                    }
                 }
 
                 if (attribute.ShortName != null)
@@ -822,13 +1085,31 @@ AddString:
                 }
 
                 object value;
-                try
+                if (this.OptionClass != null)
                 {
-                    value = this.Parser.TypeConverter[this.OptionType](arg)!;
+                    if (arg.Length >= 2 && arg.StartsWith('{') && arg.EndsWith('}'))
+                    {
+                        arg = arg.Substring(1, arg.Length - 2);
+                    }
+
+                    var ret = this.OptionClass.Parse(arg.FormatArguments(), 0);
+                    if (!ret || this.OptionClass.OptionInstance == null)
+                    {
+                        return false;
+                    }
+
+                    value = this.OptionClass.OptionInstance;
                 }
-                catch
+                else
                 {
-                    return false;
+                    try
+                    {
+                        value = this.Parser.TypeConverter[this.OptionType](arg)!;
+                    }
+                    catch
+                    {
+                        return false;
+                    }
                 }
 
                 if (this.PropertyInfo?.GetSetMethod() is { } mi)
@@ -868,6 +1149,8 @@ AddString:
             public bool ValueIsSet { get; internal set; }
 
             public Type OptionType => this.PropertyInfo != null ? this.PropertyInfo.PropertyType : this.FieldInfo!.FieldType;
+
+            public OptionClass? OptionClass { get; }
 
             internal object? GetValue(object? instance)
             {
