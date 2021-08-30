@@ -74,6 +74,100 @@ namespace SimpleCommandLine
         public static string[] SplitAtSpace(this string text) => text.Split((char[])null!, StringSplitOptions.RemoveEmptyEntries);
 
         public static bool IsOptionString(this string text) => text.StartsWith('-');
+
+        public static string[] FormatArguments(this string arg)
+        {
+            var span = arg.AsSpan();
+            var list = new List<string>();
+
+            var start = 0;
+            var end = 0;
+            var enclosed = new Stack<char>();
+            var addStringIncrement = true;
+            while (end < span.Length)
+            {
+                var c = span[end];
+                if (enclosed.Count == 0)
+                {
+                    if (char.IsWhiteSpace(c))
+                    {
+                        goto AddString;
+                    }
+                    else if (c == '\"' || c == '{')
+                    {
+                        enclosed.Push(c);
+                        addStringIncrement = false;
+                        goto AddString;
+                    }
+                    else if (c == '}')
+                    {
+                        goto AddString;
+                    }
+                }
+                else
+                {
+                    if (c == '\"')
+                    {
+                        if (enclosed.Peek() == '\"')
+                        {// "-arg {-test "A"} "
+                            enclosed.Pop();
+                            if (enclosed.Count == 0)
+                            {
+                                end++;
+                                goto AddString;
+                            }
+                        }
+                        else
+                        {
+                            enclosed.Push(c);
+                        }
+                    }
+                    else if (c == '}')
+                    {
+                        if (enclosed.Peek() == '{')
+                        {// {-test "A"}
+                            enclosed.Pop();
+                            if (enclosed.Count == 0)
+                            {
+                                end++;
+                                goto AddString;
+                            }
+                        }
+                    }
+                    else if (c == '{')
+                    {
+                        enclosed.Push(c);
+                    }
+                }
+
+                end++;
+                continue;
+
+AddString:
+                if (start < end)
+                { // Add string
+                    var s = span[start..end].ToString().Trim();
+                    if (s.Length > 0)
+                    {
+                        list.Add(s);
+                    }
+                }
+
+                start = end + (addStringIncrement ? 1 : 0);
+                end++;
+            }
+
+            if (start < end && end < span.Length)
+            { // Add string
+                var s = span[start..end].ToString().Trim();
+                if (s.Length > 0)
+                {
+                    list.Add(s);
+                }
+            }
+
+            return list.ToArray();
+        }
     }
 
     /*/// <summary>
@@ -700,6 +794,7 @@ namespace SimpleCommandLine
 
                 if (!this.Parser.TypeConverter.ContainsKey(this.OptionType))
                 {
+                    //if (this.OptionType.)
                     throw new InvalidOperationException($"Type: '{this.OptionType.Name}' is not supported for SimpleOption.");
                 }
 
@@ -868,7 +963,12 @@ namespace SimpleCommandLine
         /// <param name="arg">The arguments for specifying commands and options.</param>
         /// <param name="parserOptions">The parser options. Use <c>null</c> to use default options.</param>
         /// <returns>A task that represents the command execution.</returns>
-        public static Task ParseAndRunAsync(IEnumerable<Type> simpleCommands, string arg, SimpleParserOptions? parserOptions = null) => ParseAndRunAsync(simpleCommands, arg.Split((char[])null!, StringSplitOptions.RemoveEmptyEntries), parserOptions);
+        public static async Task ParseAndRunAsync(IEnumerable<Type> simpleCommands, string arg, SimpleParserOptions? parserOptions = null)
+        {
+            var p = new SimpleParser(simpleCommands, parserOptions);
+            p.Parse(arg);
+            await p.RunAsync();
+        }
 
         /// <summary>
         /// Parse the arguments and executes the specified command asynchronously.
@@ -890,7 +990,12 @@ namespace SimpleCommandLine
         /// <param name="simpleCommands">The <seealso cref="IEnumerable{T}"/> whose simple command types are used to parse arguments and execute the command.</param>
         /// <param name="arg">The arguments for specifying commands and options.</param>
         /// <param name="parserOptions">The parser options. Use <c>null</c> to use default options.</param>
-        public static void ParseAndRun(IEnumerable<Type> simpleCommands, string arg, SimpleParserOptions? parserOptions = null) => ParseAndRun(simpleCommands, arg.Split((char[])null!, StringSplitOptions.RemoveEmptyEntries), parserOptions);
+        public static void ParseAndRun(IEnumerable<Type> simpleCommands, string arg, SimpleParserOptions? parserOptions = null)
+        {
+            var p = new SimpleParser(simpleCommands, parserOptions);
+            p.Parse(arg);
+            p.Run();
+        }
 
         /// <summary>
         /// Parse the arguments and executes the specified command.
@@ -908,32 +1013,33 @@ namespace SimpleCommandLine
         /// <summary>
         /// Parse the arguments.
         /// </summary>
-        /// <param name="arg">The arguments for specifying commands and options.</param>
+        /// <param name="args">The arguments for specifying commands and options.</param>
         /// <returns>True if the arguments are successfully parsed.</returns>
-        public bool Parse(string arg) => this.Parse(arg.SplitAtSpace());
+        public bool Parse(string[] args) => this.Parse(string.Join(' ', args));
 
         /// <summary>
         /// Parse the arguments.
         /// </summary>
-        /// <param name="args">The arguments for specifying commands and options.</param>
+        /// <param name="arg">The arguments for specifying commands and options.</param>
         /// <returns>True if the arguments are successfully parsed.</returns>
-        public bool Parse(string[] args)
+        public bool Parse(string arg)
         {
             var ret = true;
-            this.OriginalArguments = string.Join(' ', args);
+            var arguments = arg.FormatArguments();
+            this.OriginalArguments = arg;
             this.HelpCommand = null;
             this.VersionCommand = false;
 
             var commandName = this.DefaultCommandName;
             var commandSpecified = false;
             var start = 0;
-            if (args.Length >= 1)
+            if (arguments.Length >= 1)
             {
-                if (!args[0].IsOptionString())
+                if (!arguments[0].IsOptionString())
                 {// Command
-                    if (this.SimpleCommands.ContainsKey(args[0]))
+                    if (this.SimpleCommands.ContainsKey(arguments[0]))
                     {// Found
-                        commandName = args[0];
+                        commandName = arguments[0];
                         commandSpecified = true;
                         start = 1;
                     }
@@ -962,9 +1068,9 @@ namespace SimpleCommandLine
 
             if (this.SimpleCommands.TryGetValue(commandName, out var command))
             {
-                if (commandSpecified && args.Length > start && OptionEquals(args[start], HelpString))
+                if (commandSpecified && arguments.Length > start && OptionEquals(arguments[start], HelpString))
                 {
-                    if (args[start].IsOptionString() &&
+                    if (arguments[start].IsOptionString() &&
                         (command.LongNameToOption.ContainsKey(HelpString) || command.ShortNameToOption.ContainsKey(HelpString)))
                     {// "app.exe command -help"
                     }
@@ -975,7 +1081,7 @@ namespace SimpleCommandLine
                     }
                 }
 
-                if (command.Parse(args, start))
+                if (command.Parse(arguments, start))
                 {// Success
                     this.CurrentCommand = command;
                 }
@@ -994,18 +1100,18 @@ namespace SimpleCommandLine
 
             void TryProcessHelpAndVersion()
             {
-                if (OptionEquals(args[0], HelpString))
+                if (OptionEquals(arguments[0], HelpString))
                 {// Help
-                    if (args.Length >= 2 && !args[1].IsOptionString() && this.SimpleCommands.ContainsKey(args[1]))
+                    if (arguments.Length >= 2 && !arguments[1].IsOptionString() && this.SimpleCommands.ContainsKey(arguments[1]))
                     {// help command
-                        this.HelpCommand = args[1];
+                        this.HelpCommand = arguments[1];
                     }
                     else
                     {
                         this.HelpCommand = string.Empty;
                     }
                 }
-                else if (OptionEquals(args[0], VersionString))
+                else if (OptionEquals(arguments[0], VersionString))
                 {// Version
                     this.VersionCommand = true;
                 }

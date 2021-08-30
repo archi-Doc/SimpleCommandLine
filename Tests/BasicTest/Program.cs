@@ -39,6 +39,25 @@ namespace ConsoleApp1
         }
     }
 
+    public class TestOptions3 : BaseOptions
+    {
+        [SimpleOption("text", "t")]
+        public string Text { get; set; } = string.Empty;
+
+        // [SimpleOption("options")]
+        // public TestOptions Options { get; set; } = default!;
+    }
+
+    [SimpleCommand("test3")]
+    public class TestCommand3 : ISimpleCommand<TestOptions3>
+    {
+        public void Run(TestOptions3 option, string[] args)
+        {
+            Console.WriteLine("Test command3:");
+            Console.WriteLine($"Test: {option.Text}");
+        }
+    }
+
     public class Program
     {
         public static async Task Main(string[] args)
@@ -47,10 +66,13 @@ namespace ConsoleApp1
             {
                 typeof(TestCommand),
                 typeof(TestCommand2),
+                typeof(TestCommand3),
             };
 
+            await SimpleParser.ParseAndRunAsync(commandTypes, "test3 -t \"ABC\" -options{} -options2 {-A 33 -B 44}");
+
             // await SimpleParser.ParseAndRunAsync(commandTypes, args);
-            await SimpleParser.ParseAndRunAsync(commandTypes, "help");
+            // await SimpleParser.ParseAndRunAsync(commandTypes, "help");
         }
     }
 }
