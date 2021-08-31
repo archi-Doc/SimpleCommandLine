@@ -493,7 +493,7 @@ AddString:
                     sb.AppendLine($"{this.CommandName}: {this.Description}");
                 }
 
-                this.OptionClass.AppendOption(sb);
+                this.OptionClass.AppendOption(sb, false);
             }
 
             private object? commandInstance;
@@ -761,8 +761,13 @@ AddString:
 
             public string[]? RemainingArguments { get; private set; }
 
-            internal void AppendOption(StringBuilder sb)
+            internal void AppendOption(StringBuilder sb, bool addName)
             {
+                if (addName)
+                {
+                    sb.AppendLine($"{{{this.OptionType?.Name}}}");
+                }
+
                 if (this.Options.Count == 0)
                 {
                     sb.AppendLine();
@@ -812,6 +817,9 @@ AddString:
                         {
                             sb.Append($" (Optional)");
                         }
+                        else if (x.OptionClass != null)
+                        {
+                        }
                         else if (value is string st)
                         {
                             sb.Append($" (Default: \"{value.ToString()}\")");
@@ -823,6 +831,11 @@ AddString:
                     }
 
                     sb.AppendLine();
+
+                    if (x.OptionClass != null && !this.Parser.OptionClassUsage.Any(a => a.OptionType == x.OptionClass.OptionType))
+                    {
+                        this.Parser.OptionClassUsage.Add(x.OptionClass);
+                    }
                 }
 
                 sb.AppendLine();
@@ -878,7 +891,15 @@ AddString:
                 this.Description = attribute.Description;
                 this.Required = attribute.Required;
                 this.DefaultValueText = attribute.DefaultValueText;
-                this.OptionText = "-" + this.LongName + (this.ShortName == null ? string.Empty : ", -" + this.ShortName) + " <" + this.OptionType.Name + ">";
+                var s = "-" + this.LongName + (this.ShortName == null ? string.Empty : ", -" + this.ShortName);
+                if (this.OptionClass != null)
+                {
+                    this.OptionText = s + " {" + this.OptionType.Name + "}";
+                }
+                else
+                {
+                    this.OptionText = s + " <" + this.OptionType.Name + ">";
+                }
             }
 
             public bool Parse(string arg, object? instance)
@@ -995,6 +1016,7 @@ AddString:
             Command? firstOrDefault = null;
             this.SimpleCommands = new(StringComparer.InvariantCultureIgnoreCase);
             this.ErrorMessage = new();
+            this.OptionClassUsage = new();
             foreach (var x in simpleCommands)
             {
                 // Get SimpleCommandAttribute
@@ -1301,6 +1323,11 @@ AddString:
                 c.AppendCommand(sb);
             }
 
+            foreach (var x in this.OptionClassUsage)
+            {
+                x.AppendOption(sb, true);
+            }
+
             Console.WriteLine(sb.ToString());
         }
 
@@ -1368,6 +1395,8 @@ AddString:
         public Dictionary<Type, Func<string, object?>> TypeConverter { get; private set; } = default!;
 
         private List<string> ErrorMessage { get; }
+
+        private List<OptionClass> OptionClassUsage { get; }
 
         internal static bool OptionEquals(string arg, string command) => arg.Trim('-').Equals(command, StringComparison.OrdinalIgnoreCase);
 
