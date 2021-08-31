@@ -1,0 +1,11 @@
+{
+  "profiles": {
+    "BasicTest": {
+      "commandName": "Project"
+    },
+    "Test": {
+      "commandName": "Project",
+      "commandLineArgs": "test -t \\\"A B C\\\" -options{} -options2 {-A 33 -B 44}"
+    }
+  }
+}

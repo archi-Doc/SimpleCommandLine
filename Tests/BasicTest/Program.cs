@@ -39,6 +39,36 @@ namespace ConsoleApp1
         }
     }
 
+    public class TestOptions3 : BaseOptions
+    {
+        [SimpleOption("text", "t", Required = true)]
+        public string Text { get; set; } = string.Empty;
+
+        [SimpleOption("options")]
+        public TestOptions Options { get; set; } = default!;
+
+        [SimpleOption("options3b")]
+        public TestOptions3b Options3b { get; set; } = default!;
+    }
+
+    public class TestOptions3b
+    {
+        [SimpleOption("name", "n", Required = true)]
+        public string Name { get; set; } = string.Empty;
+    }
+
+    [SimpleCommand("test3")]
+    public class TestCommand3 : ISimpleCommand<TestOptions3>
+    {
+        public void Run(TestOptions3 option, string[] args)
+        {
+            Console.WriteLine("Test command3:");
+            Console.WriteLine($"Test: {option.Text}");
+            Console.WriteLine($"Option: {option.Options.Directory} - {option.Options.Number}");
+            Console.WriteLine($"Option3b: {option.Options3b.Name}");
+        }
+    }
+
     public class Program
     {
         public static async Task Main(string[] args)
@@ -47,10 +77,13 @@ namespace ConsoleApp1
             {
                 typeof(TestCommand),
                 typeof(TestCommand2),
+                typeof(TestCommand3),
             };
 
+            await SimpleParser.ParseAndRunAsync(commandTypes, "test3 -t aa -options3b {-name2 ya} "); // -options {-n 99}
+
             // await SimpleParser.ParseAndRunAsync(commandTypes, args);
-            await SimpleParser.ParseAndRunAsync(commandTypes, "help");
+            // await SimpleParser.ParseAndRunAsync(commandTypes, "help");
         }
     }
 }

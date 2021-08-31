@@ -9,7 +9,7 @@ using SimpleCommandLine;
 namespace ConsoleApp1
 {
     public class TestOptions
-    {// A class that stores command options.
+    {// Option class stores command options. Default constructor is required.
         [SimpleOption("number", "n", "test number")] // Annotate SimpleOptionAttribute and specify a long/short option name and description.
         public int Number { get; set; } = 10; // Set a default value.
 
@@ -19,7 +19,7 @@ namespace ConsoleApp1
 
     [SimpleCommand("test", "Test command.")] // Annotate SimpleCommandAttribute and specify a command name and description.
     public class TestCommand : ISimpleCommandAsync<TestOptions> // Implementation of either ISimpleCommandAsync<T> or ISimpleCommand<T> is required.
-    {// A class that handles the command function.
+    {// Command class handles the command function.
         public async Task Run(TestOptions option, string[] args)
         {// Run() method will be called if you specify "test" command-line argument.
             // TestOption class is parsed from command-line arguments.
