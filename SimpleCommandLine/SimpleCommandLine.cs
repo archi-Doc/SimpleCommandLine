@@ -722,15 +722,18 @@ AddString:
                 {
                     if (x.Required && !x.ValueIsSet)
                     {// Value required.
-                        this.Parser.AddErrorMessage($"Value is required for option '{x.LongName}'");
+                        this.Parser.AddErrorMessage($"Value is required for option '{x.LongName}' <{this.OptionType?.Name}>");
                         errorFlag = true;
                     }
 
                     if (x.OptionClass != null && !x.ValueIsSet)
                     {// Set instance.
-                        if (x.Parse(string.Empty, this.OptionInstance))
+                        if (this.OptionInstance != null && x.OptionClass.OptionInstance != null)
                         {
-                            x.ValueIsSet = true;
+                            if (x.SetValue(this.OptionInstance, x.OptionClass.OptionInstance))
+                            {
+                                x.ValueIsSet = true;
+                            }
                         }
                     }
                 }
@@ -913,6 +916,11 @@ AddString:
                     }
                 }
 
+                return this.SetValue(instance, value);
+            }
+
+            internal bool SetValue(object instance, object value)
+            {
                 if (this.PropertyInfo?.GetSetMethod() is { } mi)
                 {// Set property
                     mi.Invoke(instance, new object[] { value });
