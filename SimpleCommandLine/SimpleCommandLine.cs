@@ -352,7 +352,7 @@ AddString:
                     this.runMethod = mi;
                 }
 
-                this.OptionClass = new OptionClass(this.Parser, this.OptionType);
+                this.OptionClass = new OptionClass(this.Parser, this.OptionType, null);
             }
 
             /*public void Run()
@@ -566,8 +566,22 @@ AddString:
 
         public class OptionClass
         {
-            public OptionClass(SimpleParser parser, Type? optionType)
+            public OptionClass(SimpleParser parser, Type? optionType, Stack<Type>? optionStack)
             {
+                optionStack ??= new();
+                if (optionType != null)
+                {
+                    if (optionStack.Contains(optionType))
+                    {
+                        var s = string.Join('-', optionStack.Select(x => x.Name));
+                        throw new InvalidOperationException($"Circular dependency of option classes is detected ({s}).");
+                    }
+                    else
+                    {
+                        optionStack.Push(optionType);
+                    }
+                }
+
                 this.Parser = parser;
                 this.OptionType = optionType;
 
@@ -597,7 +611,7 @@ AddString:
                                 continue;
                             }
 
-                            var option = new Option(this.Parser, this.OptionType, x, optionAttribute);
+                            var option = new Option(this.Parser, this.OptionType, x, optionAttribute, optionStack);
                             this.Options.Add(option);
 
                             if (!this.LongNameToOption.TryAdd(option.LongName, option))
@@ -611,6 +625,11 @@ AddString:
                             }
                         }
                     }
+                }
+
+                if (optionType != null)
+                {
+                    optionStack.Pop();
                 }
 
                 static IEnumerable<Type> GetBaseTypesAndThis(Type symbol)
@@ -811,7 +830,7 @@ AddString:
 
         public class Option
         {
-            public Option(SimpleParser parser, Type optionType, MemberInfo memberInfo, SimpleOptionAttribute attribute)
+            public Option(SimpleParser parser, Type optionType, MemberInfo memberInfo, SimpleOptionAttribute attribute, Stack<Type> optionStack)
             {
                 this.Parser = parser;
                 this.LongName = attribute.LongName.Trim();
@@ -833,7 +852,7 @@ AddString:
 
                 if (!this.Parser.TypeConverter.ContainsKey(this.OptionType))
                 {
-                    var optionClass = new OptionClass(this.Parser, this.OptionType);
+                    var optionClass = new OptionClass(this.Parser, this.OptionType, optionStack);
                     if (optionClass.Options.Count > 0)
                     {
                         this.OptionClass = optionClass;

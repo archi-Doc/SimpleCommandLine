@@ -81,7 +81,6 @@ namespace ConsoleApp1
             };
 
             await SimpleParser.ParseAndRunAsync(commandTypes, "help test3 -t aa -options3b {-name ya} "); // -options {-n 99}
-            // loop
             // error message
 
             // await SimpleParser.ParseAndRunAsync(commandTypes, args);
