@@ -80,7 +80,7 @@ namespace ConsoleApp1
                 typeof(TestCommand3),
             };
 
-            await SimpleParser.ParseAndRunAsync(commandTypes, "test3 -t aa -options3b {-name ya} "); // -options {-n 99}
+            await SimpleParser.ParseAndRunAsync(commandTypes, "help test3 -t aa -options3b {-name ya} "); // -options {-n 99}
             // loop
             // error message
 

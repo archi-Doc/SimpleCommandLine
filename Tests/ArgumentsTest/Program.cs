@@ -10,7 +10,7 @@ Test("-n 99");
 Test("-test 12");
 Test("  -test  1 23  ");
 Test("-text \"abc\"");
-Test("-text\"a b c\"");
+Test("-text\"a \\\"b c\"");
 Test("-text \"a b c\" -options {} ");
 Test("-options {}} ");
 Test("-options {{} ");
