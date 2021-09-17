@@ -41,7 +41,7 @@ namespace ConsoleApp1
         }
     }
 
-    public class TestOptions
+    public record TestOptions
     {
         [SimpleOption("directory", null, "base directory for storing application data")]
         public string Directory { get; set; } = string.Empty;
@@ -59,10 +59,10 @@ namespace ConsoleApp1
         public int TargetPort { get; } = 1000;
 
         [SimpleOption("receiver", null, "true if the node is receiver")]
-        public bool Receiveer { get; } = true;
+        public bool Receiver { get; } = true;
 
         [SimpleOption("n", null, "test N")]
-        public int N { get; } = 4;
+        public int N { get; init; } = 4;
     }
 
     [SimpleCommand("test")]
@@ -76,9 +76,23 @@ namespace ConsoleApp1
         public async Task Run(TestOptions options, string[] args)
         {
             Console.WriteLine("test command");
+            Console.WriteLine();
+
+            this.Options = options with { };
+            this.Options.Directory = "10";
+
+            Console.WriteLine($"Directory: {Options.Directory}");
+            Console.WriteLine($"Mode: {Options.Mode}");
+            Console.WriteLine($"Port: {Options.Port}");
+            Console.WriteLine($"TargetIp: {Options.TargetIp}");
+            Console.WriteLine($"TargetPort: {Options.TargetPort}");
+            Console.WriteLine($"Receiver: {Options.Receiver}");
+            Console.WriteLine($"N: {Options.N}");
         }
 
         public ICommandService CommandService { get; }
+
+        public TestOptions Options { get; private set; } = default!;
     }
 
     [SimpleCommand("derived")]
