@@ -94,13 +94,13 @@ namespace SimpleCommandLine
                     {
                         goto AddString;
                     }
-                    else if ((c == '\"' && b != '\\') || c == '{')
+                    else if ((c == '\"' && b != '\\') || c == SimpleParser.OpenBracket)
                     {
                         enclosed.Push(c);
                         addStringIncrement = false;
                         goto AddString;
                     }
-                    else if (c == '}')
+                    else if (c == SimpleParser.CloseBracket)
                     {
                         goto AddString;
                     }
@@ -123,9 +123,9 @@ namespace SimpleCommandLine
                             enclosed.Push(c);
                         }
                     }
-                    else if (c == '}')
+                    else if (c == SimpleParser.CloseBracket)
                     {
-                        if (enclosed.Peek() == '{')
+                        if (enclosed.Peek() == SimpleParser.OpenBracket)
                         {// {-test "A"}
                             enclosed.Pop();
                             if (enclosed.Count == 0)
@@ -135,7 +135,7 @@ namespace SimpleCommandLine
                             }
                         }
                     }
-                    else if (c == '{')
+                    else if (c == SimpleParser.OpenBracket)
                     {
                         enclosed.Push(c);
                     }
@@ -272,6 +272,8 @@ AddString:
         internal const string IndentString = "  ";
         internal const string IndentString2 = "    ";
         internal const string BackingField = "<{0}>k__BackingField";
+        internal const char OpenBracket = '[';
+        internal const char CloseBracket = ']';
 
         public class Command
         {
@@ -694,7 +696,8 @@ AddString:
                             }
                         }
                         else
-                        {// Not found
+                        {// Option not found
+                         // if (!string.Equals(args[n], "inputFormat", StringComparison.OrdinalIgnoreCase) && !string.Equals(args[n], "outputFormat", StringComparison.OrdinalIgnoreCase))
                             remaining.Add(args[n]);
 
                             if (this.Parser.ParserOptions.RequireStrictOptionName)
@@ -765,7 +768,7 @@ AddString:
             {
                 if (addName)
                 {
-                    sb.AppendLine($"{{{this.OptionType?.Name}}}");
+                    sb.AppendLine($"[{this.OptionType?.Name}]");
                 }
 
                 if (this.Options.Count == 0)
@@ -894,7 +897,7 @@ AddString:
                 var s = "-" + this.LongName + (this.ShortName == null ? string.Empty : ", -" + this.ShortName);
                 if (this.OptionClass != null)
                 {
-                    this.OptionText = s + " {" + this.OptionType.Name + "}";
+                    this.OptionText = s + " [" + this.OptionType.Name + "]";
                 }
                 else
                 {
@@ -912,7 +915,7 @@ AddString:
                 object value;
                 if (this.OptionClass != null)
                 {
-                    if (arg.Length >= 2 && arg.StartsWith('{') && arg.EndsWith('}'))
+                    if (arg.Length >= 2 && arg.StartsWith(SimpleParser.OpenBracket) && arg.EndsWith(SimpleParser.CloseBracket))
                     {
                         arg = arg.Substring(1, arg.Length - 2);
                     }
@@ -1408,7 +1411,7 @@ AddString:
             }
 
             var name = Path.GetFileNameWithoutExtension(Assembly.GetEntryAssembly()!.Location);
-            sb.AppendLine($"Usage: {name} {commandName} [options...]");
+            sb.AppendLine($"Usage: {name} {commandName} -option value...");
             sb.AppendLine();
         }
 

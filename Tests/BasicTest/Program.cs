@@ -80,7 +80,9 @@ namespace ConsoleApp1
                 typeof(TestCommand3),
             };
 
-            await SimpleParser.ParseAndRunAsync(commandTypes, "test3 -t aa -options3b {-name2 ya} "); // -options {-n 99}
+            // await SimpleParser.ParseAndRunAsync(commandTypes, "test3 -t aa -options3b [-name2 ya -name tst] "); // -options {-n 99}
+            await SimpleParser.ParseAndRunAsync(commandTypes, args); // -options {-n 99}
+            // await SimpleParser.ParseAndRunAsync(commandTypes, "test3 -text aaa -options3b -encodedCommand ewB9AA== -inputFormat xml -outputFormat text");
 
             // await SimpleParser.ParseAndRunAsync(commandTypes, args);
             // await SimpleParser.ParseAndRunAsync(commandTypes, "help");
