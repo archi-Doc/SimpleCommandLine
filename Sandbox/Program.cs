@@ -6,6 +6,7 @@ using DryIoc;
 using SimpleCommandLine;
 
 #pragma warning disable CS1998 // Async method lacks 'await' operators and will run synchronously
+#pragma warning disable CS8321 // Local function is declared but never used
 
 namespace ConsoleApp1
 {
@@ -41,6 +42,13 @@ namespace ConsoleApp1
         }
     }
 
+    public enum TestEnum
+    {
+        Yes,
+        No,
+        Hanbun,
+    }
+
     public record TestOptions
     {
         [SimpleOption("directory", null, "base directory for storing application data")]
@@ -63,6 +71,9 @@ namespace ConsoleApp1
 
         [SimpleOption("n", null, "test N")]
         public int N { get; init; } = 4;
+
+        [SimpleOption("enum", null, "test enum", Required = true)]
+        public TestEnum Enum { get; } = TestEnum.Yes;
     }
 
     [SimpleCommand("test")]
@@ -88,6 +99,7 @@ namespace ConsoleApp1
             Console.WriteLine($"TargetPort: {Options.TargetPort}");
             Console.WriteLine($"Receiver: {Options.Receiver}");
             Console.WriteLine($"N: {Options.N}");
+            Console.WriteLine($"Enum: {Options.Enum}");
         }
 
         public ICommandService CommandService { get; }
@@ -157,16 +169,14 @@ namespace ConsoleApp1
 
             var p = new SimpleParser(commandTypes, parserOptions);
 
-            p.Parse("test -mode receive -port 12211 -targetip 3.18.216.240 -targetport 49152");
+            p.Parse("test -mode receive -port 12211 -targetip 127.0.0.1 -targetport 1000 -enum hanbun");
             await p.RunAsync();
 
             /*var p = SimpleParser.Parse(commandTypes, args);
             p.Run();
             p.ShowHelp();*/
 
-#pragma warning disable CS8321 // Local function is declared but never used
             async Task RunArg(string arg, SimpleParserOptions options)
-#pragma warning restore CS8321 // Local function is declared but never used
             {
                 Console.WriteLine(arg);
                 await SimpleParser.ParseAndRunAsync(commandTypes!, arg, options);

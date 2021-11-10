@@ -5,9 +5,17 @@ using System.Threading.Tasks;
 using SimpleCommandLine;
 
 #pragma warning disable CS1998 // Async method lacks 'await' operators and will run synchronously
+#pragma warning disable SA1602 // Enumeration items should be documented
 
 namespace ConsoleApp1
 {
+    public enum TestEnum
+    {
+        Yes,
+        No,
+        Hanbun,
+    }
+
     public class TypeOptions
     {
         [SimpleOption("sbyte")]
@@ -51,6 +59,9 @@ namespace ConsoleApp1
 
         [SimpleOption("string")]
         public string String { get; set; } = "2021";
+
+        [SimpleOption("enum")]
+        public TestEnum Enum { get; set; } = TestEnum.No;
     }
 
     [SimpleCommand("type")]
@@ -73,6 +84,7 @@ namespace ConsoleApp1
             Console.WriteLine($"Char: {option.Char}");
             Console.WriteLine($"Decimal: {option.Decimal}");
             Console.WriteLine($"String: {option.String}");
+            Console.WriteLine($"Enum: {option.Enum}");
         }
     }
 
