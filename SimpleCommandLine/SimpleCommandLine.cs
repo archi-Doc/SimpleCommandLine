@@ -833,6 +833,28 @@ AddString:
                         }
                     }
 
+                    /*if (x.OptionType.IsEnum)
+                    {
+                        sb.AppendLine();
+                        sb.Append(SimpleParser.IndentString);
+                        for (var i = 0; i < maxWidth; i++)
+                        {
+                            sb.Append(' ');
+                        }
+
+                        sb.Append(SimpleParser.IndentString2);
+
+                        var names = Enum.GetNames(x.OptionType);
+                        for (var i = 0; i < names.Length; i++)
+                        {
+                            sb.Append(names[i]);
+                            if (i != names.Length - 1)
+                            {
+                                sb.Append(", ");
+                            }
+                        }
+                    }*/
+
                     sb.AppendLine();
 
                     if (x.OptionClass != null && !this.Parser.OptionClassUsage.Any(a => a.OptionType == x.OptionClass.OptionType))
@@ -869,7 +891,10 @@ AddString:
                     throw new InvalidOperationException();
                 }
 
-                if (!this.Parser.TypeConverter.ContainsKey(this.OptionType))
+                if (this.OptionType.IsEnum)
+                {// Enum
+                }
+                else if (!this.Parser.TypeConverter.ContainsKey(this.OptionType))
                 {
                     var optionClass = new OptionClass(this.Parser, this.OptionType, optionStack);
                     if (optionClass.Options.Count > 0)
@@ -927,6 +952,22 @@ AddString:
                     }
 
                     value = this.OptionClass.OptionInstance;
+                }
+                else if (this.OptionType.IsEnum)
+                {// Enum
+                    if (!Enum.TryParse(this.OptionType, arg, true, out var result))
+                    {
+                        return false;
+                    }
+
+                    if (result == null)
+                    {
+                        return false;
+                    }
+                    else
+                    {
+                        value = result;
+                    }
                 }
                 else
                 {
