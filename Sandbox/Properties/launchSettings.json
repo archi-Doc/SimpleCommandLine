@@ -2,7 +2,7 @@
   "profiles": {
     "Sandbox": {
       "commandName": "Project",
-      "commandLineArgs": "test -mode receive -port 12211 -targetip 3.18.216.240 -targetport 49152"
+      "commandLineArgs": "-ns [-node \"{[1.2.3.4]:123(1)}\"]"
     }
   }
 }

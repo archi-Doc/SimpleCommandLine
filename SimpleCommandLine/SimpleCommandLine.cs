@@ -110,7 +110,7 @@ namespace SimpleCommandLine
                     if (c == '\"' && b != '\\')
                     {
                         if (enclosed.Peek() == '\"')
-                        {// "-arg {-test "A"} "
+                        {// "-arg [-test "A"] "
                             enclosed.Pop();
                             if (enclosed.Count == 0)
                             {
@@ -126,7 +126,7 @@ namespace SimpleCommandLine
                     else if (c == SimpleParser.CloseBracket)
                     {
                         if (enclosed.Peek() == SimpleParser.OpenBracket)
-                        {// {-test "A"}
+                        {// [-test "A"]
                             enclosed.Pop();
                             if (enclosed.Count == 0)
                             {
@@ -137,7 +137,10 @@ namespace SimpleCommandLine
                     }
                     else if (c == SimpleParser.OpenBracket)
                     {
-                        enclosed.Push(c);
+                        // if (enclosed.Peek() != '\"')
+                        {
+                            enclosed.Push(c);
+                        }
                     }
                 }
 
