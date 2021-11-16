@@ -1176,14 +1176,14 @@ AddString:
         /// Parse the arguments.
         /// </summary>
         /// <param name="args">The arguments for specifying commands and options.</param>
-        /// <returns>True if the arguments are successfully parsed.</returns>
+        /// <returns><see langword="true"/> if the arguments are successfully parsed.</returns>
         public bool Parse(string[] args) => this.Parse(string.Join(' ', args));
 
         /// <summary>
         /// Parse the arguments.
         /// </summary>
         /// <param name="arg">The arguments for specifying commands and options.</param>
-        /// <returns>True if the arguments are successfully parsed.</returns>
+        /// <returns><see langword="true"/> if the arguments are successfully parsed.</returns>
         public bool Parse(string arg)
         {
             var ret = true;
@@ -1191,6 +1191,7 @@ AddString:
             this.OriginalArguments = arg;
             this.HelpCommand = null;
             this.VersionCommand = false;
+            this.ErrorMessage.Clear();
 
             var commandName = this.DefaultCommandName;
             var commandSpecified = false;
@@ -1349,7 +1350,10 @@ AddString:
                 }
             }
 
-            this.AppendUsage(sb, command);
+            if (!this.ParserOptions.DoNotDisplayUsage)
+            {
+                this.AppendUsage(sb, command);
+            }
 
             Command? c = null;
             if (command != null)
@@ -1560,5 +1564,10 @@ AddString:
         /// Gets a value indicating whether or not to requires the strict option name (unregistered options will result in an error).
         /// </summary>
         public bool RequireStrictOptionName { get; init; } = false;
+
+        /// <summary>
+        /// Gets a value indicating whether or not to display the usage text in a help message.
+        /// </summary>
+        public bool DoNotDisplayUsage { get; init; } = false;
     }
 }

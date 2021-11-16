@@ -76,7 +76,7 @@ namespace ConsoleApp1
         public TestEnum Enum { get; } = TestEnum.Yes;
     }
 
-    [SimpleCommand("test")]
+    [SimpleCommand("test", "description")]
     public class TestCommand : ISimpleCommandAsync<TestOptions>
     {
         public TestCommand(ICommandService commandService)
@@ -162,7 +162,8 @@ namespace ConsoleApp1
             {
                 ServiceProvider = container,
                 RequireStrictCommandName = true,
-                RequireStrictOptionName = true
+                RequireStrictOptionName = true,
+                DoNotDisplayUsage = true,
             };
 
             // await RunArg("", parserOptions);
@@ -171,7 +172,7 @@ namespace ConsoleApp1
 
             var p = new SimpleParser(commandTypes, parserOptions);
 
-            p.Parse("test -mode receive -port 12211 -targetip 127.0.0.1 -targetport 1000 -enum hanbun");
+            p.Parse("test -mode receive -port 12211 -targetip 127.0.0.1 -targetport 1000 -enum6 hanbun");
             await p.RunAsync();
 
             /*var p = SimpleParser.Parse(commandTypes, args);
