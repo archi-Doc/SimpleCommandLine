@@ -1347,7 +1347,10 @@ AddString:
                 }
             }
 
-            this.AppendUsage(sb, command);
+            if (!this.ParserOptions.DoNotDisplayUsage)
+            {
+                this.AppendUsage(sb, command);
+            }
 
             Command? c = null;
             if (command != null)
@@ -1558,5 +1561,10 @@ AddString:
         /// Gets a value indicating whether or not to requires the strict option name (unregistered options will result in an error).
         /// </summary>
         public bool RequireStrictOptionName { get; init; } = false;
+
+        /// <summary>
+        /// Gets a value indicating whether or not to display the usage text in a help message.
+        /// </summary>
+        public bool DoNotDisplayUsage { get; init; } = false;
     }
 }
