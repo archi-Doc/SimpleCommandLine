@@ -1173,14 +1173,14 @@ AddString:
         /// Parse the arguments.
         /// </summary>
         /// <param name="args">The arguments for specifying commands and options.</param>
-        /// <returns>True if the arguments are successfully parsed.</returns>
+        /// <returns><see langword="true"/> if the arguments are successfully parsed.</returns>
         public bool Parse(string[] args) => this.Parse(string.Join(' ', args));
 
         /// <summary>
         /// Parse the arguments.
         /// </summary>
         /// <param name="arg">The arguments for specifying commands and options.</param>
-        /// <returns>True if the arguments are successfully parsed.</returns>
+        /// <returns><see langword="true"/> if the arguments are successfully parsed.</returns>
         public bool Parse(string arg)
         {
             var ret = true;
@@ -1188,6 +1188,7 @@ AddString:
             this.OriginalArguments = arg;
             this.HelpCommand = null;
             this.VersionCommand = false;
+            this.ErrorMessage.Clear();
 
             var commandName = this.DefaultCommandName;
             var commandSpecified = false;
