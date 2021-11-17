@@ -137,10 +137,7 @@ namespace SimpleCommandLine
                     }
                     else if (c == SimpleParser.OpenBracket)
                     {
-                        // if (enclosed.Peek() != '\"')
-                        {
-                            enclosed.Push(c);
-                        }
+                        enclosed.Push(c);
                     }
                 }
 
