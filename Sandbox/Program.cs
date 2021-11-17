@@ -168,6 +168,8 @@ namespace ConsoleApp1
 
             // await RunArg("", parserOptions);
 
+            await SimpleParser.ParseAndRunAsync(commandTypes, args, parserOptions); // Main process
+
             var p = new SimpleParser(commandTypes, parserOptions);
 
             p.Parse("test -mode receive -port 12211 -targetip 127.0.0.1 -targetport 1000 -enum6 hanbun");
