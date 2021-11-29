@@ -121,11 +121,12 @@ namespace ConsoleApp1
         }
     }
 
-    [SimpleCommand("sync")]
+    [SimpleCommand("nest", AcceptUnknownOptionName = true)]
     public class SyncCommand : ISimpleCommand
     {
         public void Run(string[] args)
         {
+            SimpleParser.ParseAndRun(new[] { typeof(TestCommand2) }, args);
         }
     }
 
@@ -134,6 +135,7 @@ namespace ConsoleApp1
     {
         public async Task Run(string[] args)
         {
+            Console.WriteLine("Test2");
         }
     }
 
@@ -168,11 +170,12 @@ namespace ConsoleApp1
 
             // await RunArg("", parserOptions);
 
-            await SimpleParser.ParseAndRunAsync(commandTypes, args, parserOptions); // Main process
+            // await SimpleParser.ParseAndRunAsync(commandTypes, args, parserOptions); // Main process
 
             var p = new SimpleParser(commandTypes, parserOptions);
 
-            p.Parse("test -mode receive -port 12211 -targetip 127.0.0.1 -targetport 1000 -enum6 hanbun");
+            // p.Parse("test -mode receive -port 12211 -targetip 127.0.0.1 -targetport 1000 -enum hanbun 333");
+            p.Parse("nest test2 222 -name \"ABC\"");
             await p.RunAsync();
 
             /*var p = SimpleParser.Parse(commandTypes, args);
