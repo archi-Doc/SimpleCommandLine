@@ -200,6 +200,11 @@ AddString:
         public string? Description { get; set; }
 
         /// <summary>
+        /// Gets or sets a value indicating whether or not to accept unknown option names (mainly used in subcommand).
+        /// </summary>
+        public bool AcceptUnknownOptionName { get; set; } = false;
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="SimpleCommandAttribute"/> class.
         /// </summary>
         /// <param name="commandName">The name of the command.</param>
@@ -286,6 +291,7 @@ AddString:
                 this.CommandName = attribute.CommandName;
                 this.Default = attribute.Default;
                 this.Description = attribute.Description;
+                this.AcceptUnknownOptionName = attribute.AcceptUnknownOptionName;
 
                 if (this.CommandName == string.Empty)
                 {
@@ -392,7 +398,7 @@ AddString:
 
             public async Task RunAsync()
             {
-                var args = this.RemainingArguments ?? Array.Empty<string>();
+                var args = this.OptionClass.RemainingArguments ?? Array.Empty<string>();
 
                 if (this.CommandInterface == typeof(ISimpleCommand))
                 {// void Run(string[] args);
@@ -422,7 +428,7 @@ AddString:
 
             public void Run()
             {
-                var args = this.RemainingArguments ?? Array.Empty<string>();
+                var args = this.OptionClass.RemainingArguments ?? Array.Empty<string>();
 
                 if (this.CommandInterface == typeof(ISimpleCommand))
                 {// void Run(string[] args);
@@ -458,6 +464,8 @@ AddString:
 
             public string? Description { get; }
 
+            public bool AcceptUnknownOptionName { get; }
+
             public OptionClass OptionClass { get; }
 
             // public object CommandInstance => this.commandInstance != null ? this.commandInstance : (this.commandInstance = Activator.CreateInstance(this.CommandType)!);
@@ -481,8 +489,6 @@ AddString:
                     return this.commandInstance;
                 }
             }
-
-            public string[]? RemainingArguments { get; private set; }
 
             internal void AppendCommand(StringBuilder sb)
             {
@@ -645,7 +651,7 @@ AddString:
                 }
             }
 
-            public bool Parse(string[] args, int start)
+            public bool Parse(string[] args, int start, bool acceptUnknownOptionName)
             {
                 var errorFlag = false;
                 List<string> remaining = new();
@@ -673,7 +679,7 @@ AddString:
                                 if (!args[n + 1].IsOptionString())
                                 {
                                     n++;
-                                    if (option.Parse(args[n], this.OptionInstance))
+                                    if (option.Parse(args[n], this.OptionInstance, acceptUnknownOptionName))
                                     {
                                         option.ValueIsSet = true;
                                     }
@@ -700,7 +706,7 @@ AddString:
                          // if (!string.Equals(args[n], "inputFormat", StringComparison.OrdinalIgnoreCase) && !string.Equals(args[n], "outputFormat", StringComparison.OrdinalIgnoreCase))
                             remaining.Add(args[n]);
 
-                            if (this.Parser.ParserOptions.RequireStrictOptionName)
+                            if (this.Parser.ParserOptions.RequireStrictOptionName && !acceptUnknownOptionName)
                             {
                                 if (this.OptionType == null)
                                 {
@@ -930,7 +936,7 @@ AddString:
                 }
             }
 
-            public bool Parse(string arg, object? instance)
+            public bool Parse(string arg, object? instance, bool acceptUnknownOptionName)
             {
                 if (instance == null)
                 {
@@ -945,7 +951,7 @@ AddString:
                         arg = arg.Substring(1, arg.Length - 2);
                     }
 
-                    var ret = this.OptionClass.Parse(arg.FormatArguments(), 0);
+                    var ret = this.OptionClass.Parse(arg.FormatArguments(), 0, acceptUnknownOptionName);
                     if (!ret || this.OptionClass.OptionInstance == null)
                     {
                         return false;
@@ -1241,7 +1247,7 @@ AddString:
                     }
                 }
 
-                if (command.OptionClass.Parse(arguments, start))
+                if (command.OptionClass.Parse(arguments, start, command.AcceptUnknownOptionName))
                 {// Success
                     this.CurrentCommand = command;
                 }
