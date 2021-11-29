@@ -1330,6 +1330,52 @@ AddString:
         }
 
         /// <summary>
+        /// Parse the arguments and executes the specified command asynchronously.
+        /// </summary>
+        /// <param name="arg">The arguments for specifying commands and options.</param>
+        /// <param name="parserOptions">The parser options. Use <c>null</c> to use default options.</param>
+        /// <returns>A task that represents the command execution.</returns>
+        public async Task ParseAndRunAsync(string arg, SimpleParserOptions? parserOptions = null)
+        {
+            this.Parse(arg);
+            await this.RunAsync();
+        }
+
+        /// <summary>
+        /// Parse the arguments and executes the specified command asynchronously.
+        /// </summary>
+        /// <param name="args">The arguments for specifying commands and options.</param>
+        /// <param name="parserOptions">The parser options. Use <c>null</c> to use default options.</param>
+        /// <returns>A task that represents the command execution.</returns>
+        public async Task ParseAndRunAsync(string[] args, SimpleParserOptions? parserOptions = null)
+        {
+            this.Parse(args);
+            await this.RunAsync();
+        }
+
+        /// <summary>
+        /// Parse the arguments and executes the specified command.
+        /// </summary>
+        /// <param name="arg">The arguments for specifying commands and options.</param>
+        /// <param name="parserOptions">The parser options. Use <c>null</c> to use default options.</param>
+        public void ParseAndRun(string arg, SimpleParserOptions? parserOptions = null)
+        {
+            this.Parse(arg);
+            this.Run();
+        }
+
+        /// <summary>
+        /// Parse the arguments and executes the specified command.
+        /// </summary>
+        /// <param name="args">The arguments for specifying commands and options.</param>
+        /// <param name="parserOptions">The parser options. Use <c>null</c> to use default options.</param>
+        public void ParseAndRun(string[] args, SimpleParserOptions? parserOptions = null)
+        {
+            this.Parse(args);
+            this.Run();
+        }
+
+        /// <summary>
         /// Shows help messages.
         /// </summary>
         /// <param name="command">The name of the command for which help message will be displayed (string.Empty targets all commands).</param>
