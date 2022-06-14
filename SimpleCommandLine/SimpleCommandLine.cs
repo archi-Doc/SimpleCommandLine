@@ -190,7 +190,7 @@ AddString:
         public string CommandName { get; }
 
         /// <summary>
-        /// Gets or sets a value indicating whether this command will be executed if command name is not specified.
+        /// Gets or sets a value indicating whether this command will be executed if the command name is not specified.
         /// </summary>
         public bool Default { get; set; }
 
@@ -200,9 +200,9 @@ AddString:
         public string? Description { get; set; }
 
         /// <summary>
-        /// Gets or sets a value indicating whether or not to accept unknown option names (mainly used in subcommand).
+        /// Gets or sets a value indicating whether the command is a subcommand or not (subcommand accepts unknown option names).
         /// </summary>
-        public bool AcceptUnknownOptionName { get; set; } = false;
+        public bool IsSubcommand { get; set; } = false;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="SimpleCommandAttribute"/> class.
@@ -291,7 +291,7 @@ AddString:
                 this.CommandName = attribute.CommandName;
                 this.Default = attribute.Default;
                 this.Description = attribute.Description;
-                this.AcceptUnknownOptionName = attribute.AcceptUnknownOptionName;
+                this.IsSubcommand = attribute.IsSubcommand;
 
                 if (this.CommandName == string.Empty)
                 {
@@ -464,7 +464,7 @@ AddString:
 
             public string? Description { get; }
 
-            public bool AcceptUnknownOptionName { get; }
+            public bool IsSubcommand { get; }
 
             public OptionClass OptionClass { get; }
 
@@ -1234,7 +1234,7 @@ AddString:
 
             if (this.SimpleCommands.TryGetValue(commandName, out var command))
             {
-                if (commandSpecified && !command.AcceptUnknownOptionName &&
+                if (commandSpecified && !command.IsSubcommand &&
                     arguments.Length > start && OptionEquals(arguments[start], HelpString))
                 {
                     if (arguments[start].IsOptionString() &&
@@ -1248,7 +1248,7 @@ AddString:
                     }
                 }
 
-                if (command.OptionClass.Parse(arguments, start, command.AcceptUnknownOptionName))
+                if (command.OptionClass.Parse(arguments, start, command.IsSubcommand))
                 {// Success
                     this.CurrentCommand = command;
                 }
