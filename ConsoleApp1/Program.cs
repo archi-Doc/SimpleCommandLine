@@ -57,6 +57,9 @@ namespace ConsoleApp1
 
             p.ShowHelp(); // Show help text.
             Console.WriteLine();
+
+            p.ShowList(); // Show command list.
+            Console.WriteLine();
         }
     }
 }

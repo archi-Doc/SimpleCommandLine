@@ -1455,6 +1455,22 @@ AddString:
             Console.WriteLine(version);
         }
 
+        /// <summary>
+        /// Shows a list of commands.
+        /// </summary>
+        public void ShowList()
+        {
+            var sb = new StringBuilder();
+
+            foreach (var x in this.SimpleCommands.Keys.OrderBy(a => a))
+            {
+                sb.Append(x);
+                sb.Append(' ');
+            }
+
+            Console.WriteLine(sb.ToString());
+        }
+
         public void AddErrorMessage(string message) => this.ErrorMessage.Add(message);
 
         public SimpleParserOptions ParserOptions { get; }

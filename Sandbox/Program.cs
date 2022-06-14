@@ -188,6 +188,8 @@ namespace ConsoleApp1
                 await SimpleParser.ParseAndRunAsync(commandTypes!, arg, options);
             }
 
+            p.ShowList();
+
             container.Dispose();
         }
     }
