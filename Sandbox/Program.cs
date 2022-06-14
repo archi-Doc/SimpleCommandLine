@@ -166,6 +166,7 @@ namespace ConsoleApp1
                 RequireStrictCommandName = true,
                 RequireStrictOptionName = true,
                 DoNotDisplayUsage = true,
+                DisplayCommandListAsHelp = true,
             };
 
             // await RunArg("", parserOptions);
@@ -174,9 +175,10 @@ namespace ConsoleApp1
 
             var p = new SimpleParser(commandTypes, parserOptions);
 
-            // p.Parse("test -mode receive -port 12211 -targetip 127.0.0.1 -targetport 1000 -enum hanbun 333");
-            p.Parse("nest test2 222 -name \"ABC\"");
+            p.Parse("test -mode receive -port 12211 -targetip 127.0.0.1 -targetport 1000 -enum hanbun 333");
+            // p.Parse("nest test2 222 -name \"ABC\"");
             await p.RunAsync();
+            Console.WriteLine();
 
             /*var p = SimpleParser.Parse(commandTypes, args);
             p.Run();
@@ -188,7 +190,7 @@ namespace ConsoleApp1
                 await SimpleParser.ParseAndRunAsync(commandTypes!, arg, options);
             }
 
-            p.ShowList();
+            p.ShowHelp();
 
             container.Dispose();
         }

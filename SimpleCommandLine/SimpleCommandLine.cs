@@ -1405,6 +1405,13 @@ AddString:
                 this.AppendUsage(sb, command);
             }
 
+            if (string.IsNullOrEmpty(command) && this.ParserOptions.DisplayCommandListAsHelp)
+            {
+                this.AppendList(sb);
+                Console.WriteLine(sb.ToString());
+                return;
+            }
+
             Command? c = null;
             if (command != null)
             {
@@ -1462,13 +1469,7 @@ AddString:
         public void ShowList()
         {
             var sb = new StringBuilder();
-
-            foreach (var x in this.SimpleCommands.Keys.OrderBy(a => a))
-            {
-                sb.Append(x);
-                sb.Append(' ');
-            }
-
+            this.AppendList(sb);
             Console.WriteLine(sb.ToString());
         }
 
@@ -1516,6 +1517,15 @@ AddString:
         private List<OptionClass> OptionClassUsage { get; }
 
         internal static bool OptionEquals(string arg, string command) => arg.Trim('-').Equals(command, StringComparison.OrdinalIgnoreCase);
+
+        private void AppendList(StringBuilder sb)
+        {
+            foreach (var x in this.SimpleCommands.Keys.OrderBy(a => a))
+            {
+                sb.Append(x);
+                sb.Append(' ');
+            }
+        }
 
         private void AppendUsage(StringBuilder sb, string? commandName)
         {
@@ -1635,5 +1645,10 @@ AddString:
         /// Gets a value indicating whether or not to display the usage text in a help message.
         /// </summary>
         public bool DoNotDisplayUsage { get; init; } = false;
+
+        /// <summary>
+        /// Gets a value indicating whether or not to display a list of commands as help.
+        /// </summary>
+        public bool DisplayCommandListAsHelp { get; init; } = false;
     }
 }
