@@ -1234,7 +1234,8 @@ AddString:
 
             if (this.SimpleCommands.TryGetValue(commandName, out var command))
             {
-                if (commandSpecified && arguments.Length > start && OptionEquals(arguments[start], HelpString))
+                if (commandSpecified && !command.AcceptUnknownOptionName &&
+                    arguments.Length > start && OptionEquals(arguments[start], HelpString))
                 {
                     if (arguments[start].IsOptionString() &&
                         (command.OptionClass.LongNameToOption.ContainsKey(HelpString) || command.OptionClass.ShortNameToOption.ContainsKey(HelpString)))
