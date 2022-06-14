@@ -121,7 +121,7 @@ namespace ConsoleApp1
         }
     }
 
-    [SimpleCommand("nest", AcceptUnknownOptionName = true)]
+    [SimpleCommand("nest", IsSubcommand = true)]
     public class SyncCommand : ISimpleCommand
     {
         public void Run(string[] args)
