@@ -88,6 +88,20 @@ namespace ConsoleApp1
         }
     }
 
+    [SimpleCommand("interface")]
+    public class InterfaceCommand : ISimpleCommandAsync
+    {
+        public async Task Run(string[] args)
+        {
+            Console.WriteLine("Interface command:");
+        }
+    }
+
+    [SimpleCommand("interface2")]
+    public class Interface2Command : InterfaceCommand
+    {
+    }
+
     public class Program
     {
         public static async Task Main(string[] args)
@@ -95,6 +109,8 @@ namespace ConsoleApp1
             var commandTypes = new Type[]
             {
                 typeof(TypeCommand),
+                typeof(InterfaceCommand),
+                typeof(Interface2Command),
             };
 
             await SimpleParser.ParseAndRunAsync(commandTypes, args);

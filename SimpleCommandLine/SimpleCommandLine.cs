@@ -509,7 +509,7 @@ AddString:
 
             private MethodInfo? FindMethod()
             {
-                var methods = this.CommandType.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly).Where(x => x.Name == RunMethodString);
+                var methods = this.CommandType.GetMethods(BindingFlags.Public | BindingFlags.Instance).Where(x => x.Name == RunMethodString);
 
                 if (this.CommandInterface == typeof(ISimpleCommand))
                 {
