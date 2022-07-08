@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "TypeTest": {
+      "commandName": "Project",
+      "commandLineArgs": "interface2"
+    }
+  }
+}
