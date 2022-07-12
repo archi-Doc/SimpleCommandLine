@@ -26,7 +26,7 @@ namespace SimpleCommandLine
         /// <param name="option">The command options class parsed from command-line arguments.</param>
         /// <param name="args">The remaining command-line arguments.</param>
         /// <returns>A task that represents the command execution.</returns>
-        Task Run(T option, string[] args);
+        Task RunAsync(T option, string[] args);
     }
 
     /// <summary>
@@ -54,7 +54,7 @@ namespace SimpleCommandLine
         /// </summary>
         /// <param name="args"> The command-line arguments.</param>
         /// <returns>A task that represents the command execution.</returns>
-        Task Run(string[] args);
+        Task RunAsync(string[] args);
     }
 
     /// <summary>
@@ -274,6 +274,7 @@ AddString:
         internal const string HelpString = "help";
         internal const string VersionString = "version";
         internal const string RunMethodString = "Run";
+        internal const string RunAsyncMethodString = "RunAsync";
         internal const string IndentString = "  ";
         internal const string IndentString2 = "    ";
         internal const string BackingField = "<{0}>k__BackingField";
@@ -353,7 +354,15 @@ AddString:
                 var mi = this.FindMethod();
                 if (mi == null)
                 {// No Run method
-                    throw new InvalidOperationException($"{RunMethodString}() method is required in Type {this.CommandType.ToString()}.");
+                    if (this.CommandInterface == typeof(ISimpleCommandAsync) ||
+                        this.CommandInterface == typeof(ISimpleCommandAsync<>))
+                    {// Async
+                        throw new InvalidOperationException($"{RunAsyncMethodString}() method is required in Type {this.CommandType.ToString()}.");
+                    }
+                    else
+                    {
+                        throw new InvalidOperationException($"{RunMethodString}() method is required in Type {this.CommandType.ToString()}.");
+                    }
                 }
                 else
                 {
@@ -409,7 +418,7 @@ AddString:
                     this.runMethod.Invoke(this.CommandInstance, new object[] { this.OptionClass.OptionInstance!, args });
                 }
                 else if (this.CommandInterface == typeof(ISimpleCommandAsync))
-                {// Task Run(string[] args);
+                {// Task RunAsync(string[] args);
                     var task = (Task?)this.runMethod.Invoke(this.CommandInstance, new object?[] { args });
                     if (task != null)
                     {
@@ -417,7 +426,7 @@ AddString:
                     }
                 }
                 else if (this.CommandInterface == typeof(ISimpleCommandAsync<>))
-                {// Task Run(Options option, string[] args);
+                {// Task RunAsync(Options option, string[] args);
                     var task = (Task?)this.runMethod.Invoke(this.CommandInstance, new object?[] { this.OptionClass.OptionInstance, args });
                     if (task != null)
                     {
@@ -439,12 +448,12 @@ AddString:
                     this.runMethod.Invoke(this.CommandInstance, new object[] { this.OptionClass.OptionInstance!, args });
                 }
                 else if (this.CommandInterface == typeof(ISimpleCommandAsync))
-                {// Task Run(string[] args);
+                {// Task RunAsync(string[] args);
                     var task = (Task?)this.runMethod.Invoke(this.CommandInstance, new object?[] { args });
                     task?.Wait();
                 }
                 else if (this.CommandInterface == typeof(ISimpleCommandAsync<>))
-                {// Task Run(Options option, string[] args);
+                {// Task RunAsync(Options option, string[] args);
                     var task = (Task?)this.runMethod.Invoke(this.CommandInstance, new object?[] { this.OptionClass.OptionInstance, args });
                     task?.Wait();
                 }
@@ -509,7 +518,14 @@ AddString:
 
             private MethodInfo? FindMethod()
             {
-                var methods = this.CommandType.GetMethods(BindingFlags.Public | BindingFlags.Instance).Where(x => x.Name == RunMethodString);
+                string methodString = RunMethodString;
+                if (this.CommandInterface == typeof(ISimpleCommandAsync) ||
+                        this.CommandInterface == typeof(ISimpleCommandAsync<>))
+                {// Async
+                    methodString = RunAsyncMethodString;
+                }
+
+                var methods = this.CommandType.GetMethods(BindingFlags.Public | BindingFlags.Instance).Where(x => x.Name == methodString);
 
                 if (this.CommandInterface == typeof(ISimpleCommand))
                 {
@@ -547,7 +563,7 @@ AddString:
                         {
                             var parameters = x.GetParameters();
                             if (parameters.Length == 1 && parameters[0].ParameterType == typeof(string[]))
-                            {// Task Run(string[] args);
+                            {// Task RunAsync(string[] args);
                                 return x;
                             }
                         }
@@ -561,7 +577,7 @@ AddString:
                         {
                             var parameters = x.GetParameters();
                             if (parameters.Length == 2 && parameters[0].ParameterType == this.OptionType && parameters[1].ParameterType == typeof(string[]))
-                            {// Task Run(Options option, string[] args);
+                            {// Task RunAsync(Options option, string[] args);
                                 return x;
                             }
                         }

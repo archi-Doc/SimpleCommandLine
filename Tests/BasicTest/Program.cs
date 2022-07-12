@@ -23,7 +23,7 @@ namespace ConsoleApp1
     [SimpleCommand("test")]
     public class TestCommand : ISimpleCommandAsync<TestOptions>
     {
-        public async Task Run(TestOptions option, string[] args)
+        public async Task RunAsync(TestOptions option, string[] args)
         {
             Console.WriteLine("Test command:");
             Console.WriteLine($"Number is {option.Number}");

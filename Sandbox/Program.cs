@@ -84,7 +84,7 @@ namespace ConsoleApp1
             this.CommandService = commandService;
         }
 
-        public async Task Run(TestOptions options, string[] args)
+        public async Task RunAsync(TestOptions options, string[] args)
         {
             Console.WriteLine("test command");
             Console.WriteLine();
@@ -115,7 +115,7 @@ namespace ConsoleApp1
         {
         }
 
-        public new async Task Run(TestOptions options, string[] args)
+        public new async Task RunAsync(TestOptions options, string[] args)
         {
             Console.WriteLine("derived command");
         }
@@ -133,7 +133,7 @@ namespace ConsoleApp1
     [SimpleCommand("test2")]
     public class TestCommand2 : ISimpleCommandAsync
     {
-        public async Task Run(string[] args)
+        public async Task RunAsync(string[] args)
         {
             Console.WriteLine("Test2");
         }
@@ -166,7 +166,6 @@ namespace ConsoleApp1
                 RequireStrictCommandName = true,
                 RequireStrictOptionName = true,
                 DoNotDisplayUsage = true,
-                DisplayCommandListAsHelp = true,
             };
 
             // await RunArg("", parserOptions);
@@ -175,10 +174,9 @@ namespace ConsoleApp1
 
             var p = new SimpleParser(commandTypes, parserOptions);
 
-            p.Parse("test -mode receive -port 12211 -targetip 127.0.0.1 -targetport 1000 -enum hanbun 333");
-            // p.Parse("nest test2 222 -name \"ABC\"");
+            // p.Parse("test -mode receive -port 12211 -targetip 127.0.0.1 -targetport 1000 -enum hanbun 333");
+            p.Parse("nest test2 222 -name \"ABC\"");
             await p.RunAsync();
-            Console.WriteLine();
 
             /*var p = SimpleParser.Parse(commandTypes, args);
             p.Run();
@@ -189,8 +187,6 @@ namespace ConsoleApp1
                 Console.WriteLine(arg);
                 await SimpleParser.ParseAndRunAsync(commandTypes!, arg, options);
             }
-
-            p.ShowHelp();
 
             container.Dispose();
         }
