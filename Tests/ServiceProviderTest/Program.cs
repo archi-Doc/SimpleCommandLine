@@ -43,7 +43,7 @@ namespace ConsoleApp1
             this.CommandService = commandService;
         }
 
-        public async Task Run(TestOptions options, string[] args)
+        public async Task RunAsync(TestOptions options, string[] args)
         {
             this.CommandService.Enter(string.Empty);
 
@@ -60,7 +60,7 @@ namespace ConsoleApp1
     [SimpleCommand("test2")]
     public class TestCommand2 : ISimpleCommandAsync
     {
-        public async Task Run(string[] args)
+        public async Task RunAsync(string[] args)
         {
         }
     }
