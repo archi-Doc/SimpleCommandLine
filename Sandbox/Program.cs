@@ -168,6 +168,9 @@ namespace ConsoleApp1
                 DoNotDisplayUsage = true,
             };
 
+            var options = new TestOptions();
+            var b = SimpleParser.TryParseOptions<TestOptions>("", ref options);
+
             // await RunArg("", parserOptions);
 
             // await SimpleParser.ParseAndRunAsync(commandTypes, args, parserOptions); // Main process
@@ -182,7 +185,7 @@ namespace ConsoleApp1
             p.Run();
             p.ShowHelp();*/
 
-            async Task RunArg(string arg, SimpleParserOptions options)
+            async Task RunArg(string arg, SimpleCommandLine.SimpleParserOptions options)
             {
                 Console.WriteLine(arg);
                 await SimpleParser.ParseAndRunAsync(commandTypes!, arg, options);
