@@ -7,6 +7,7 @@ using SimpleCommandLine;
 
 #pragma warning disable CS1998 // Async method lacks 'await' operators and will run synchronously
 #pragma warning disable CS8321 // Local function is declared but never used
+#pragma warning disable SA1602 // Enumeration items should be documented
 
 namespace ConsoleApp1
 {
@@ -92,14 +93,14 @@ namespace ConsoleApp1
             this.Options = options with { };
             this.Options.Directory = "10";
 
-            Console.WriteLine($"Directory: {Options.Directory}");
-            Console.WriteLine($"Mode: {Options.Mode}");
-            Console.WriteLine($"Port: {Options.Port}");
-            Console.WriteLine($"TargetIp: {Options.TargetIp}");
-            Console.WriteLine($"TargetPort: {Options.TargetPort}");
-            Console.WriteLine($"Receiver: {Options.Receiver}");
-            Console.WriteLine($"N: {Options.N}");
-            Console.WriteLine($"Enum: {Options.Enum}");
+            Console.WriteLine($"Directory: {this.Options.Directory}");
+            Console.WriteLine($"Mode: {this.Options.Mode}");
+            Console.WriteLine($"Port: {this.Options.Port}");
+            Console.WriteLine($"TargetIp: {this.Options.TargetIp}");
+            Console.WriteLine($"TargetPort: {this.Options.TargetPort}");
+            Console.WriteLine($"Receiver: {this.Options.Receiver}");
+            Console.WriteLine($"N: {this.Options.N}");
+            Console.WriteLine($"Enum: {this.Options.Enum}");
         }
 
         public ICommandService CommandService { get; }

@@ -88,7 +88,7 @@ namespace ConsoleApp1
             {
                 ServiceProvider = container,
                 RequireStrictCommandName = false,
-                RequireStrictOptionName = true
+                RequireStrictOptionName = true,
             };
 
             await SimpleParser.ParseAndRunAsync(commandTypes, args, parserOptions);
