@@ -4,6 +4,8 @@ using System;
 using System.Text;
 using SimpleCommandLine;
 
+#pragma warning disable SA1516 // Elements should be separated by blank line
+
 Console.WriteLine("Arguments test");
 
 Test(string.Empty);
