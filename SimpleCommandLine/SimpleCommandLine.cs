@@ -866,11 +866,23 @@ AddString:
 
                     if (x.OptionClass != null && !x.ValueIsSet)
                     {// Set instance.
-                        if (this.OptionInstance != null && x.OptionClass.OptionInstance != null)
+                        if (this.OptionInstance != null)
                         {
-                            if (x.SetValue(this.OptionInstance, x.OptionClass.OptionInstance))
+                            if (x.OptionClass.optionInstance == null)
+                            {
+                                x.OptionClass.optionInstance = x.GetValue(this.OptionInstance);
+                            }
+
+                            if (x.OptionClass.optionInstance != null)
                             {
                                 x.ValueIsSet = true;
+                            }
+                            else if (x.OptionClass.OptionInstance != null)
+                            {
+                                if (x.SetValue(this.OptionInstance, x.OptionClass.OptionInstance))
+                                {
+                                    x.ValueIsSet = true;
+                                }
                             }
                         }
                     }

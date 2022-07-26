@@ -18,6 +18,9 @@ namespace ConsoleApp1
     {
         [SimpleOption("number", "n")]
         public int Number { get; set; } = 10;
+
+        [SimpleOption("op5", Required = false)]
+        public TestOptions5 Options5 { get; set; } = new TestOptions5() with { File = "A1", };
     }
 
     [SimpleCommand("test")]
@@ -69,6 +72,24 @@ namespace ConsoleApp1
         }
     }
 
+    public record TestOptions4
+    {
+        [SimpleOption("name", "n", Required = false)]
+        public string Name { get; set; } = string.Empty;
+
+        [SimpleOption("id", Required = false)]
+        public int Id { get; init; } = 99;
+
+        [SimpleOption("op5", Required = false)]
+        public TestOptions5 Options5 { get; set; } = new TestOptions5() with { File = "A", };
+    }
+
+    public record TestOptions5
+    {
+        [SimpleOption("file", "f", Required = false)]
+        public string File { get; set; } = string.Empty;
+    }
+
     public class Program
     {
         public static async Task Main(string[] args)
@@ -80,7 +101,12 @@ namespace ConsoleApp1
                 typeof(TestCommand3),
             };
 
+            var op4 = new TestOptions4() { Id = 1, Name = "A", Options5 = new() { File = "X", } };
+            var b = SimpleParser.TryParseOptions<TestOptions4>(string.Empty, out var op4b);
+            b = SimpleParser.TryParseOptions<TestOptions4>(string.Empty, out op4b, op4);
+
             // await SimpleParser.ParseAndRunAsync(commandTypes, "test3 -t aa -options3b [-name2 ya -name tst] "); // -options {-n 99}
+            // await SimpleParser.ParseAndRunAsync(commandTypes, "-n 12 -op5 [-file \"jj\"]"); // -options {-n 99}
             await SimpleParser.ParseAndRunAsync(commandTypes, args); // -options {-n 99}
             // await SimpleParser.ParseAndRunAsync(commandTypes, "test3 -text aaa -options3b -encodedCommand ewB9AA== -inputFormat xml -outputFormat text");
 
