@@ -169,7 +169,8 @@ namespace ConsoleApp1
             };
 
             var options = new TestOptions();
-            var b = SimpleParser.TryParseOptions<TestOptions>("", ref options);
+            var b = SimpleParser.TryParseOptions<TestOptions>("test  -targetip 127.0.0.1 \"testdir\" -targetport 123 -enum hanbun", out options);
+            b = SimpleParser.TryParseOptions<TestOptions>("test  -targetipp 1234 \"testdir2\" -enum Yes", out var options2, options);
 
             // await RunArg("", parserOptions);
 

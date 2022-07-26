@@ -268,7 +268,7 @@ AddString:
         }
     }
 
-    public interface ISimpleParser
+    internal interface ISimpleParser
     {
         public void AddErrorMessage(string message);
 
@@ -297,9 +297,6 @@ AddString:
             InitializeTypeConverter();
         }
 
-        public static bool TryParseOptions<TOptions>(string[] args, ref TOptions options, SimpleParserOptions? parserOptions = null)
-            => TryParseOptions(string.Join(' ', args), ref options, parserOptions);
-
         private class HollowParser : ISimpleParser
         {
             public HollowParser(bool requireStrictOptionName)
@@ -318,9 +315,12 @@ AddString:
             }
         }
 
-        public static bool TryParseOptions<TOptions>(string args, ref TOptions options, SimpleParserOptions? parserOptions = null)
+        public static bool TryParseOptions<TOptions>(string[] args, [MaybeNullWhen(false)] out TOptions options, TOptions? original = default)
+            => TryParseOptions(string.Join(' ', args), out options, original);
+
+        public static bool TryParseOptions<TOptions>(string args, [MaybeNullWhen(false)] out TOptions options, TOptions? original = default)
         {
-            bool requireStrictOptionName;
+            /*bool requireStrictOptionName;
             if (parserOptions != null)
             {
                 requireStrictOptionName = parserOptions.RequireStrictOptionName;
@@ -328,11 +328,26 @@ AddString:
             else
             {
                 requireStrictOptionName = SimpleParserOptions.Standard.RequireStrictOptionName;
+            }*/
+
+            var parser = new HollowParser(false);
+
+            var arguments = args.FormatArguments();
+            var optionClass = new OptionClass(parser, typeof(TOptions), null);
+            if (original != null)
+            {
+                optionClass.optionInstance = original;
             }
 
-            var parser = new HollowParser(requireStrictOptionName);
-            var optionClass = new OptionClass(parser, typeof(TOptions), null);
-            return true;
+            optionClass.Parse(arguments, 0, true);
+            if (optionClass.FatalError)
+            {
+                options = default;
+                return false;
+            }
+
+            options = (TOptions)optionClass.OptionInstance!;
+            return options != null;
         }
 
         private static void InitializeTypeConverter()
@@ -687,7 +702,7 @@ AddString:
 
         public class OptionClass
         {
-            public OptionClass(ISimpleParser parser, Type? optionType, Stack<Type>? optionStack)
+            internal OptionClass(ISimpleParser parser, Type? optionType, Stack<Type>? optionStack)
             {
                 optionStack ??= new();
                 if (optionType != null)
@@ -846,6 +861,7 @@ AddString:
                     {// Value required.
                         this.Parser.AddErrorMessage($"Value is required for option '{x.LongName}' <{this.OptionType?.Name}>");
                         errorFlag = true;
+                        this.FatalError = true;
                     }
 
                     if (x.OptionClass != null && !x.ValueIsSet)
@@ -869,8 +885,6 @@ AddString:
                 return true;
             }
 
-            public ISimpleParser Parser { get; }
-
             public Type? OptionType { get; }
 
             public List<Option> Options { get; }
@@ -882,6 +896,10 @@ AddString:
             public object? OptionInstance => this.optionInstance != null ? this.optionInstance : (this.optionInstance = this.OptionType == null ? null : Activator.CreateInstance(this.OptionType)!);
 
             public string[]? RemainingArguments { get; private set; }
+
+            internal ISimpleParser Parser { get; }
+
+            internal bool FatalError { get; private set; }
 
             internal void AppendOption(StringBuilder sb, bool addName)
             {
@@ -985,12 +1003,16 @@ AddString:
                 sb.AppendLine();
             }
 
-            private object? optionInstance;
+#pragma warning disable SA1307 // Accessible fields should begin with upper-case letter
+#pragma warning disable SA1401
+            internal object? optionInstance;
+#pragma warning restore SA1401
+#pragma warning restore SA1307 // Accessible fields should begin with upper-case letter
         }
 
         public class Option
         {
-            public Option(ISimpleParser parser, Type optionType, MemberInfo memberInfo, SimpleOptionAttribute attribute, Stack<Type> optionStack)
+            internal Option(ISimpleParser parser, Type optionType, MemberInfo memberInfo, SimpleOptionAttribute attribute, Stack<Type> optionStack)
             {
                 this.Parser = parser;
                 this.LongName = attribute.LongName.Trim();
@@ -1121,8 +1143,6 @@ AddString:
                 return true;
             }
 
-            public ISimpleParser Parser { get; }
-
             public PropertyInfo? PropertyInfo { get; }
 
             public FieldInfo? FieldInfo { get; }
@@ -1144,6 +1164,8 @@ AddString:
             public Type OptionType => this.PropertyInfo != null ? this.PropertyInfo.PropertyType : this.FieldInfo!.FieldType;
 
             public OptionClass? OptionClass { get; }
+
+            internal ISimpleParser Parser { get; }
 
             internal object? GetValue(object? instance)
             {
