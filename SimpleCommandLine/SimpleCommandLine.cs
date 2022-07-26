@@ -2,6 +2,8 @@
 
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -266,10 +268,19 @@ AddString:
         }
     }
 
+    internal interface ISimpleParser
+    {
+        public void AddErrorMessage(string message);
+
+        public void TryAddOptionClassUsage(SimpleParser.OptionClass optionClass);
+
+        public bool RequireStrictOptionName { get; }
+    }
+
     /// <summary>
     /// A simple command-line parser.
     /// </summary>
-    public class SimpleParser
+    public class SimpleParser : ISimpleParser
     {
         internal const string HelpString = "help";
         internal const string VersionString = "version";
@@ -280,6 +291,107 @@ AddString:
         internal const string BackingField = "<{0}>k__BackingField";
         internal const char OpenBracket = '[';
         internal const char CloseBracket = ']';
+
+        static SimpleParser()
+        {
+            InitializeTypeConverter();
+        }
+
+        private class HollowParser : ISimpleParser
+        {
+            public HollowParser(bool requireStrictOptionName)
+            {
+                this.RequireStrictOptionName = requireStrictOptionName;
+            }
+
+            public bool RequireStrictOptionName { get; set; }
+
+            public void AddErrorMessage(string message)
+            {
+            }
+
+            public void TryAddOptionClassUsage(OptionClass optionClass)
+            {
+            }
+        }
+
+        public static bool TryParseOptions<TOptions>(string[] args, [MaybeNullWhen(false)] out TOptions options, TOptions? original = default)
+            => TryParseOptions(string.Join(' ', args), out options, original);
+
+        public static bool TryParseOptions<TOptions>(string args, [MaybeNullWhen(false)] out TOptions options, TOptions? original = default)
+        {
+            /*bool requireStrictOptionName;
+            if (parserOptions != null)
+            {
+                requireStrictOptionName = parserOptions.RequireStrictOptionName;
+            }
+            else
+            {
+                requireStrictOptionName = SimpleParserOptions.Standard.RequireStrictOptionName;
+            }*/
+
+            var parser = new HollowParser(false);
+
+            var arguments = args.FormatArguments();
+            var optionClass = new OptionClass(parser, typeof(TOptions), null);
+            if (original != null)
+            {
+                optionClass.optionInstance = original;
+            }
+
+            optionClass.Parse(arguments, 0, true);
+            if (optionClass.FatalError)
+            {
+                options = default;
+                return false;
+            }
+
+            options = (TOptions)optionClass.OptionInstance!;
+            return options != null;
+        }
+
+        private static void InitializeTypeConverter()
+        {
+            ParserTypeConverter.Add(typeof(bool), static x =>
+            {
+                var st = x.ToLower();
+                if (st == "true")
+                {
+                    return true;
+                }
+                else if (st == "false")
+                {
+                    return false;
+                }
+                else
+                {
+                    throw new InvalidOperationException();
+                }
+            });
+
+            ParserTypeConverter.Add(typeof(string), static x =>
+            {
+                if (x.Length >= 2 && x.StartsWith('\"') && x.EndsWith('\"'))
+                {
+                    return x.Substring(1, x.Length - 2);
+                }
+
+                return x;
+            });
+
+            ParserTypeConverter.Add(typeof(sbyte), static x => Convert.ToSByte(x, CultureInfo.InvariantCulture));
+            ParserTypeConverter.Add(typeof(byte), static x => Convert.ToByte(x, CultureInfo.InvariantCulture));
+            ParserTypeConverter.Add(typeof(short), static x => Convert.ToInt16(x, CultureInfo.InvariantCulture));
+            ParserTypeConverter.Add(typeof(ushort), static x => Convert.ToUInt16(x, CultureInfo.InvariantCulture));
+            ParserTypeConverter.Add(typeof(int), static x => Convert.ToInt32(x, CultureInfo.InvariantCulture));
+            ParserTypeConverter.Add(typeof(uint), static x => Convert.ToUInt32(x, CultureInfo.InvariantCulture));
+            ParserTypeConverter.Add(typeof(long), static x => Convert.ToInt64(x, CultureInfo.InvariantCulture));
+            ParserTypeConverter.Add(typeof(ulong), static x => Convert.ToUInt64(x, CultureInfo.InvariantCulture));
+            ParserTypeConverter.Add(typeof(float), static x => Convert.ToSingle(x, CultureInfo.InvariantCulture));
+            ParserTypeConverter.Add(typeof(double), static x => Convert.ToDouble(x, CultureInfo.InvariantCulture));
+            ParserTypeConverter.Add(typeof(decimal), static x => Convert.ToDecimal(x, CultureInfo.InvariantCulture));
+            ParserTypeConverter.Add(typeof(char), static x => Convert.ToChar(x, CultureInfo.InvariantCulture));
+        }
 
         public class Command
         {
@@ -590,7 +702,7 @@ AddString:
 
         public class OptionClass
         {
-            public OptionClass(SimpleParser parser, Type? optionType, Stack<Type>? optionStack)
+            internal OptionClass(ISimpleParser parser, Type? optionType, Stack<Type>? optionStack)
             {
                 optionStack ??= new();
                 if (optionType != null)
@@ -722,7 +834,7 @@ AddString:
                          // if (!string.Equals(args[n], "inputFormat", StringComparison.OrdinalIgnoreCase) && !string.Equals(args[n], "outputFormat", StringComparison.OrdinalIgnoreCase))
                             remaining.Add(args[n]);
 
-                            if (this.Parser.ParserOptions.RequireStrictOptionName && !acceptUnknownOptionName)
+                            if (this.Parser.RequireStrictOptionName && !acceptUnknownOptionName)
                             {
                                 if (this.OptionType == null)
                                 {
@@ -749,6 +861,7 @@ AddString:
                     {// Value required.
                         this.Parser.AddErrorMessage($"Value is required for option '{x.LongName}' <{this.OptionType?.Name}>");
                         errorFlag = true;
+                        this.FatalError = true;
                     }
 
                     if (x.OptionClass != null && !x.ValueIsSet)
@@ -772,8 +885,6 @@ AddString:
                 return true;
             }
 
-            public SimpleParser Parser { get; }
-
             public Type? OptionType { get; }
 
             public List<Option> Options { get; }
@@ -785,6 +896,10 @@ AddString:
             public object? OptionInstance => this.optionInstance != null ? this.optionInstance : (this.optionInstance = this.OptionType == null ? null : Activator.CreateInstance(this.OptionType)!);
 
             public string[]? RemainingArguments { get; private set; }
+
+            internal ISimpleParser Parser { get; }
+
+            internal bool FatalError { get; private set; }
 
             internal void AppendOption(StringBuilder sb, bool addName)
             {
@@ -879,21 +994,25 @@ AddString:
 
                     sb.AppendLine();
 
-                    if (x.OptionClass != null && !this.Parser.OptionClassUsage.Any(a => a.OptionType == x.OptionClass.OptionType))
+                    if (x.OptionClass != null)
                     {
-                        this.Parser.OptionClassUsage.Add(x.OptionClass);
+                        this.Parser.TryAddOptionClassUsage(x.OptionClass);
                     }
                 }
 
                 sb.AppendLine();
             }
 
-            private object? optionInstance;
+#pragma warning disable SA1307 // Accessible fields should begin with upper-case letter
+#pragma warning disable SA1401
+            internal object? optionInstance;
+#pragma warning restore SA1401
+#pragma warning restore SA1307 // Accessible fields should begin with upper-case letter
         }
 
         public class Option
         {
-            public Option(SimpleParser parser, Type optionType, MemberInfo memberInfo, SimpleOptionAttribute attribute, Stack<Type> optionStack)
+            internal Option(ISimpleParser parser, Type optionType, MemberInfo memberInfo, SimpleOptionAttribute attribute, Stack<Type> optionStack)
             {
                 this.Parser = parser;
                 this.LongName = attribute.LongName.Trim();
@@ -916,7 +1035,7 @@ AddString:
                 if (this.OptionType.IsEnum)
                 {// Enum
                 }
-                else if (!this.Parser.TypeConverter.ContainsKey(this.OptionType))
+                else if (!SimpleParser.ParserTypeConverter.ContainsKey(this.OptionType))
                 {
                     var optionClass = new OptionClass(this.Parser, this.OptionType, optionStack);
                     if (optionClass.Options.Count > 0)
@@ -995,7 +1114,7 @@ AddString:
                 {
                     try
                     {
-                        value = this.Parser.TypeConverter[this.OptionType](arg)!;
+                        value = SimpleParser.ParserTypeConverter[this.OptionType](arg)!;
                     }
                     catch
                     {
@@ -1024,8 +1143,6 @@ AddString:
                 return true;
             }
 
-            public SimpleParser Parser { get; }
-
             public PropertyInfo? PropertyInfo { get; }
 
             public FieldInfo? FieldInfo { get; }
@@ -1047,6 +1164,8 @@ AddString:
             public Type OptionType => this.PropertyInfo != null ? this.PropertyInfo.PropertyType : this.FieldInfo!.FieldType;
 
             public OptionClass? OptionClass { get; }
+
+            internal ISimpleParser Parser { get; }
 
             internal object? GetValue(object? instance)
             {
@@ -1077,7 +1196,6 @@ AddString:
         public SimpleParser(IEnumerable<Type> simpleCommands, SimpleParserOptions? parserOptions = null)
         {
             this.ParserOptions = parserOptions ?? SimpleParserOptions.Standard;
-            this.InitializeTypeConverter();
 
             Command? firstOrDefault = null;
             this.SimpleCommands = new(StringComparer.InvariantCultureIgnoreCase);
@@ -1489,7 +1607,10 @@ AddString:
             Console.WriteLine(sb.ToString());
         }
 
-        public void AddErrorMessage(string message) => this.ErrorMessage.Add(message);
+        /// <summary>
+        /// Gets the collection of type converters.
+        /// </summary>
+        public static Dictionary<Type, Func<string, object?>> ParserTypeConverter { get; private set; } = new();
 
         public SimpleParserOptions ParserOptions { get; }
 
@@ -1523,10 +1644,17 @@ AddString:
         /// </summary>
         public Dictionary<string, Command> SimpleCommands { get; private set; }
 
-        /// <summary>
-        /// Gets the collection of type converters.
-        /// </summary>
-        public Dictionary<Type, Func<string, object?>> TypeConverter { get; private set; } = default!;
+        public void AddErrorMessage(string message) => this.ErrorMessage.Add(message);
+
+        public bool RequireStrictOptionName => this.ParserOptions.RequireStrictOptionName;
+
+        public void TryAddOptionClassUsage(OptionClass optionClass)
+        {
+            if (!this.OptionClassUsage.Any(a => a.OptionType == optionClass.OptionType))
+            {
+                this.OptionClassUsage.Add(optionClass);
+            }
+        }
 
         private List<string> ErrorMessage { get; }
 
@@ -1573,51 +1701,6 @@ AddString:
             }
 
             sb.AppendLine();
-        }
-
-        private void InitializeTypeConverter()
-        {
-            this.TypeConverter = new();
-
-            this.TypeConverter.Add(typeof(bool), static x =>
-            {
-                var st = x.ToLower();
-                if (st == "true")
-                {
-                    return true;
-                }
-                else if (st == "false")
-                {
-                    return false;
-                }
-                else
-                {
-                    throw new InvalidOperationException();
-                }
-            });
-
-            this.TypeConverter.Add(typeof(string), static x =>
-            {
-                if (x.Length >= 2 && x.StartsWith('\"') && x.EndsWith('\"'))
-                {
-                    return x.Substring(1, x.Length - 2);
-                }
-
-                return x;
-            });
-
-            this.TypeConverter.Add(typeof(sbyte), static x => Convert.ToSByte(x, CultureInfo.InvariantCulture));
-            this.TypeConverter.Add(typeof(byte), static x => Convert.ToByte(x, CultureInfo.InvariantCulture));
-            this.TypeConverter.Add(typeof(short), static x => Convert.ToInt16(x, CultureInfo.InvariantCulture));
-            this.TypeConverter.Add(typeof(ushort), static x => Convert.ToUInt16(x, CultureInfo.InvariantCulture));
-            this.TypeConverter.Add(typeof(int), static x => Convert.ToInt32(x, CultureInfo.InvariantCulture));
-            this.TypeConverter.Add(typeof(uint), static x => Convert.ToUInt32(x, CultureInfo.InvariantCulture));
-            this.TypeConverter.Add(typeof(long), static x => Convert.ToInt64(x, CultureInfo.InvariantCulture));
-            this.TypeConverter.Add(typeof(ulong), static x => Convert.ToUInt64(x, CultureInfo.InvariantCulture));
-            this.TypeConverter.Add(typeof(float), static x => Convert.ToSingle(x, CultureInfo.InvariantCulture));
-            this.TypeConverter.Add(typeof(double), static x => Convert.ToDouble(x, CultureInfo.InvariantCulture));
-            this.TypeConverter.Add(typeof(decimal), static x => Convert.ToDecimal(x, CultureInfo.InvariantCulture));
-            this.TypeConverter.Add(typeof(char), static x => Convert.ToChar(x, CultureInfo.InvariantCulture));
         }
     }
 
