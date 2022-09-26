@@ -905,7 +905,18 @@ AddString:
 
             public Dictionary<string, Option> ShortNameToOption { get; }
 
-            public object? OptionInstance => this.optionInstance != null ? this.optionInstance : (this.optionInstance = this.OptionType == null ? null : Activator.CreateInstance(this.OptionType)!);
+            public object? OptionInstance
+            {// public object? OptionInstance => this.optionInstance != null ? this.optionInstance : (this.optionInstance = this.OptionType == null ? null : Activator.CreateInstance(this.OptionType)!);
+                get
+                {
+                    if (this.optionInstance == null && this.OptionType != null)
+                    {
+                        this.optionInstance = Activator.CreateInstance(this.OptionType);
+                    }
+
+                    return this.optionInstance;
+                }
+            }
 
             public string[]? RemainingArguments { get; private set; }
 
@@ -1013,6 +1024,14 @@ AddString:
                 }
 
                 sb.AppendLine();
+            }
+
+            internal void ResetOptionInstance()
+            {
+                if (this.OptionType != null)
+                {
+                    this.optionInstance = Activator.CreateInstance(this.OptionType);
+                }
             }
 
 #pragma warning disable SA1307 // Accessible fields should begin with upper-case letter
@@ -1394,6 +1413,7 @@ AddString:
                     }
                 }
 
+                command.OptionClass.ResetOptionInstance();
                 if (command.OptionClass.Parse(arguments, start, command.IsSubcommand))
                 {// Success
                     this.CurrentCommand = command;
