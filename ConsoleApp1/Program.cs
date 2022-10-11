@@ -1,23 +1,23 @@
-﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
+﻿    // Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
-using System;
-using System.Threading.Tasks;
-using SimpleCommandLine;
+    using System;
+    using System.Threading.Tasks;
+    using SimpleCommandLine;
 
-#pragma warning disable CS1998 // Async method lacks 'await' operators and will run synchronously
+    #pragma warning disable CS1998 // Async method lacks 'await' operators and will run synchronously
 
-namespace ConsoleApp1
-{
+    namespace ConsoleApp1;
+
     public class TestOptions
     {// Option class stores command options. Default constructor is required.
-        [SimpleOption("number", "n", "test number")] // Annotate SimpleOptionAttribute and specify a long/short option name and description.
+        [SimpleOption("number", ShortName = "n", Description = "test number")] // Annotate SimpleOptionAttribute and specify a long/short option name and description.
         public int Number { get; set; } = 10; // Set a default value.
 
-        [SimpleOption("text", "t", "test text.", Required = true)] // Set Required property to true if you want to make the option required.
+        [SimpleOption("text", ShortName = "t", Description = "test text.", Required = true)] // Set Required property to true if you want to make the option required.
         public string Text { get; set; } = string.Empty;
     }
 
-    [SimpleCommand("test", "Test command.")] // Annotate SimpleCommandAttribute and specify a command name and description.
+    [SimpleCommand("test", Description = "Test command.")] // Annotate SimpleCommandAttribute and specify a command name and description.
     public class TestCommand : ISimpleCommandAsync<TestOptions> // Implementation of either ISimpleCommandAsync<T> or ISimpleCommand<T> is required.
     {// Command class handles the command function.
         public async Task RunAsync(TestOptions option, string[] args)
@@ -59,4 +59,3 @@ namespace ConsoleApp1
             Console.WriteLine();
         }
     }
-}

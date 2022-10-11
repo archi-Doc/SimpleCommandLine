@@ -31,7 +31,7 @@ namespace ConsoleApp1
 
     public class TestOptions
     {
-        [SimpleOption("number", "n")]
+        [SimpleOption("number", ShortName = "n")]
         public int Number { get; set; } = 10;
     }
 

@@ -2,7 +2,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO;
@@ -10,8 +9,6 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
-
-#pragma warning disable SA1009 // Closing parenthesis should be spaced correctly
 
 namespace SimpleCommandLine
 {
@@ -210,11 +207,9 @@ AddString:
         /// Initializes a new instance of the <see cref="SimpleCommandAttribute"/> class.
         /// </summary>
         /// <param name="commandName">The name of the command.</param>
-        /// <param name="description">The description of the command.</param>
-        public SimpleCommandAttribute(string commandName, string? description = null)
+        public SimpleCommandAttribute(string commandName)
         {
             this.CommandName = commandName.Trim();
-            this.Description = description;
         }
     }
 
@@ -230,9 +225,9 @@ AddString:
         public string LongName { get; }
 
         /// <summary>
-        /// Gets the short option name. Null if you don't want use short name.
+        /// Gets or sets the short option name. Set <see langword="null"/> if you don't want to use short name.
         /// </summary>
-        public string? ShortName { get; }
+        public string? ShortName { get; set; }
 
         /// <summary>
         /// Gets or sets the description of the command-line option.
@@ -253,9 +248,7 @@ AddString:
         /// Initializes a new instance of the <see cref="SimpleOptionAttribute"/> class.
         /// </summary>
         /// <param name="longName">The long command-line name.</param>
-        /// <param name="shortName">The short command-line name. Null if you don't want use short name.</param>
-        /// <param name="description">The description of the command-line option.</param>
-        public SimpleOptionAttribute(string longName, string? shortName = null, string? description = null)
+        public SimpleOptionAttribute(string longName)
         {
             if (string.IsNullOrWhiteSpace(longName))
             {
@@ -263,8 +256,6 @@ AddString:
             }
 
             this.LongName = longName;
-            this.ShortName = shortName;
-            this.Description = description;
         }
     }
 
