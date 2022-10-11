@@ -10,13 +10,13 @@ namespace ConsoleApp1
 {
     public class BaseOptions
     {
-        [SimpleOption("directory", "d")]
+        [SimpleOption("directory", ShortName = "d")]
         public string Directory { get; set; } = string.Empty;
     }
 
     public class TestOptions : BaseOptions
     {
-        [SimpleOption("number", "n")]
+        [SimpleOption("number", ShortName = "n")]
         public int Number { get; set; } = 10;
 
         [SimpleOption("op5", Required = false)]
@@ -44,7 +44,7 @@ namespace ConsoleApp1
 
     public class TestOptions3 : BaseOptions
     {
-        [SimpleOption("text", "t", Required = true)]
+        [SimpleOption("text", ShortName = "t", Required = true)]
         public string Text { get; set; } = string.Empty;
 
         [SimpleOption("options")]
@@ -56,7 +56,7 @@ namespace ConsoleApp1
 
     public class TestOptions3b
     {
-        [SimpleOption("name", "n", Required = true)]
+        [SimpleOption("name", ShortName = "n", Required = true)]
         public string Name { get; set; } = string.Empty;
     }
 
@@ -74,7 +74,7 @@ namespace ConsoleApp1
 
     public record TestOptions4
     {
-        [SimpleOption("name", "n", Required = false)]
+        [SimpleOption("name", ShortName = "n", Required = false)]
         public string Name { get; set; } = string.Empty;
 
         [SimpleOption("id", Required = false)]
@@ -86,7 +86,7 @@ namespace ConsoleApp1
 
     public record TestOptions5
     {
-        [SimpleOption("file", "f", Required = false)]
+        [SimpleOption("file", ShortName = "f", Required = false)]
         public string File { get; set; } = string.Empty;
     }
 

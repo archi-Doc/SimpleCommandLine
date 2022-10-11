@@ -32,7 +32,7 @@ namespace ConsoleApp1
     [SimpleCommand("test")]
     public class ObsoleteCommand
     {
-        [SimpleOption("number", "n")]
+        [SimpleOption("number", ShortName ="n")]
         public int N { get; set; } = 10;
 
         public async Task Run(string[] args)
@@ -52,32 +52,32 @@ namespace ConsoleApp1
 
     public record TestOptions
     {
-        [SimpleOption("directory", null, "base directory for storing application data")]
+        [SimpleOption("directory", Description = "base directory for storing application data")]
         public string Directory { get; set; } = string.Empty;
 
-        [SimpleOption("mode", null, "mode(receive, transfer)")]
+        [SimpleOption("mode", Description = "mode(receive, transfer)")]
         public string Mode { get; private set; } = "receive";
 
-        [SimpleOption("port", null, "local port number to transfer packets")]
+        [SimpleOption("port", Description = "local port number to transfer packets")]
         public int Port { get; } = 2000;
 
-        [SimpleOption("targetip", null, "target ip address", Required = true)]
+        [SimpleOption("targetip", Description = "target ip address", Required = true)]
         public string TargetIp { get; } = string.Empty;
 
-        [SimpleOption("targetport", null, "target port number")]
+        [SimpleOption("targetport", Description = "target port number")]
         public int TargetPort { get; } = 1000;
 
-        [SimpleOption("receiver", null, "true if the node is receiver")]
+        [SimpleOption("receiver", Description = "true if the node is receiver")]
         public bool Receiver { get; } = true;
 
-        [SimpleOption("n", null, "test N")]
+        [SimpleOption("n", Description = "test N")]
         public int N { get; init; } = 4;
 
-        [SimpleOption("enum", null, "test enum", Required = true)]
+        [SimpleOption("enum", Description = "test enum", Required = true)]
         public TestEnum Enum { get; } = TestEnum.Yes;
     }
 
-    [SimpleCommand("test", "description")]
+    [SimpleCommand("test", Description = "description")]
     public class TestCommand : ISimpleCommandAsync<TestOptions>
     {
         public TestCommand(ICommandService commandService)
