@@ -265,7 +265,7 @@ AddString:
 
         public void TryAddOptionClassUsage(SimpleParser.OptionClass optionClass);
 
-        public bool RequireStrictOptionName { get; }
+        public SimpleParserOptions ParserOptions { get; }
     }
 
     /// <summary>
@@ -290,12 +290,12 @@ AddString:
 
         private class HollowParser : ISimpleParser
         {
-            public HollowParser(bool requireStrictOptionName)
+            public HollowParser(SimpleParserOptions parserOptions)
             {
-                this.RequireStrictOptionName = requireStrictOptionName;
+                this.ParserOptions = parserOptions;
             }
 
-            public bool RequireStrictOptionName { get; set; }
+            public SimpleParserOptions ParserOptions { get; }
 
             public void AddErrorMessage(string message)
             {
@@ -321,7 +321,7 @@ AddString:
                 requireStrictOptionName = SimpleParserOptions.Standard.RequireStrictOptionName;
             }*/
 
-            var parser = new HollowParser(false);
+            var parser = new HollowParser(SimpleParserOptions.Standard);
 
             var arguments = args.FormatArguments();
             var optionClass = new OptionClass(parser, typeof(TOptions), null);
@@ -825,7 +825,7 @@ AddString:
                          // if (!string.Equals(args[n], "inputFormat", StringComparison.OrdinalIgnoreCase) && !string.Equals(args[n], "outputFormat", StringComparison.OrdinalIgnoreCase))
                             remaining.Add(args[n]);
 
-                            if (this.Parser.RequireStrictOptionName && !acceptUnknownOptionName)
+                            if (this.Parser.ParserOptions.RequireStrictOptionName && !acceptUnknownOptionName)
                             {
                                 if (this.OptionType == null)
                                 {
@@ -842,6 +842,24 @@ AddString:
                     }
                     else
                     {
+                        if (this.Parser.ParserOptions.OmitOptionNamesForRequiredOptions)
+                        {
+                            if (this.Options.FirstOrDefault(x => x.Required && !x.ValueIsSet) is { } option)
+                            {
+                                if (option.Parse(args[n], this.OptionInstance, acceptUnknownOptionName))
+                                {
+                                    option.ValueIsSet = true;
+                                }
+                                else
+                                {// Parse error
+                                    this.Parser.AddErrorMessage($"Could not convert '{args[n]}' to Type '{option.OptionType.Name}' ({args[n - 1]} {args[n]})");
+                                    errorFlag = true;
+                                }
+
+                                continue;
+                            }
+                        }
+
                         remaining.Add(args[n]);
                     }
                 }
@@ -1772,5 +1790,10 @@ AddString:
         /// Gets a value indicating whether or not to display a list of commands as help.
         /// </summary>
         public bool DisplayCommandListAsHelp { get; init; } = false;
+
+        /// <summary>
+        /// Gets a value indicating whether or not to omit specifying option names for required options.
+        /// </summary>
+        public bool OmitOptionNamesForRequiredOptions { get; init; } = true;
     }
 }
