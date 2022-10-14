@@ -16,6 +16,9 @@ namespace ConsoleApp1
 
     public class TestOptions : BaseOptions
     {
+        [SimpleOption("name", Required = true)]
+        public string Name { get; set; } = string.Empty;
+
         [SimpleOption("number", ShortName = "n")]
         public int Number { get; set; } = 10;
 
@@ -29,7 +32,7 @@ namespace ConsoleApp1
         public async Task RunAsync(TestOptions option, string[] args)
         {
             Console.WriteLine("Test command:");
-            Console.WriteLine($"Number is {option.Number}");
+            Console.WriteLine($"{option.Name}, {option.Number}, {option.Options5}");
         }
     }
 
@@ -105,12 +108,13 @@ namespace ConsoleApp1
             var b = SimpleParser.TryParseOptions<TestOptions4>(string.Empty, out var op4b);
             b = SimpleParser.TryParseOptions<TestOptions4>(string.Empty, out op4b, op4);
 
+            // await SimpleParser.ParseAndRunAsync(commandTypes, args);
+            await SimpleParser.ParseAndRunAsync(commandTypes, "test abc -ab 23");
+
             // await SimpleParser.ParseAndRunAsync(commandTypes, "test3 -t aa -options3b [-name2 ya -name tst] "); // -options {-n 99}
             // await SimpleParser.ParseAndRunAsync(commandTypes, "-n 12 -op5 [-file \"jj\"]"); // -options {-n 99}
-            await SimpleParser.ParseAndRunAsync(commandTypes, args); // -options {-n 99}
             // await SimpleParser.ParseAndRunAsync(commandTypes, "test3 -text aaa -options3b -encodedCommand ewB9AA== -inputFormat xml -outputFormat text");
 
-            // await SimpleParser.ParseAndRunAsync(commandTypes, args);
             // await SimpleParser.ParseAndRunAsync(commandTypes, "help");
         }
     }

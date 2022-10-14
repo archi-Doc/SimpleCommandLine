@@ -844,7 +844,22 @@ AddString:
                     {
                         if (this.Parser.ParserOptions.OmitOptionNamesForRequiredOptions)
                         {
+                            if (this.Options.FirstOrDefault(x => x.Required && !x.ValueIsSet) is { } option)
+                            {
+                                if (option.Parse(args[n], this.OptionInstance, acceptUnknownOptionName))
+                                {
+                                    option.ValueIsSet = true;
+                                }
+                                else
+                                {// Parse error
+                                    this.Parser.AddErrorMessage($"Could not convert '{args[n]}' to Type '{option.OptionType.Name}' ({args[n - 1]} {args[n]})");
+                                    errorFlag = true;
+                                }
+
+                                continue;
+                            }
                         }
+
                         remaining.Add(args[n]);
                     }
                 }
