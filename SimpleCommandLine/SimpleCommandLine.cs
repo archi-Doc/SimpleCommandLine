@@ -76,13 +76,14 @@ namespace SimpleCommandLine
 
         public static string[] FormatArguments(this string arg)
         {
+            const char Quote = '\"';
             var span = arg.AsSpan();
             var list = new List<string>();
 
             var start = 0;
             var end = 0;
             var enclosed = new Stack<char>();
-            var addStringIncrement = true;
+            var addStringCount = 0;
             while (end < span.Length)
             {
                 var c = span[end];
@@ -91,12 +92,21 @@ namespace SimpleCommandLine
                 {
                     if (char.IsWhiteSpace(c))
                     {
+                        addStringCount = 1;
                         goto AddString;
                     }
-                    else if ((c == '\"' && b != '\\') || c == SimpleParser.OpenBracket)
-                    {
+                    else if (c == Quote &&
+                        (end + 2) < span.Length &&
+                        span[end + 1] == Quote &&
+                        span[end + 2] == Quote)
+                    {// """
+                        enclosed.Push('3');
+                        addStringCount = 3;
+                    }
+                    else if ((c == Quote && b != '\\') || c == SimpleParser.OpenBracket)
+                    {// a" (not \")
                         enclosed.Push(c);
-                        addStringIncrement = false;
+                        addStringCount = 0;
                         goto AddString;
                     }
                     else if (c == SimpleParser.CloseBracket)
@@ -153,7 +163,7 @@ AddString:
                     }
                 }
 
-                start = end + (addStringIncrement ? 1 : 0);
+                start = end + addStringCount;
                 end++;
             }
 
@@ -282,6 +292,8 @@ AddString:
         internal const string BackingField = "<{0}>k__BackingField";
         internal const char OpenBracket = '[';
         internal const char CloseBracket = ']';
+        internal const char Quote = '\"';
+        internal const string TripleQuotes = "\"\"\"";
 
         static SimpleParser()
         {
@@ -362,7 +374,11 @@ AddString:
 
             ParserTypeConverter.Add(typeof(string), static x =>
             {
-                if (x.Length >= 2 && x.StartsWith('\"') && x.EndsWith('\"'))
+                if (x.Length >= 6 && x.StartsWith(TripleQuotes) && x.EndsWith(TripleQuotes))
+                {
+                    return x.Substring(3, x.Length - 6);
+                }
+                else if (x.Length >= 2 && x.StartsWith('\"') && x.EndsWith('\"'))
                 {
                     return x.Substring(1, x.Length - 2);
                 }
