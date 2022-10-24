@@ -76,14 +76,13 @@ namespace SimpleCommandLine
 
         public static string[] FormatArguments(this string arg)
         {
-            const char Quote = '\"';
             var span = arg.AsSpan();
             var list = new List<string>();
 
             var start = 0;
             var end = 0;
             var enclosed = new Stack<char>();
-            var addStringCount = 0;
+            var addStringIncrement = true;
             while (end < span.Length)
             {
                 var c = span[end];
@@ -92,21 +91,22 @@ namespace SimpleCommandLine
                 {
                     if (char.IsWhiteSpace(c))
                     {
-                        addStringCount = 1;
                         goto AddString;
                     }
-                    else if (c == Quote &&
+                    else if (c == SimpleParser.Quote &&
                         (end + 2) < span.Length &&
-                        span[end + 1] == Quote &&
-                        span[end + 2] == Quote)
+                        span[end + 1] == SimpleParser.Quote &&
+                        span[end + 2] == SimpleParser.Quote)
                     {// """
                         enclosed.Push('3');
-                        addStringCount = 3;
+                        addStringIncrement = false;
+                        end += 2;
+                        goto AddString;
                     }
-                    else if ((c == Quote && b != '\\') || c == SimpleParser.OpenBracket)
-                    {// a" (not \")
+                    else if ((c == SimpleParser.Quote && b != '\\') || c == SimpleParser.OpenBracket)
+                    {// " (not \") or [
                         enclosed.Push(c);
-                        addStringCount = 0;
+                        addStringIncrement = false;
                         goto AddString;
                     }
                     else if (c == SimpleParser.CloseBracket)
@@ -116,9 +116,35 @@ namespace SimpleCommandLine
                 }
                 else
                 {
-                    if (c == '\"' && b != '\\')
-                    {
-                        if (enclosed.Peek() == '\"')
+                    if (c == SimpleParser.Quote &&
+                        (end + 2) < span.Length &&
+                        span[end + 1] == SimpleParser.Quote &&
+                        span[end + 2] == SimpleParser.Quote)
+                    {// """
+                        var index = 2;
+                        while ((end + index + 1) < span.Length &&
+                            span[end + index + 1] == SimpleParser.Quote)
+                        {
+                            index++;
+                        }
+
+                        if (enclosed.Peek() == '3')
+                        {// """abc"""
+                            enclosed.Pop();
+                            if (enclosed.Count == 0)
+                            {
+                                end += index;
+                                goto AddString;
+                            }
+                        }
+                        else
+                        {
+                            enclosed.Push(c);
+                        }
+                    }
+                    else if (c == SimpleParser.Quote && b != '\\')
+                    {// " (not \")
+                        if (enclosed.Peek() == SimpleParser.Quote)
                         {// "-arg [-test "A"] "
                             enclosed.Pop();
                             if (enclosed.Count == 0)
@@ -133,7 +159,7 @@ namespace SimpleCommandLine
                         }
                     }
                     else if (c == SimpleParser.CloseBracket)
-                    {
+                    {// ]
                         if (enclosed.Peek() == SimpleParser.OpenBracket)
                         {// [-test "A"]
                             enclosed.Pop();
@@ -163,7 +189,7 @@ AddString:
                     }
                 }
 
-                start = end + addStringCount;
+                start = end + (addStringIncrement ? 1 : 0);
                 end++;
             }
 
@@ -378,7 +404,7 @@ AddString:
                 {
                     return x.Substring(3, x.Length - 6);
                 }
-                else if (x.Length >= 2 && x.StartsWith('\"') && x.EndsWith('\"'))
+                else if (x.Length >= 2 && x.StartsWith(Quote) && x.EndsWith(Quote))
                 {
                     return x.Substring(1, x.Length - 2);
                 }
