@@ -74,7 +74,7 @@ namespace SimpleCommandLine
 
         public static bool IsOptionString(this string text) => text.StartsWith('-');
 
-        public static string[] FormatArguments(this string arg)
+        /*public static string[] FormatArguments(this string arg)
         {
             var span = arg.AsSpan();
             var list = new List<string>();
@@ -204,19 +204,108 @@ AddString:
 
             return list.ToArray();
         }
-    }
-
-    /*/// <summary>
-    /// A class with no options.
-    /// </summary>
-    public sealed class WithoutOption
-    {
     }*/
 
-    /// <summary>
-    /// Specifies the command name and other properties of the simple command.
-    /// </summary>
-    [AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = true)]
+    public static string[] FormatArguments(this string arg)
+    {
+        var span = arg.AsSpan();
+        var list = new List<string>();
+
+        var start = 0;
+        var end = 0;
+        var enclosed = new Stack<char>();
+        var addStringIncrement = true;
+        while (end < span.Length)
+        {
+            var c = span[end];
+            var b = end > 0 ? span[end - 1] : (char)0;
+            if (enclosed.Count == 0)
+            {
+                if (char.IsWhiteSpace(c))
+                {
+                    goto AddString;
+                }
+                else if ((c == '\"' && b != '\\') || c == SimpleParser.OpenBracket)
+                {
+                    enclosed.Push(c);
+                    addStringIncrement = false;
+                    goto AddString;
+                }
+                else if (c == SimpleParser.CloseBracket)
+                {
+                    goto AddString;
+                }
+            }
+            else
+            {
+                if (c == '\"' && b != '\\')
+                {
+                    if (enclosed.Peek() == '\"')
+                    {// "-arg [-test "A"] "
+                        enclosed.Pop();
+                        if (enclosed.Count == 0)
+                        {
+                            end++;
+                            goto AddString;
+                        }
+                    }
+                    else
+                    {
+                        enclosed.Push(c);
+                    }
+                }
+                else if (c == SimpleParser.CloseBracket)
+                {
+                    if (enclosed.Peek() == SimpleParser.OpenBracket)
+                    {// [-test "A"]
+                        enclosed.Pop();
+                        if (enclosed.Count == 0)
+                        {
+                            end++;
+                            goto AddString;
+                        }
+                    }
+                }
+                else if (c == SimpleParser.OpenBracket)
+                {
+                    enclosed.Push(c);
+                }
+            }
+
+            end++;
+            continue;
+
+AddString:
+            if (start < end)
+            { // Add string
+                var s = span[start..end].ToString().Trim();
+                if (s.Length > 0)
+                {
+                    list.Add(s);
+                }
+            }
+
+            start = end + (addStringIncrement ? 1 : 0);
+            end++;
+        }
+
+        if (start < end && end <= span.Length)
+        { // Add string
+            var s = span[start..end].ToString().Trim();
+            if (s.Length > 0)
+            {
+                list.Add(s);
+            }
+        }
+
+        return list.ToArray();
+    }
+}
+
+/// <summary>
+/// Specifies the command name and other properties of the simple command.
+/// </summary>
+[AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = true)]
     public class SimpleCommandAttribute : Attribute
     {
         /// <summary>
