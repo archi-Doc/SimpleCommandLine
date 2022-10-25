@@ -26,16 +26,14 @@ namespace xUnitTest
             Test("-ns [-node \"[3.18.216.240]:49152(1)\"]", new string[] { "-ns", "[-node \"[3.18.216.240]:49152(1)\"]" });
             Test("-options [-text \"message\"] -string \"[options2]\"", new string[] { "-options", "[-text \"message\"]", "-string", "\"[options2]\"", });
 
+            Test("-options \"a]b\" ", new string[] { "-options", "\"a]b\"", });
+            Test("-options \"a[]b\" ", new string[] { "-options", "\"a[]b\"", });
+            Test("-options \"a[][b\" ", new string[] { "-options", "\"a[][b\"", });
+            Test("""" """a""" """", new string[] { "\"\"\"a\"\"\"", });
+            Test(""""-text """Triple quotes[]""" -options [] """", new string[] { "-text", "\"\"\"Triple quotes[]\"\"\"", "-options", "[]", });
+            Test("""""""-text """a""" """""" """Triple quotes[]""" """"""", new string[] { "-text", "\"\"\"a\"\"\"", "\"\"\"\"\"\"", "\"\"\"Triple quotes[]\"\"\"", });
+            Test(""""" """abc "d"""" """"test"""" """"", new string[] { "\"\"\"abc \"d\"\"\"\"", "\"\"\"\"test\"\"\"\"", });
             // Test(""""-text """Triple quotes""" -options [] """");
-            /*Test();
-            Test();
-            
-            Test("");
-            Test("");
-            Test("");
-            Test("");
-            Test("-options [-z \"AA\"]");
-            Test("");*/
         }
 
         private void Test(string args, string[] test)
