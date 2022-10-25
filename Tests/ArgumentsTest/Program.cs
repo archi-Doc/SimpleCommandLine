@@ -16,6 +16,7 @@ Test("  -test  1 23  ");
 Test("-text \"abc\"");
 Test("-text\"a \\\"b c\"");
 Test("-text \"a b c\" -options [] ");
+Test(""""-text """Triple quotes""" -options [] """");
 Test("-options []] ");
 Test("-options [[] ");
 Test("-options [-z\"AA\"] ");

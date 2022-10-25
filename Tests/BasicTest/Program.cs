@@ -109,7 +109,7 @@ namespace ConsoleApp1
             b = SimpleParser.TryParseOptions<TestOptions4>(string.Empty, out op4b, op4);
 
             // await SimpleParser.ParseAndRunAsync(commandTypes, args);
-            await SimpleParser.ParseAndRunAsync(commandTypes, "test abc -ab 23");
+            await SimpleParser.ParseAndRunAsync(commandTypes, "test \"\"\"ab\"c\"\"\" -ab 23");
 
             // await SimpleParser.ParseAndRunAsync(commandTypes, "test3 -t aa -options3b [-name2 ya -name tst] "); // -options {-n 99}
             // await SimpleParser.ParseAndRunAsync(commandTypes, "-n 12 -op5 [-file \"jj\"]"); // -options {-n 99}
