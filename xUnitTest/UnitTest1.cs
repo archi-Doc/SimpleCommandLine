@@ -38,7 +38,7 @@ namespace xUnitTest
 
         private void Test(string args, string[] test)
         {
-            var result = SimpleParserExtensions.FormatArguments(args);
+            var result = SimpleParserHelper.FormatArguments(args);
             result.IsStructuralEqual(test);
         }
     }
