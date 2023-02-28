@@ -68,8 +68,33 @@ public interface ISimpleCommand
     void Run(string[] args);
 }
 
-public static class SimpleParserExtensions
+public static class SimpleParserHelper
 {
+    /// <summary>
+    /// Adds the specified environment variable to the arguments.<br/>
+    /// The return value is the environment variable.
+    /// </summary>
+    /// <param name="args">The arguments.</param>
+    /// <param name="variable">The name of the environment variable.</param>
+    /// <returns>The environment variable.</returns>
+    public static string AddEnvironmentVariable(ref string[] args, string variable)
+    {
+        try
+        {
+            var v = Environment.GetEnvironmentVariable(variable);
+            if (v != null)
+            {
+                Array.Resize(ref args, args.Length + 1);
+                args[args.Length - 1] = v;
+            }
+        }
+        catch
+        {
+        }
+
+        return string.Empty;
+    }
+
     public static string[] SplitAtSpace(this string text) => text.Split((char[])null!, StringSplitOptions.RemoveEmptyEntries);
 
     public static bool IsOptionString(this string text) => text.StartsWith('-');
