@@ -95,6 +95,16 @@ public static class SimpleParserHelper
         return string.Empty;
     }
 
+    public static string UnwrapBracket(this string text)
+    {
+        if (text.Length >= 2 && text.StartsWith(SimpleParser.OpenBracket) && text.EndsWith(SimpleParser.CloseBracket))
+        {
+            return text.Substring(1, text.Length - 2);
+        }
+
+        return text;
+    }
+
     public static string[] SplitAtSpace(this string text) => text.Split((char[])null!, StringSplitOptions.RemoveEmptyEntries);
 
     public static bool IsOptionString(this string text) => text.StartsWith('-');
@@ -466,6 +476,28 @@ public class SimpleParser : ISimpleParser
         {
         }
     }
+
+    /*public static TOptions ParseOptions<TOptions>(string[] args, TOptions original)
+        => ParseOptions(string.Join(' ', args), original);
+
+    public static TOptions ParseOptions<TOptions>(string args, TOptions original)
+    {
+        var parser = new HollowParser(SimpleParserOptions.Standard);
+
+        var arguments = args.FormatArguments();
+        var optionClass = new OptionClass(parser, typeof(TOptions), null);
+        optionClass.optionInstance = original;
+
+        optionClass.Parse(arguments, 0, true);
+
+        if (!optionClass.FatalError &&
+            optionClass.OptionInstance is TOptions options)
+        {
+            return options;
+        }
+
+        return original;
+    }*/
 
     public static bool TryParseOptions<TOptions>(string[] args, [MaybeNullWhen(false)] out TOptions options, TOptions? original = default)
         => TryParseOptions(string.Join(' ', args), out options, original);
