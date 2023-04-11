@@ -95,6 +95,54 @@ public static class SimpleParserHelper
         return string.Empty;
     }
 
+    /// <summary>
+    /// Get the value of a specified argument from an array of arguments.<br/>
+    /// The corresponding name/value is removed from the array.
+    /// </summary>
+    /// <param name="args">The arguments.</param>
+    /// <param name="name">The name.</param>
+    /// <param name="value">The value.</param>
+    /// <returns><see langword="true"/> if found.</returns>
+    public static bool TryGetAndRemoveArgument(ref string[] args, string name, out string value)
+    {
+        value = string.Empty;
+        var nameSpan = name.AsSpan();
+        for (var i = 0; i < args.Length; i++)
+        {
+            var arg = args[i];
+            if (!arg.StartsWith('-'))
+            {
+                continue;
+            }
+
+            if (arg.AsSpan(1).Equals(nameSpan, StringComparison.OrdinalIgnoreCase))
+            {
+                if (i + 1 >= args.Length)
+                {// No value
+                    return false;
+                }
+                else if (args[i + 1].StartsWith('-'))
+                {// -argument
+                    continue;
+                }
+
+                value = args[i + 1];
+                for (var j = i; j < args.Length; j++)
+                {
+                    if (j + 2 < args.Length)
+                    {
+                        args[j] = args[j + 2];
+                    }
+                }
+
+                Array.Resize(ref args, args.Length - 2);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public static string UnwrapBracket(this string text)
     {
         if (text.Length >= 2 && text.StartsWith(SimpleParser.OpenBracket) && text.EndsWith(SimpleParser.CloseBracket))
