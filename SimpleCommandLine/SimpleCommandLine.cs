@@ -232,7 +232,7 @@ public static class SimpleParserHelper
                 else if (currentChar == SimpleParser.Quote && lastChar != '\\')
                 {// " (not \")
                     if (peek == SimpleParser.Quote)
-                    {// "-arg [-test "A"] "
+                    {// "-arg {-test "A"} "
                         enclosed.Pop();
                         if (enclosed.Count == 0)
                         {
@@ -333,7 +333,7 @@ AddString:
                 if (c == '\"' && b != '\\')
                 {
                     if (enclosed.Peek() == '\"')
-                    {// "-arg [-test "A"] "
+                    {// "-arg {-test "A"} "
                         enclosed.Pop();
                         if (enclosed.Count == 0)
                         {
@@ -497,8 +497,8 @@ public class SimpleParser : ISimpleParser
     internal const string IndentString = "  ";
     internal const string IndentString2 = "    ";
     internal const string BackingField = "<{0}>k__BackingField";
-    internal const char OpenBracket = '[';
-    internal const char CloseBracket = ']';
+    internal const char OpenBracket = '{'; // '['
+    internal const char CloseBracket = '}'; // ']'
     internal const char Quote = '\"';
     internal const string TripleQuotes = "\"\"\"";
 
@@ -1182,7 +1182,7 @@ public class SimpleParser : ISimpleParser
         {
             if (addName)
             {
-                sb.AppendLine($"[{this.OptionType?.Name}]");
+                sb.AppendLine($"{{{this.OptionType?.Name}}}");
             }
 
             if (this.Options.Count == 0)
@@ -1348,7 +1348,7 @@ public class SimpleParser : ISimpleParser
             var s = "-" + this.LongName + (this.ShortName == null ? string.Empty : ", -" + this.ShortName);
             if (this.OptionClass != null)
             {
-                this.OptionText = s + " [" + this.OptionType.Name + "]";
+                this.OptionText = s + " {" + this.OptionType.Name + "}";
             }
             else
             {
