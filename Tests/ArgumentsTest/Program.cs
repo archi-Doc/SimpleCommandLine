@@ -17,12 +17,14 @@ Test("-text \"abc\"");
 Test("-text\"a \\\"b c\"");
 Test("-text \"a b c\" -options [] ");
 Test(""""-text """Triple quotes""" -options [] """");
+Test("-options [abd");
 Test("-options []] ");
 Test("-options [[] ");
 Test("-options [-z\"AA\"] ");
 Test("-options [-z\"[A]B\"]");
 Test("-options [-z \"AA\"]");
 Test("-ns [-node \"[3.18.216.240]:49152(1)\"]");
+Test("-node \"[1.3.4.5]:023\"");
 
 static void Test(string arg)
 {
