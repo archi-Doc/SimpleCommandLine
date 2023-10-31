@@ -2,7 +2,7 @@
   "profiles": {
     "Sandbox": {
       "commandName": "Project",
-      "commandLineArgs": "-ns [-node \"{[1.2.3.4]:123(1)}\"]"
+      "commandLineArgs": "-help"
     }
   }
 }

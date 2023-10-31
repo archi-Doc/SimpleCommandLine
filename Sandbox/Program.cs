@@ -32,7 +32,7 @@ namespace ConsoleApp1
     [SimpleCommand("test")]
     public class ObsoleteCommand
     {
-        [SimpleOption("number", ShortName ="n")]
+        [SimpleOption("number", ShortName = "n")]
         public int N { get; set; } = 10;
 
         public async Task Run(string[] args)
@@ -75,6 +75,15 @@ namespace ConsoleApp1
 
         [SimpleOption("enum", Description = "test enum", Required = true)]
         public TestEnum Enum { get; } = TestEnum.Yes;
+
+        [SimpleOption("sub", Description = "sub option")]
+        public TestSubOptions Sub { get; } = default!;
+    }
+
+    public record TestSubOptions
+    {
+        [SimpleOption("name", ShortName = "n", Required = true)]
+        public string Name { get; set; } = string.Empty;
     }
 
     [SimpleCommand("test", Description = "description")]
@@ -179,8 +188,9 @@ namespace ConsoleApp1
 
             var p = new SimpleParser(commandTypes, parserOptions);
 
+            p.Parse("-help");
             // p.Parse("test -mode receive -port 12211 -targetip 127.0.0.1 -targetport 1000 -enum hanbun 333");
-            p.Parse("nest test2 222 -name \"ABC\"");
+            // p.Parse("nest test2 222 -name \"ABC\"");
             await p.RunAsync();
 
             /*var p = SimpleParser.Parse(commandTypes, args);
