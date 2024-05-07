@@ -16,6 +16,11 @@ public class SimpleCommandAttribute : Attribute
     public string CommandName { get; }
 
     /// <summary>
+    /// Gets or sets an alternate name for the command.
+    /// </summary>
+    public string Alias { get; set; } = string.Empty;
+
+    /// <summary>
     /// Gets or sets a value indicating whether this command will be executed if the command name is not specified.
     /// </summary>
     public bool Default { get; set; }

@@ -54,4 +54,10 @@ public record SimpleParserOptions
     /// Gets a value indicating whether or not to omit specifying option names for required options.
     /// </summary>
     public bool OmitOptionNamesForRequiredOptions { get; init; } = true;
+
+    /// <summary>
+    /// Gets a value indicating whether or not to to automatically create an alias from the command name.<br/>
+    /// The alias will consist of the initials of the words separated by hyphens (for example, 'remove-file' becomes 'rf').
+    /// </summary>
+    public bool AutoAlias { get; init; } = false;
 }

@@ -7,6 +7,21 @@ namespace SimpleCommandLine;
 
 public static class SimpleParserHelper
 {
+    public static string CreateAliasFromCommand(string command)
+    {
+        var words = command.Split('-', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var alias = string.Empty;
+        foreach (var x in words)
+        {
+            if (x.Length > 0)
+            {
+                alias += x[0];
+            }
+        }
+
+        return alias;
+    }
+
     /// <summary>
     /// Adds the specified environment variable to the arguments.<br/>
     /// The return value is the environment variable.

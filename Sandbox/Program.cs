@@ -86,7 +86,7 @@ namespace ConsoleApp1
         public string Name { get; set; } = string.Empty;
     }
 
-    [SimpleCommand("test", Description = "description")]
+    [SimpleCommand("test", Description = "description", Alias = "t")]
     public class TestCommand : ISimpleCommandAsync<TestOptions>
     {
         public TestCommand(ICommandService commandService)
@@ -131,7 +131,7 @@ namespace ConsoleApp1
         }
     }
 
-    [SimpleCommand("nest", IsSubcommand = true)]
+    [SimpleCommand("nested-command", IsSubcommand = true)]
     public class SyncCommand : ISimpleCommand
     {
         public void Run(string[] args)
@@ -176,6 +176,7 @@ namespace ConsoleApp1
                 RequireStrictCommandName = true,
                 RequireStrictOptionName = true,
                 DoNotDisplayUsage = true,
+                AutoAlias = true,
             };
 
             var options = new TestOptions();
@@ -189,8 +190,8 @@ namespace ConsoleApp1
             var p = new SimpleParser(commandTypes, parserOptions);
 
             p.Parse("-help");
-            // p.Parse("test -mode receive -port 12211 -targetip 127.0.0.1 -targetport 1000 -enum hanbun 333");
-            // p.Parse("nest test2 222 -name \"ABC\"");
+            // p.Parse("t -mode receive -port 12211 -targetip 127.0.0.1 -targetport 1000 -enum hanbun 333");
+            // p.Parse("nested-command test2 222 -name \"ABC\"");
             await p.RunAsync();
 
             /*var p = SimpleParser.Parse(commandTypes, args);

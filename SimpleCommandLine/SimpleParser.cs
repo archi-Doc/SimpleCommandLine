@@ -165,6 +165,7 @@ public class SimpleParser : ISimpleParser
             this.Parser = parser;
             this.CommandType = commandType;
             this.CommandName = attribute.CommandName;
+            this.Alias = attribute.Alias;
             this.Default = attribute.Default;
             this.Description = attribute.Description;
             this.IsSubcommand = attribute.IsSubcommand;
@@ -343,6 +344,8 @@ public class SimpleParser : ISimpleParser
         public Type? OptionType { get; }
 
         public string CommandName { get; }
+
+        public string Alias { get; internal set; }
 
         public bool Default { get; internal set; }
 
@@ -1011,6 +1014,7 @@ public class SimpleParser : ISimpleParser
 
         Command? firstOrDefault = null;
         this.SimpleCommands = new(StringComparer.InvariantCultureIgnoreCase);
+        this.AliasToCommand = new(StringComparer.InvariantCultureIgnoreCase);
         this.ErrorMessage = new();
         this.OptionClassUsage = new();
         foreach (var x in simpleCommands)
@@ -1051,6 +1055,28 @@ public class SimpleParser : ISimpleParser
                 else if (!firstOrDefault.Default && command.Default)
                 {
                     firstOrDefault = command;
+                }
+            }
+
+            // Alias
+            if (!string.IsNullOrEmpty(attribute.Alias))
+            {
+                if (!this.AliasToCommand.TryAdd(attribute.Alias, command))
+                {
+                    throw new InvalidOperationException($"Alias '{attribute.Alias}' ({x.ToString()}) already exists.");
+                }
+            }
+        }
+
+        // Auto-alias
+        if (this.ParserOptions.AutoAlias)
+        {
+            foreach (var x in this.SimpleCommands.Values)
+            {
+                if (string.IsNullOrEmpty(x.Alias))
+                {
+                    var alias = SimpleParserHelper.CreateAliasFromCommand(x.CommandName);
+                    this.AliasToCommand.TryAdd(alias, x);
                 }
             }
         }
@@ -1150,8 +1176,14 @@ public class SimpleParser : ISimpleParser
             if (!arguments[0].IsOptionString())
             {// Command
                 if (this.SimpleCommands.ContainsKey(arguments[0]))
-                {// Found
+                {// CommandName Found
                     commandName = arguments[0];
+                    commandSpecified = true;
+                    start = 1;
+                }
+                else if (this.AliasToCommand.TryGetValue(arguments[0], out var cmd))
+                {// Alias Found
+                    commandName = cmd.CommandName;
                     commandSpecified = true;
                     start = 1;
                 }
@@ -1456,6 +1488,8 @@ public class SimpleParser : ISimpleParser
     /// Gets the collection of simple commands.
     /// </summary>
     public Dictionary<string, Command> SimpleCommands { get; private set; }
+
+    public Dictionary<string, Command> AliasToCommand { get; private set; }
 
     public void AddErrorMessage(string message) => this.ErrorMessage.Add(message);
 
