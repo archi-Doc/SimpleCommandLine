@@ -18,6 +18,7 @@ namespace SimpleCommandLine;
 public class SimpleParser : ISimpleParser
 {
     internal const string HelpString = "help";
+    internal const string HelpAlias = "h";
     internal const string VersionString = "version";
     internal const string RunMethodString = "Run";
     internal const string RunAsyncMethodString = "RunAsync";
@@ -1246,7 +1247,8 @@ public class SimpleParser : ISimpleParser
 
         void TryProcessHelpAndVersion()
         {
-            if (OptionEquals(arguments[0], HelpString))
+            if (OptionEquals(arguments[0], HelpString) ||
+                (this.ParserOptions.AutoAlias && OptionEquals(arguments[0], HelpAlias)))
             {// Help
                 if (arguments.Length >= 2 && !arguments[1].IsOptionString() && this.SimpleCommands.ContainsKey(arguments[1]))
                 {// help command
