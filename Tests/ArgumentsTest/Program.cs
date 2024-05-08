@@ -26,6 +26,8 @@ Test("-options {-z \"AA\"}");
 Test("-ns {-node \"[3.18.216.240]:49152(1)\"}");
 Test("-node [1.3.4.5]:023");
 
+Test("-a \"A\" -b 'b b' -c \"CCC'cc'\" -d 'DDD \"dd d\"'");
+
 static void Test(string arg)
 {
     var sb = new StringBuilder();

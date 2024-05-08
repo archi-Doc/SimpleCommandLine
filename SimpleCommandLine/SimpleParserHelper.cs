@@ -138,14 +138,16 @@ public static class SimpleParserHelper
                     nextPosition = position + 3;
                     goto AddString;
                 }
-                else if ((currentChar == SimpleParser.Quote && lastChar != '\\') || currentChar == SimpleParser.OpenBracket)
-                {// " (not \") or [
+                else if (currentChar == SimpleParser.OpenBracket ||
+                    (currentChar == SimpleParser.Quote && lastChar != '\\') ||
+                    (currentChar == SimpleParser.SingleQuote && lastChar != '\\'))
+                {// { or " (not \") or '" (not \')
                     enclosed.Push(currentChar);
                     nextPosition = position + 1;
                     goto AddString;
                 }
                 else if (currentChar == SimpleParser.CloseBracket)
-                {
+                {// }
                     nextPosition = position + 1;
                     goto AddString;
                 }
@@ -177,7 +179,7 @@ public static class SimpleParserHelper
                         }
                     }
                     else
-                    {// [ """A
+                    {// { """A
                         enclosed.Push(currentChar);
                     }
                 }
@@ -200,10 +202,29 @@ public static class SimpleParserHelper
                         enclosed.Push(currentChar);
                     }
                 }
+                else if (currentChar == SimpleParser.SingleQuote && lastChar != '\\')
+                {// ' (not \')
+                    if (peek == SimpleParser.SingleQuote)
+                    {// '-arg {-test "A"} '
+                        enclosed.Pop();
+                        if (enclosed.Count == 0)
+                        {
+                            nextPosition = ++position;
+                            goto AddString;
+                        }
+                    }
+                    else if (peek == '3')
+                    {
+                    }
+                    else
+                    {
+                        enclosed.Push(currentChar);
+                    }
+                }
                 else if (currentChar == SimpleParser.CloseBracket)
-                {// ]
+                {// }
                     if (peek == SimpleParser.OpenBracket)
-                    {// [-test "A"]
+                    {// {-test "A"}
                         enclosed.Pop();
                         if (enclosed.Count == 0)
                         {

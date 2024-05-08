@@ -29,6 +29,7 @@ public class SimpleParser : ISimpleParser
     internal const char CloseBracket = '}'; // ']'
     internal const char Quote = '\"';
     internal const string TripleQuotes = "\"\"\"";
+    internal const char SingleQuote = '\'';
 
     static SimpleParser()
     {
@@ -136,6 +137,10 @@ public class SimpleParser : ISimpleParser
                 return x.Substring(3, x.Length - 6);
             }
             else if (x.Length >= 2 && x.StartsWith(Quote) && x.EndsWith(Quote))
+            {
+                return x.Substring(1, x.Length - 2);
+            }
+            else if (x.Length >= 2 && x.StartsWith(SingleQuote) && x.EndsWith(SingleQuote))
             {
                 return x.Substring(1, x.Length - 2);
             }
