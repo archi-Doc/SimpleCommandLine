@@ -7,6 +7,34 @@ namespace SimpleCommandLine;
 
 public static class SimpleParserHelper
 {
+    public static string GetCommandLineArguments()
+        => ParseArguments(Environment.CommandLine);
+
+    public static string ParseArguments(string commandLine)
+    {
+        var firstQuote = commandLine.IndexOf('"');
+        if (firstQuote < 0)
+        {// Path arguments
+            var firstSpace = commandLine.IndexOf(' ');
+            if (firstSpace < 0)
+            {// Path
+                return string.Empty;
+            }
+            else
+            {// arguments
+                return commandLine.Substring(firstSpace + 1).Trim();
+            }
+        }
+
+        var secondQuote = commandLine.IndexOf('"', firstQuote + 1);
+        if (secondQuote < 0)
+        {// "Path
+            return string.Empty;
+        }
+
+        return commandLine.Substring(secondQuote + 1).Trim();
+    }
+
     public static string CreateAliasFromCommand(string command)
     {
         var words = command.Split('-', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
