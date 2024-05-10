@@ -70,6 +70,32 @@ public static class SimpleParserHelper
             {
                 Array.Resize(ref args, args.Length + 1);
                 args[args.Length - 1] = v;
+                return v;
+            }
+        }
+        catch
+        {
+        }
+
+        return string.Empty;
+    }
+
+    /// <summary>
+    /// Adds the specified environment variable to the arguments.<br/>
+    /// The return value is the environment variable.
+    /// </summary>
+    /// <param name="args">The arguments.</param>
+    /// <param name="variable">The name of the environment variable.</param>
+    /// <returns>The environment variable.</returns>
+    public static string AddEnvironmentVariable(ref string args, string variable)
+    {
+        try
+        {
+            var v = Environment.GetEnvironmentVariable(variable);
+            if (v != null)
+            {
+                args += " " + v;
+                return v;
             }
         }
         catch
