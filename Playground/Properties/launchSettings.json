@@ -2,7 +2,7 @@
   "profiles": {
     "Profile 1": {
       "commandName": "Project",
-      "commandLineArgs": "test a \"b\" 'c'"
+      "commandLineArgs": "-port 59999 -remotepublickey (BY6zei1XRSUm43Y7KqcjHqkjpFYb0sh8R2xEF0_YADWu) -image archidoc422/lpdev-amd64:latest -dockerparam '--env lpargs=\"-pass 1\"'"
     }
   }
 }

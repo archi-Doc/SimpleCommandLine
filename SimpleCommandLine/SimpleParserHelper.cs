@@ -12,8 +12,12 @@ public static class SimpleParserHelper
 
     public static string ParseArguments(string commandLine)
     {
-        var firstQuote = commandLine.IndexOf('"');
-        if (firstQuote < 0)
+        if (commandLine.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        if (commandLine[0] != '"')
         {// Path arguments
             var firstSpace = commandLine.IndexOf(' ');
             if (firstSpace < 0)
@@ -26,13 +30,13 @@ public static class SimpleParserHelper
             }
         }
 
-        var secondQuote = commandLine.IndexOf('"', firstQuote + 1);
-        if (secondQuote < 0)
+        var quotePosition = commandLine.IndexOf('"', 1);
+        if (quotePosition < 0)
         {// "Path
             return string.Empty;
         }
 
-        return commandLine.Substring(secondQuote + 1).Trim();
+        return commandLine.Substring(quotePosition + 1).Trim();
     }
 
     public static string CreateAliasFromCommand(string command)
