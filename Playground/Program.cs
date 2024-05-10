@@ -153,6 +153,9 @@ namespace ConsoleApp1
     {
         public static async Task Main(string[] args)
         {
+            var args2 = SimpleParserHelper.GetCommandLineArguments();
+            Console.WriteLine($"Arguments: {args2}");
+
             var commandTypes = new Type[]
             {
                 typeof(TestCommand),

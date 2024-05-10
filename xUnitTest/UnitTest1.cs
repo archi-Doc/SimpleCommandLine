@@ -22,7 +22,7 @@ namespace xUnitTest
             Test("-options {}} ", new string[] { "-options", "{}", "}", });
             Test("-options {{} ", new string[] { "-options", "{{}", });
             Test("-options {-z\"AA\"} ", new string[] { "-options", "{-z\"AA\"}", });
-            Test("-options {-z\"{A}B\"}", new string[] { "-options", "{-z\"{A}B\"}",  });
+            Test("-options {-z\"{A}B\"}", new string[] { "-options", "{-z\"{A}B\"}", });
             Test("-ns {-node \"[3.18.216.240]:49152(1)\"}", new string[] { "-ns", "{-node \"[3.18.216.240]:49152(1)\"}" });
             Test("-options {-text \"message\"} -string \"{options2}\"", new string[] { "-options", "{-text \"message\"}", "-string", "\"{options2}\"", });
 
@@ -34,6 +34,16 @@ namespace xUnitTest
             Test("""""""-text """a""" """""" """Triple quotes{}""" """"""", new string[] { "-text", "\"\"\"a\"\"\"", "\"\"\"\"\"\"", "\"\"\"Triple quotes{}\"\"\"", });
             Test(""""" """abc "d"""" """"test"""" """"", new string[] { "\"\"\"abc \"d\"\"\"\"", "\"\"\"\"test\"\"\"\"", });
             // Test(""""-text """Triple quotes""" -options {} """");
+
+            SimpleParserHelper.ParseArguments("").Is("");
+            SimpleParserHelper.ParseArguments("A").Is("");
+            SimpleParserHelper.ParseArguments("\"").Is("");
+            SimpleParserHelper.ParseArguments("A\"").Is("");
+            SimpleParserHelper.ParseArguments("\"AB").Is("");
+            SimpleParserHelper.ParseArguments("\"AB\"").Is("");
+            SimpleParserHelper.ParseArguments("\"AB\"c").Is("c");
+            SimpleParserHelper.ParseArguments("\"AB\" c").Is("c");
+            SimpleParserHelper.ParseArguments("AB c").Is("c");
         }
 
         private void Test(string args, string[] test)
