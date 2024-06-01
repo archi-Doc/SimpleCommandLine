@@ -58,10 +58,10 @@ namespace ConsoleApp1
         [SimpleOption("mode", Description = "mode(receive, transfer)")]
         public string Mode { get; private set; } = "receive";
 
-        [SimpleOption("port", Description = "local port number to transfer packets")]
+        [SimpleOption("port", Description = "local port number to transfer packets", Required = true, GetEnvironmentVariable = true)]
         public int Port { get; } = 2000;
 
-        [SimpleOption("targetip", Description = "target ip address", Required = true)]
+        [SimpleOption("targetip", Description = "target ip address", Required = true, GetEnvironmentVariable = true)]
         public string TargetIp { get; } = string.Empty;
 
         [SimpleOption("targetport", Description = "target port number")]
@@ -192,8 +192,8 @@ namespace ConsoleApp1
 
             var p = new SimpleParser(commandTypes, parserOptions);
 
-            p.Parse("-h");
-            // p.Parse("t -mode receive -port 12211 -targetip 127.0.0.1 -targetport 1000 -enum hanbun 333");
+            // p.Parse("-h");
+            p.Parse("t -mode receive -targetport 1000 -enum hanbun"); // -port 12211 -targetip 127.0.0.1
             // p.Parse("nested-command test2 222 -name \"ABC\"");
             await p.RunAsync();
 
