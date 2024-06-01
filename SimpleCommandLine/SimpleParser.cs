@@ -633,8 +633,11 @@ public class SimpleParser : ISimpleParser
                             }
                             else
                             {// Parse error
-                                this.Parser.AddErrorMessage($"Could not convert '{args[n]}' to Type '{option.OptionType.Name}' ({args[n - 1]} {args[n]})");
-                                errorFlag = true;
+                                if (n > 0)
+                                {
+                                    this.Parser.AddErrorMessage($"Could not convert '{args[n]}' to Type '{option.OptionType.Name}' ({args[n - 1]} {args[n]})");
+                                    errorFlag = true;
+                                }
                             }
 
                             continue;
@@ -644,6 +647,8 @@ public class SimpleParser : ISimpleParser
                     remaining.Add(args[n]);
                 }
             }
+
+            this.LoadEnvironmentVariables(acceptUnknownOptionName);
 
             foreach (var x in this.Options)
             {
@@ -824,6 +829,32 @@ public class SimpleParser : ISimpleParser
             }
         }
 
+        private void LoadEnvironmentVariables(bool acceptUnknownOptionName)
+        {
+            foreach (var x in this.Options.Where(x => !x.ValueIsSet && x.GetEnvironmentVariable))
+            {
+                string? env = null;
+
+                if (x.ShortName is not null)
+                {
+                    env ??= Environment.GetEnvironmentVariable(x.ShortName);
+                }
+
+                if (x.LongName is not null)
+                {
+                    env ??= Environment.GetEnvironmentVariable(x.LongName);
+                }
+
+                if (env is not null)
+                {
+                    if (x.Parse(env, this.OptionInstance, acceptUnknownOptionName))
+                    {
+                        x.ValueIsSet = true;
+                    }
+                }
+            }
+        }
+
 #pragma warning disable SA1307 // Accessible fields should begin with upper-case letter
 #pragma warning disable SA1401
         internal object? optionInstance;
@@ -880,6 +911,7 @@ public class SimpleParser : ISimpleParser
 
             this.Description = attribute.Description;
             this.Required = attribute.Required;
+            this.GetEnvironmentVariable = attribute.GetEnvironmentVariable;
             this.DefaultValueText = attribute.DefaultValueText;
             var s = "-" + this.LongName + (this.ShortName == null ? string.Empty : ", -" + this.ShortName);
             if (this.OptionClass != null)
@@ -979,6 +1011,8 @@ public class SimpleParser : ISimpleParser
         public string OptionText { get; }
 
         public bool Required { get; }
+
+        public bool GetEnvironmentVariable { get; }
 
         public bool ValueIsSet { get; internal set; }
 
