@@ -61,8 +61,8 @@ namespace ConsoleApp1
         [SimpleOption("port", Description = "local port number to transfer packets", Required = true, GetEnvironmentVariable = true)]
         public int Port { get; } = 2000;
 
-        [SimpleOption("targetip", Description = "target ip address", Required = true, GetEnvironmentVariable = true)]
-        public string TargetIp { get; } = string.Empty;
+        [SimpleOption("targetip", Description = "target ip address", GetEnvironmentVariable = true)]
+        public string TargetIp { get; } = "test"; // string.Empty;
 
         [SimpleOption("targetport", Description = "target port number")]
         public int TargetPort { get; } = 1000;
@@ -183,8 +183,8 @@ namespace ConsoleApp1
             };
 
             var options = new TestOptions();
-            var b = SimpleParser.TryParseOptions<TestOptions>("test  -targetip '127.0.0.1' \"testdir\" -targetport 123 -enum hanbun", out options);
-            b = SimpleParser.TryParseOptions<TestOptions>("-enum Yes", out options, options);
+            // var b = SimpleParser.TryParseOptions<TestOptions>("test  -targetip '127.0.0.1' \"testdir\" -targetport 123 -enum hanbun", out options);
+            // b = SimpleParser.TryParseOptions<TestOptions>("-enum Yes", out options, options);
 
             // await RunArg("", parserOptions);
 
