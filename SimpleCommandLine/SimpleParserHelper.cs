@@ -2,13 +2,30 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
+
+#pragma warning disable SA1124 // Do not use regions
 
 namespace SimpleCommandLine;
 
 public static class SimpleParserHelper
 {
+    #region FieldAndProperty
+
+    private static string? commandlineArguments;
+
+    #endregion
+
+    /*public static bool TryPeekOption(string commandline, string optionName, [MaybeNullWhen(false)] out string optionValue)
+    {// I considered creating a function to peek the value of an option from the command line, but due to the complexity of the conditional branching and the possibility of omitting the option name, I have not implemented it.
+    }*/
+
     public static string GetCommandLineArguments()
-        => ParseArguments(Environment.CommandLine);
+    {
+        return commandlineArguments is not null ?
+            commandlineArguments :
+            (commandlineArguments = ParseArguments(Environment.CommandLine));
+    }
 
     public static string ParseArguments(string commandLine)
     {
