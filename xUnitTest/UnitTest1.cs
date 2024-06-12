@@ -6,6 +6,20 @@ namespace xUnitTest
     public class UnitTest1
     {
         [Fact]
+        public void PeekCommandTest()
+        {
+            SimpleParserHelper.PeekCommand("").Is("");
+            SimpleParserHelper.PeekCommand(" ").Is("");
+            SimpleParserHelper.PeekCommand("cmd").Is("cmd");
+            SimpleParserHelper.PeekCommand(" cmd  ").Is("cmd");
+            SimpleParserHelper.PeekCommand("1").Is("1");
+            SimpleParserHelper.PeekCommand("-option").Is("");
+            SimpleParserHelper.PeekCommand("-option 123").Is("");
+            SimpleParserHelper.PeekCommand("cmd -option 123").Is("cmd");
+            SimpleParserHelper.PeekCommand(" cmd -option 123").Is("cmd");
+        }
+
+        [Fact]
         public void FormatTest()
         {
             Test(string.Empty, new string[] { });

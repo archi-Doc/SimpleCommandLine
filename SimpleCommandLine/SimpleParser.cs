@@ -30,6 +30,7 @@ public class SimpleParser : ISimpleParser
     internal const char Quote = '\"';
     internal const string TripleQuotes = "\"\"\"";
     internal const char SingleQuote = '\'';
+    internal const char OptionPrefix = '-';
 
     static SimpleParser()
     {
@@ -481,7 +482,7 @@ public class SimpleParser : ISimpleParser
             {
                 if (optionStack.Contains(optionType))
                 {
-                    var s = string.Join('-', optionStack.Select(x => x.Name));
+                    var s = string.Join(SimpleParser.OptionPrefix, optionStack.Select(x => x.Name));
                     throw new InvalidOperationException($"Circular dependency of option classes is detected ({s}).");
                 }
                 else
@@ -565,7 +566,7 @@ public class SimpleParser : ISimpleParser
             {
                 if (args[n].IsOptionString())
                 {// -option
-                    var name = args[n].Trim('-');
+                    var name = args[n].Trim(SimpleParser.OptionPrefix);
                     Option? option;
                     if (!this.LongNameToOption.TryGetValue(name, out option))
                     {
@@ -1548,7 +1549,7 @@ public class SimpleParser : ISimpleParser
 
     private List<OptionClass> OptionClassUsage { get; }
 
-    internal static bool OptionEquals(string arg, string command) => arg.Trim('-').Equals(command, StringComparison.OrdinalIgnoreCase);
+    internal static bool OptionEquals(string arg, string command) => arg.Trim(SimpleParser.OptionPrefix).Equals(command, StringComparison.OrdinalIgnoreCase);
 
     private void AppendList(StringBuilder sb)
     {

@@ -20,6 +20,37 @@ public static class SimpleParserHelper
     {// I considered creating a function to peek the value of an option from the command line, but due to the complexity of the conditional branching and the possibility of omitting the option name, I have not implemented it.
     }*/
 
+    public static string PeekCommand(ReadOnlySpan<char> commandline)
+    {
+        if (commandline.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        var span = commandline;
+        var start = 0;
+        var end = 0;
+        while (span.Length > start && char.IsWhiteSpace(span[start]))
+        {// Skip space
+            start++;
+        }
+
+        if (start >= span.Length ||
+            span[start] == SimpleParser.OptionPrefix)
+        {
+            return string.Empty;
+        }
+
+        // start < span.Length;
+        end = start + 1; // end <= span.Length
+        while (span.Length > end && !char.IsWhiteSpace(span[end]))
+        {// Skip non-space
+            end++;
+        }
+
+        return span[start..end].ToString();
+    }
+
     public static string GetCommandLineArguments()
     {
         return commandlineArguments is not null ?
@@ -137,7 +168,7 @@ public static class SimpleParserHelper
         for (var i = 0; i < args.Length; i++)
         {
             var arg = args[i];
-            if (!arg.StartsWith('-'))
+            if (!arg.StartsWith(SimpleParser.OptionPrefix))
             {
                 continue;
             }
@@ -148,7 +179,7 @@ public static class SimpleParserHelper
                 {// No value
                     return false;
                 }
-                else if (args[i + 1].StartsWith('-'))
+                else if (args[i + 1].StartsWith(SimpleParser.OptionPrefix))
                 {// -argument
                     continue;
                 }
@@ -182,7 +213,7 @@ public static class SimpleParserHelper
 
     public static string[] SplitAtSpace(this string text) => text.Split((char[])null!, StringSplitOptions.RemoveEmptyEntries);
 
-    public static bool IsOptionString(this string text) => text.StartsWith('-');
+    public static bool IsOptionString(this string text) => text.StartsWith(SimpleParser.OptionPrefix);
 
     public static string[] FormatArguments(this string arg)
     {
