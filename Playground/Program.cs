@@ -105,7 +105,7 @@ namespace ConsoleApp1
             Console.WriteLine($"Directory: {this.Options.Directory}");
             Console.WriteLine($"Mode: {this.Options.Mode}");
             Console.WriteLine($"Port: {this.Options.Port}");
-            Console.WriteLine($"TargetIp: {this.Options.TargetIp}");
+            Console.WriteLine($"TargetIp: {this.Options.TargetIp} {this.Options.TargetIp.Length}");
             Console.WriteLine($"TargetPort: {this.Options.TargetPort}");
             Console.WriteLine($"Receiver: {this.Options.Receiver}");
             Console.WriteLine($"N: {this.Options.N}");
