@@ -16,9 +16,27 @@ public static class SimpleParserHelper
 
     #endregion
 
-    /*public static bool TryPeekOption(string commandline, string optionName, [MaybeNullWhen(false)] out string optionValue)
-    {// I considered creating a function to peek the value of an option from the command line, but due to the complexity of the conditional branching and the possibility of omitting the option name, I have not implemented it.
-    }*/
+    /// <summary>
+    /// Tries to unwrap a double-quoted text by removing the surrounding quotes.
+    /// </summary>
+    /// <param name="text">The text to unwrap.</param>
+    /// <returns>The unwrapped text, or null if the input text is null.</returns>
+    public static string? TryUnwrapDoubleQuote(string? text)
+    {
+        if (text is null)
+        {
+            return null;
+        }
+
+        if (text.Length >= 2 && text[0] == SimpleParser.Quote && text[^1] == SimpleParser.Quote)
+        {
+            return text[1..^1];
+        }
+        else
+        {
+            return text;
+        }
+    }
 
     public static string PeekCommand(ReadOnlySpan<char> commandline)
     {
