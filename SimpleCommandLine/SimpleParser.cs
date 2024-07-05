@@ -705,7 +705,7 @@ public class SimpleParser : ISimpleParser
         {// public object? OptionInstance => this.optionInstance != null ? this.optionInstance : (this.optionInstance = this.OptionType == null ? null : Activator.CreateInstance(this.OptionType)!);
             get
             {
-                if (this.optionInstance == null && this.OptionType != null)
+                if (this.optionInstance is null && this.OptionType is not null)
                 {
                     this.optionInstance = Activator.CreateInstance(this.OptionType);
                 }
@@ -713,6 +713,8 @@ public class SimpleParser : ISimpleParser
                 return this.optionInstance;
             }
         }
+
+        public object? DefaultInstance => this.defaultInstance ??= this.OptionType is null ? null : Activator.CreateInstance(this.OptionType);
 
         public string[]? RemainingArguments { get; private set; }
 
@@ -771,7 +773,7 @@ public class SimpleParser : ISimpleParser
                 }
                 else
                 {
-                    var value = x.GetValue(this.OptionInstance);
+                    var value = x.GetValue(this.DefaultInstance);
                     if (value == null)
                     {
                         sb.Append($" (Optional)");
@@ -859,6 +861,7 @@ public class SimpleParser : ISimpleParser
 #pragma warning disable SA1307 // Accessible fields should begin with upper-case letter
 #pragma warning disable SA1401
         internal object? optionInstance;
+        private object? defaultInstance;
 #pragma warning restore SA1401
 #pragma warning restore SA1307 // Accessible fields should begin with upper-case letter
     }

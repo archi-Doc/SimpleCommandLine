@@ -192,8 +192,11 @@ namespace ConsoleApp1
 
             var p = new SimpleParser(commandTypes, parserOptions);
 
+            await p.ParseAndRunAsync("test -targetip ttt");
+            await p.ParseAndRunAsync("test help");
+
             // p.Parse("-h");
-            p.Parse("t -mode receive -targetport 1000 -enum hanbun"); // -port 12211 -targetip 127.0.0.1
+            p.Parse("t -mode receive -targetport 1000 -enum hanbun -n 999"); // -port 12211 -targetip 127.0.0.1
             // p.Parse("nested-command test2 222 -name \"ABC\"");
             await p.RunAsync();
 
