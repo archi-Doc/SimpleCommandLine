@@ -248,7 +248,8 @@ public static class SimpleParserHelper
             var lastChar = position > 0 ? span[position - 1] : (char)0;
             if (enclosed.Count == 0)
             {
-                if (char.IsWhiteSpace(currentChar))
+                if (char.IsWhiteSpace(currentChar) ||
+                    currentChar == SimpleParser.Separator)
                 {// A B
                     nextPosition = position + 1;
                     goto AddString;

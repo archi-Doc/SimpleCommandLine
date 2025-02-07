@@ -31,6 +31,7 @@ public class SimpleParser : ISimpleParser
     internal const string TripleQuotes = "\"\"\"";
     internal const char SingleQuote = '\'';
     internal const char OptionPrefix = '-';
+    internal const char Separator = '|';
 
     static SimpleParser()
     {

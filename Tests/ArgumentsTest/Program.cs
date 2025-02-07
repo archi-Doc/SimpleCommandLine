@@ -13,7 +13,7 @@ Test("test");
 Test("-n 99");
 Test("-test 12");
 Test("  -test  1 23  ");
-Test("-text \"abc\"");
+Test("-text \" abc \"");
 Test("-text\"a \\\"b c\"");
 Test("-text \"a b c\" -options {} ");
 Test(""""-text """Triple quotes""" -options {} """");
@@ -29,6 +29,9 @@ Test("-node [1.3.4.5]:023");
 Test("-a \"A\" -b 'b b' -c \"CCC'cc'\" -d 'DDD \"dd d\"'");
 Test("-options \"--env lpargs='-pass 1'\"");
 
+Test("A | B|C");
+Test("A | \"B|C|\"|D|{E}|{FG|}");
+
 static void Test(string arg)
 {
     var sb = new StringBuilder();
@@ -39,7 +42,7 @@ static void Test(string arg)
 static void Test2(StringBuilder sb, string arg, string[]? formatted)
 {
     var result = formatted ?? arg.FormatArguments();
-    sb.Append($"{arg} = {string.Join(',', result)} | ");
+    sb.Append($"{arg} = {string.Join(',', result)}");
     foreach (var x in result)
     {
         if (x.Length >= 2 && x.StartsWith('{') && arg.EndsWith('}'))
