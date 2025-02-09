@@ -32,6 +32,7 @@ public class SimpleParser : ISimpleParser
     internal const char SingleQuote = '\'';
     internal const char OptionPrefix = '-';
     internal const char Separator = '|';
+    internal const string SeparatorString = "|";
 
     static SimpleParser()
     {
@@ -622,6 +623,10 @@ public class SimpleParser : ISimpleParser
                             errorFlag = true;
                         }
                     }
+                }
+                else if (args[n] == SimpleParser.SeparatorString)
+                {
+
                 }
                 else
                 {

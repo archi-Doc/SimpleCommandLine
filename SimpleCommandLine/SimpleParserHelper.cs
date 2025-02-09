@@ -255,7 +255,7 @@ public static class SimpleParserHelper
                 }
                 else if (currentChar == SimpleParser.Separator)
                 {
-                    nextPosition = position + 1;
+                    nextPosition = position;
                     goto AddString;
                 }
                 else if (currentChar == SimpleParser.Quote &&
@@ -382,6 +382,13 @@ AddString:
                 {
                     list.Add(s);
                 }
+            }
+
+            if (currentChar == SimpleParser.Separator)
+            {
+                list.Add(SimpleParser.SeparatorString);
+                position++;
+                nextPosition++;
             }
 
             start = position;
