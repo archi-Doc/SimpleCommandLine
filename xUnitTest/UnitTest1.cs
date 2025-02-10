@@ -1,7 +1,17 @@
+using System.Linq;
 using SimpleCommandLine;
 using Xunit;
 
 namespace xUnitTest;
+
+public class TestOptions
+{
+    [SimpleOption("A")]
+    public int A { get; set; }
+
+    [SimpleOption("B")]
+    public int B { get; set; }
+}
 
 public class UnitTest1
 {
@@ -12,6 +22,23 @@ public class UnitTest1
     {
         Test(string.Empty, []);
         Test("a | b", ["a", Separator, "b"]);
+        Test("|a|b|", [Separator, "a", Separator, "b", Separator]);
+        Test("ab | \"cd|ef\"|{gh|ij}||", ["ab", Separator, "\"cd|ef\"", Separator, "{gh|ij}", Separator, Separator]);
+
+        TestOptions options;
+        SimpleParser.TryParseOptions("", out options!).IsTrue();
+        options.IsNotNull();
+        options.A.Is(0);
+        options.B.Is(0);
+
+        SimpleParser.TryParseOptions("-A 1 | -B 2", out options!).IsTrue();
+        options.IsNotNull();
+        options.A.Is(1);
+        options.B.Is(0);
+
+        "".SeparateArguments().SequenceEqual([]).IsTrue();
+        "| ".SeparateArguments().SequenceEqual([string.Empty]).IsTrue();
+        "-A 1 | -B 2".SeparateArguments().SequenceEqual(["-A 1", "-B 2"]).IsTrue();
     }
 
     [Fact]
