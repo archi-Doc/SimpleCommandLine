@@ -3,6 +3,8 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
+using System.Text;
 
 #pragma warning disable SA1124 // Do not use regions
 
@@ -233,6 +235,46 @@ public static class SimpleParserHelper
 
     public static bool IsOptionString(this string text) => text.StartsWith(SimpleParser.OptionPrefix);
 
+    public static string[] SeparateArguments(this string arg)
+    {
+        var args = arg.FormatArguments();
+        StringBuilder? sb = default;
+        List<string> list = new();
+
+        foreach (var x in args)
+        {
+            if (x == SimpleParser.SeparatorString)
+            {
+                if (sb is null)
+                {
+                    list.Add(string.Empty);
+                }
+                else
+                {
+                    list.Add(sb.ToString());
+                    sb.Clear();
+                }
+            }
+            else
+            {
+                sb ??= new();
+                if (sb.Length > 0)
+                {
+                    sb.Append(' ');
+                }
+
+                sb.Append(x);
+            }
+        }
+
+        if (sb is not null)
+        {
+            list.Add(sb.ToString());
+        }
+
+        return list.ToArray();
+    }
+
     public static string[] FormatArguments(this string arg)
     {
         var span = arg.AsSpan();
@@ -251,6 +293,11 @@ public static class SimpleParserHelper
                 if (char.IsWhiteSpace(currentChar))
                 {// A B
                     nextPosition = position + 1;
+                    goto AddString;
+                }
+                else if (currentChar == SimpleParser.Separator)
+                {
+                    nextPosition = position;
                     goto AddString;
                 }
                 else if (currentChar == SimpleParser.Quote &&
@@ -377,6 +424,13 @@ AddString:
                 {
                     list.Add(s);
                 }
+            }
+
+            if (currentChar == SimpleParser.Separator)
+            {
+                list.Add(SimpleParser.SeparatorString);
+                position++;
+                nextPosition++;
             }
 
             start = position;
