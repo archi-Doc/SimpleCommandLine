@@ -17,9 +17,12 @@ namespace SimpleCommandLine;
 /// </summary>
 public class SimpleParser : ISimpleParser
 {
-    internal const string HelpString = "help";
-    internal const string HelpAlias = "h";
-    internal const string VersionString = "version";
+    public const string HelpString = "help";
+    public const string HelpAlias = "h";
+    public const string VersionString = "version";
+    public const char Separator = '|';
+    public const string SeparatorString = "|";
+
     internal const string RunMethodString = "Run";
     internal const string RunAsyncMethodString = "RunAsync";
     internal const string IndentString = "  ";
@@ -31,8 +34,6 @@ public class SimpleParser : ISimpleParser
     internal const string TripleQuotes = "\"\"\"";
     internal const char SingleQuote = '\'';
     internal const char OptionPrefix = '-';
-    internal const char Separator = '|';
-    internal const string SeparatorString = "|";
 
     static SimpleParser()
     {
@@ -296,15 +297,15 @@ public class SimpleParser : ISimpleParser
 
             if (this.CommandInterface == typeof(ISimpleCommand))
             {// void Run(string[] args);
-                this.runMethod.Invoke(this.CommandInstance, new object[] { args });
+                this.runMethod.Invoke(this.CommandInstance, [args]);
             }
             else if (this.CommandInterface == typeof(ISimpleCommand<>))
             {// void Run(Options option, string[] args);
-                this.runMethod.Invoke(this.CommandInstance, new object[] { this.OptionClass.OptionInstance!, args });
+                this.runMethod.Invoke(this.CommandInstance, [this.OptionClass.OptionInstance!, args]);
             }
             else if (this.CommandInterface == typeof(ISimpleCommandAsync))
             {// Task RunAsync(string[] args);
-                var task = (Task?)this.runMethod.Invoke(this.CommandInstance, new object?[] { args });
+                var task = (Task?)this.runMethod.Invoke(this.CommandInstance, [args]);
                 if (task != null)
                 {
                     await task;
@@ -312,7 +313,7 @@ public class SimpleParser : ISimpleParser
             }
             else if (this.CommandInterface == typeof(ISimpleCommandAsync<>))
             {// Task RunAsync(Options option, string[] args);
-                var task = (Task?)this.runMethod.Invoke(this.CommandInstance, new object?[] { this.OptionClass.OptionInstance, args });
+                var task = (Task?)this.runMethod.Invoke(this.CommandInstance, [this.OptionClass.OptionInstance, args]);
                 if (task != null)
                 {
                     await task;
@@ -326,20 +327,20 @@ public class SimpleParser : ISimpleParser
 
             if (this.CommandInterface == typeof(ISimpleCommand))
             {// void Run(string[] args);
-                this.runMethod.Invoke(this.CommandInstance, new object[] { args });
+                this.runMethod.Invoke(this.CommandInstance, [args]);
             }
             else if (this.CommandInterface == typeof(ISimpleCommand<>))
             {// void Run(Options option, string[] args);
-                this.runMethod.Invoke(this.CommandInstance, new object[] { this.OptionClass.OptionInstance!, args });
+                this.runMethod.Invoke(this.CommandInstance, [this.OptionClass.OptionInstance!, args]);
             }
             else if (this.CommandInterface == typeof(ISimpleCommandAsync))
             {// Task RunAsync(string[] args);
-                var task = (Task?)this.runMethod.Invoke(this.CommandInstance, new object?[] { args });
+                var task = (Task?)this.runMethod.Invoke(this.CommandInstance, [args]);
                 task?.Wait();
             }
             else if (this.CommandInterface == typeof(ISimpleCommandAsync<>))
             {// Task RunAsync(Options option, string[] args);
-                var task = (Task?)this.runMethod.Invoke(this.CommandInstance, new object?[] { this.OptionClass.OptionInstance, args });
+                var task = (Task?)this.runMethod.Invoke(this.CommandInstance, [this.OptionClass.OptionInstance, args]);
                 task?.Wait();
             }
         }
@@ -625,8 +626,8 @@ public class SimpleParser : ISimpleParser
                     }
                 }
                 else if (args[n] == SimpleParser.SeparatorString)
-                {
-
+                {// '|' Separator
+                    break;
                 }
                 else
                 {
@@ -992,7 +993,7 @@ public class SimpleParser : ISimpleParser
         {
             if (this.PropertyInfo?.GetSetMethod() is { } mi)
             {// Set property
-                mi.Invoke(instance, new object[] { value });
+                mi.Invoke(instance, [value]);
             }
             else if (this.FieldInfo != null)
             {// Set field
