@@ -1,7 +1,10 @@
 {
   "profiles": {
     "BasicTest": {
-      "commandName": "Project"
+      "commandName": "Project",
+      "environmentVariables": {
+        "Command": "Test3"
+      }
     },
     "Test": {
       "commandName": "Project",

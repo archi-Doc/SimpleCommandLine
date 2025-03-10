@@ -58,10 +58,10 @@ namespace ConsoleApp1
         [SimpleOption("mode", Description = "mode(receive, transfer)")]
         public string Mode { get; private set; } = "receive";
 
-        [SimpleOption("port", Description = "local port number to transfer packets", Required = true, GetEnvironmentVariable = true)]
+        [SimpleOption("port", Description = "local port number to transfer packets", Required = true, ReadFromEnvironment = true)]
         public int Port { get; } = 2000;
 
-        [SimpleOption("targetip", Description = "target ip address", GetEnvironmentVariable = true)]
+        [SimpleOption("targetip", Description = "target ip address", ReadFromEnvironment = true)]
         public string TargetIp { get; } = "test"; // string.Empty;
 
         [SimpleOption("targetport", Description = "target port number")]

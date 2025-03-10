@@ -22,6 +22,7 @@ public class SimpleParser : ISimpleParser
     public const string VersionString = "version";
     public const char Separator = '|';
     public const string SeparatorString = "|";
+    public const string CommandString = "Command";
 
     internal const string RunMethodString = "Run";
     internal const string RunAsyncMethodString = "RunAsync";
@@ -656,7 +657,7 @@ public class SimpleParser : ISimpleParser
                 }
             }
 
-            this.LoadEnvironmentVariables(acceptUnknownOptionName);
+            this.ReadFromEnvironment(acceptUnknownOptionName);
 
             foreach (var x in this.Options)
             {
@@ -839,9 +840,9 @@ public class SimpleParser : ISimpleParser
             }
         }
 
-        private void LoadEnvironmentVariables(bool acceptUnknownOptionName)
+        private void ReadFromEnvironment(bool acceptUnknownOptionName)
         {
-            foreach (var x in this.Options.Where(x => !x.ValueIsSet && x.GetEnvironmentVariable))
+            foreach (var x in this.Options.Where(x => !x.ValueIsSet && x.ReadFromEnvironment))
             {
                 string? env = null;
 
@@ -922,7 +923,7 @@ public class SimpleParser : ISimpleParser
 
             this.Description = attribute.Description;
             this.Required = attribute.Required;
-            this.GetEnvironmentVariable = attribute.GetEnvironmentVariable;
+            this.ReadFromEnvironment = attribute.ReadFromEnvironment;
             this.DefaultValueText = attribute.DefaultValueText;
             var s = "-" + this.LongName + (this.ShortName == null ? string.Empty : ", -" + this.ShortName);
             if (this.OptionClass != null)
@@ -1023,7 +1024,7 @@ public class SimpleParser : ISimpleParser
 
         public bool Required { get; }
 
-        public bool GetEnvironmentVariable { get; }
+        public bool ReadFromEnvironment { get; }
 
         public bool ValueIsSet { get; internal set; }
 
@@ -1238,15 +1239,35 @@ public class SimpleParser : ISimpleParser
                     commandSpecified = true;
                     start = 1;
                 }
-                else
-                {// Not found
-                    TryProcessHelpAndVersion(); // "app.exe help", "app.exe version"
-                }
             }
             else
             {// Other (option or value)
                 TryProcessHelpAndVersion(); // "app.exe -help", "app.exe -version"
             }
+        }
+
+        // Not found. Tried to read from environment.
+        if (start == 0 &&
+            this.ParserOptions.ReadCommandFromEnvironment &&
+            Environment.GetEnvironmentVariable(SimpleParser.CommandString) is { } env)
+        {
+            if (this.SimpleCommands.ContainsKey(env))
+            {// CommandName Found
+                commandName = env;
+                commandSpecified = true;
+                start = 0;
+            }
+            else if (this.AliasToCommand.TryGetValue(arguments[0], out var cmd2))
+            {// Alias Found
+                commandName = cmd2.CommandName;
+                commandSpecified = true;
+                start = 0;
+            }
+        }
+
+        if (!commandSpecified)
+        {
+            TryProcessHelpAndVersion(); // "app.exe help", "app.exe version"
         }
 
         if (this.HelpCommand != null || this.VersionCommand)
@@ -1297,6 +1318,11 @@ public class SimpleParser : ISimpleParser
 
         void TryProcessHelpAndVersion()
         {
+            if (arguments.Length == 0)
+            {
+                return;
+            }
+
             if (OptionEquals(arguments[0], HelpString) ||
                 (this.ParserOptions.AutoAlias && OptionEquals(arguments[0], HelpAlias)))
             {// Help
@@ -1462,7 +1488,8 @@ public class SimpleParser : ISimpleParser
             c.AppendCommand(sb);
         }
 
-        foreach (var x in this.OptionClassUsage)
+        var array = this.OptionClassUsage.ToArray();
+        foreach (var x in array)
         {
             x.AppendOption(sb, true);
         }
