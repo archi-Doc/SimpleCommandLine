@@ -38,7 +38,7 @@ public class SimpleOptionAttribute : Attribute
     /// <summary>
     /// Gets or sets a value indicating whether or not to read from the environment variable if the option is not set [the default is false].
     /// </summary>
-    public bool GetEnvironmentVariable { get; set; }
+    public bool ReadFromEnvironment { get; set; }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SimpleOptionAttribute"/> class.

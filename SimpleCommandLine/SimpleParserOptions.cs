@@ -60,4 +60,9 @@ public record SimpleParserOptions
     /// The alias will consist of the initials of the words separated by hyphens (for example, 'remove-file' becomes 'rf').
     /// </summary>
     public bool AutoAlias { get; init; } = false;
+
+    /// <summary>
+    /// Gets a value indicating whether or not to read the command name from the environment variable <see cref="SimpleParser.CommandString"/>.
+    /// </summary>
+    public bool ReadCommandFromEnvironment { get; init; } = true;
 }
