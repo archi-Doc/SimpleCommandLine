@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
+using static System.Net.Mime.MediaTypeNames;
 
 #pragma warning disable SA1124 // Do not use regions
 
@@ -41,6 +42,11 @@ public static class SimpleParserHelper
         if (span.Length < 2)
         {
             return span;
+        }
+
+        if (span.Length >= 6 && span.StartsWith(SimpleParser.TripleQuotes) && span.EndsWith(SimpleParser.TripleQuotes))
+        {
+            return span.Slice(3, span.Length - 6);
         }
 
         var length = span.Length - 1;
