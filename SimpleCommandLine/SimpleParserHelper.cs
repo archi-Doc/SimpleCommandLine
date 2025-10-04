@@ -43,6 +43,11 @@ public static class SimpleParserHelper
             return span;
         }
 
+        if (span.Length >= 6 && span.StartsWith(SimpleParser.TripleQuotes) && span.EndsWith(SimpleParser.TripleQuotes))
+        {
+            return span.Slice(3, span.Length - 6);
+        }
+
         var length = span.Length - 1;
         if (span[0] == SimpleParser.Quote && span[length] == SimpleParser.Quote)
         {// "A B"
