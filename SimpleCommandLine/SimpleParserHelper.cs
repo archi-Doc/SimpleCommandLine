@@ -5,7 +5,6 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
-using static System.Net.Mime.MediaTypeNames;
 
 #pragma warning disable SA1124 // Do not use regions
 
