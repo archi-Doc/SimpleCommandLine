@@ -17,6 +17,30 @@ public class UnitTest1
 {
     private const string Separator = SimpleParser.SeparatorString;
 
+    [Theory]
+    [InlineData("abc", "abc")]
+    [InlineData("\"abc\"", "abc")]
+    [InlineData("'abc'", "abc")]
+    [InlineData("  \"abc\"  ", "abc")]
+    [InlineData("  'abc'  ", "abc")]
+    [InlineData("\"a\\\"bc\"", "a\\\"bc")] // Escaped quote inside, should not trim
+    [InlineData("'a\\'bc'", "a\\'bc")]   // Escaped single quote inside, should not trim
+    [InlineData("\"abc", "\"abc")]
+    [InlineData("abc\"", "abc\"")]
+    [InlineData("'abc", "'abc")]
+    [InlineData("abc'", "abc'")]
+    [InlineData("", "")]
+    [InlineData(" ", "")]
+    [InlineData("\"", "\"")]
+    [InlineData("'", "'")]
+    [InlineData("\"a\"b\"", "\"a\"b\"")]
+    [InlineData("'a'b'", "'a'b'")]
+    public void TrimQuotesTest(string input, string expected)
+    {
+        var result = SimpleParserHelper.TrimQuotes(input);
+        result.Is(expected);
+    }
+
     [Fact]
     public void SeparatorTest()
     {
