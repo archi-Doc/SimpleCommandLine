@@ -19,6 +19,60 @@ public static class SimpleParserHelper
     #endregion
 
     /// <summary>
+    /// Removes surrounding double or single quotes from the input string.
+    /// </summary>
+    /// <param name="input">The input string to trim quotes from.</param>
+    /// <returns>
+    /// The input string without surrounding quotes, or the original string if no unescaped surrounding quotes are found.
+    /// </returns>
+    public static string TrimQuotes(this string input)
+        => TrimQuotes(input.AsSpan()).ToString();
+
+    /// <summary>
+    /// Removes surrounding double or single quotes from the input <see cref="ReadOnlySpan{Char}"/>.
+    /// </summary>
+    /// <param name="input">The input span to trim quotes from.</param>
+    /// <returns>
+    /// The input span without surrounding quotes, or the original span if no unescaped surrounding quotes are found.
+    /// </returns>
+    public static ReadOnlySpan<char> TrimQuotes(this ReadOnlySpan<char> input)
+    {
+        var span = input.Trim();
+        if (span.Length < 2)
+        {
+            return span;
+        }
+
+        var length = span.Length - 1;
+        if (span[0] == SimpleParser.Quote && span[length] == SimpleParser.Quote)
+        {// "A B"
+            for (var i = 1; i < length; i++)
+            {// Check escaped quote
+                if (span[i] == SimpleParser.Quote && span[i - 1] != '\\')
+                {
+                    return span;
+                }
+            }
+
+            return span.Slice(1, length - 1);
+        }
+        else if (span[0] == SimpleParser.SingleQuote && span[length] == SimpleParser.SingleQuote)
+        {// 'A B'
+            for (var i = 1; i < length; i++)
+            {// Check escaped quote
+                if (span[i] == SimpleParser.SingleQuote && span[i - 1] != '\\')
+                {
+                    return span;
+                }
+            }
+
+            return span.Slice(1, length - 1);
+        }
+
+        return input;
+    }
+
+    /// <summary>
     /// Tries to unwrap a double-quoted text by removing the surrounding quotes.
     /// </summary>
     /// <param name="text">The text to unwrap.</param>
