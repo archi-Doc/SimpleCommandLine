@@ -2,8 +2,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
-using System.Linq;
 using System.Text;
 
 #pragma warning disable SA1124 // Do not use regions
@@ -17,6 +15,39 @@ public static class SimpleParserHelper
     private static string? commandlineArguments;
 
     #endregion
+
+    /// <summary>
+    /// Removes surrounding quotes or brackets from the input string.
+    /// </summary>
+    /// <param name="input">The input string to trim quotes or brackets from.</param>
+    /// <returns>
+    /// The input string without surrounding quotes or brackets, or the original string if no unescaped surrounding quotes or brackets are found.
+    /// </returns>
+    public static string TrimQuotesAndBracket(this string input)
+        => TrimQuotesAndBracket(input.AsSpan()).ToString();
+
+    /// <summary>
+    /// Removes surrounding quotes or brackets from the input <see cref="ReadOnlySpan{Char}"/>.
+    /// </summary>
+    /// <param name="input">The input span to trim quotes or brackets from.</param>
+    /// <returns>
+    /// The input span without surrounding quotes or brackets, or the original span if no unescaped surrounding quotes or brackets are found.
+    /// </returns>
+    public static ReadOnlySpan<char> TrimQuotesAndBracket(this ReadOnlySpan<char> input)
+    {
+        var span = input.Trim();
+        if (span.Length < 2)
+        {
+            return span;
+        }
+
+        if (span[0] == SimpleParser.OpenBracket && span[^1] == SimpleParser.CloseBracket)
+        {// {A B}
+            return span.Slice(1, span.Length - 2);
+        }
+
+        return TrimQuotes(span);
+    }
 
     /// <summary>
     /// Removes surrounding double or single quotes from the input string.
@@ -48,10 +79,9 @@ public static class SimpleParserHelper
             return span.Slice(3, span.Length - 6);
         }
 
-        var length = span.Length - 1;
-        if (span[0] == SimpleParser.Quote && span[length] == SimpleParser.Quote)
+        if (span[0] == SimpleParser.Quote && span[^1] == SimpleParser.Quote)
         {// "A B"
-            for (var i = 1; i < length; i++)
+            for (var i = 1; i < span.Length - 1; i++)
             {// Check escaped quote
                 if (span[i] == SimpleParser.Quote && span[i - 1] != '\\')
                 {
@@ -59,11 +89,11 @@ public static class SimpleParserHelper
                 }
             }
 
-            return span.Slice(1, length - 1);
+            return span.Slice(1, span.Length - 2);
         }
-        else if (span[0] == SimpleParser.SingleQuote && span[length] == SimpleParser.SingleQuote)
+        else if (span[0] == SimpleParser.SingleQuote && span[^1] == SimpleParser.SingleQuote)
         {// 'A B'
-            for (var i = 1; i < length; i++)
+            for (var i = 1; i < span.Length - 1; i++)
             {// Check escaped quote
                 if (span[i] == SimpleParser.SingleQuote && span[i - 1] != '\\')
                 {
@@ -71,7 +101,7 @@ public static class SimpleParserHelper
                 }
             }
 
-            return span.Slice(1, length - 1);
+            return span.Slice(1, span.Length - 2);
         }
 
         return input;
