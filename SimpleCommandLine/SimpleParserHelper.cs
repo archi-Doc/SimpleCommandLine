@@ -43,7 +43,7 @@ public static class SimpleParserHelper
 
         if (span[0] == SimpleParser.OpenBracket && span[^1] == SimpleParser.CloseBracket)
         {// {A B}
-            return span.Slice(1, span.Length - 2);
+            return span.Slice(1, span.Length - 2).Trim(); // Removes spaces again to avoid misdetection as indentation.
         }
 
         return TrimQuotes(span);
@@ -89,7 +89,7 @@ public static class SimpleParserHelper
                 }
             }
 
-            return span.Slice(1, span.Length - 2);
+            return span.Slice(1, span.Length - 2).Trim(); // Removes spaces again to avoid misdetection as indentation.
         }
         else if (span[0] == SimpleParser.SingleQuote && span[^1] == SimpleParser.SingleQuote)
         {// 'A B'
@@ -101,7 +101,7 @@ public static class SimpleParserHelper
                 }
             }
 
-            return span.Slice(1, span.Length - 2);
+            return span.Slice(1, span.Length - 2).Trim(); // Removes spaces again to avoid misdetection as indentation.
         }
 
         return input;
