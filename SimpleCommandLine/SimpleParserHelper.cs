@@ -17,6 +17,16 @@ public static class SimpleParserHelper
     #endregion
 
     /// <summary>
+    /// Joins a collection of strings with space separators.
+    /// </summary>
+    /// <param name="values">The collection of strings to join.</param>
+    /// <returns>A single string containing all values joined with spaces.</returns>
+    public static string JoinWithSpace(this IEnumerable<string> values)
+    {
+        return string.Join(' ', values);
+    }
+
+    /// <summary>
     /// Removes surrounding quotes or brackets from the input string.
     /// </summary>
     /// <param name="input">The input string to trim quotes or brackets from.</param>
