@@ -17,6 +17,30 @@ public static class SimpleParserHelper
     #endregion
 
     /// <summary>
+    /// Counts the number of occurrences of triple quotes (""") in the specified text.
+    /// </summary>
+    /// <param name="text">The text to search for triple quotes.</param>
+    /// <returns>The number of triple quote occurrences found in the text.</returns>
+    public static int CountTripleQuotes(ReadOnlySpan<char> text)
+    {
+        ReadOnlySpan<char> tripleQuotes = "\"\"\"";
+
+        var span = text;
+        var count = 0;
+        while (true)
+        {
+            var index = span.IndexOf(tripleQuotes);
+            if (index == -1)
+            {
+                return count;
+            }
+
+            count++;
+            span = span.Slice(index + tripleQuotes.Length);
+        }
+    }
+
+    /// <summary>
     /// Joins a collection of strings with space separators.
     /// </summary>
     /// <param name="values">The collection of strings to join.</param>
