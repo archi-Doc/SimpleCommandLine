@@ -17,26 +17,34 @@ public static class SimpleParserHelper
     #endregion
 
     /// <summary>
-    /// Counts the number of occurrences of triple quotes (""") in the specified text.
+    /// Counts how many times <paramref name="value"/> appears in <paramref name="text"/>.<br/>
+    /// Overlapping occurrences are not counted.
     /// </summary>
-    /// <param name="text">The text to search for triple quotes.</param>
-    /// <returns>The number of triple quote occurrences found in the text.</returns>
-    public static int CountTripleQuotes(ReadOnlySpan<char> text)
+    /// <param name="text">The source text to search.</param>
+    /// <param name="value">The substring to look for. Must not be empty.</param>
+    /// <returns>
+    /// The number of non-overlapping occurrences of <paramref name="value"/> in <paramref name="text"/>.
+    /// Returns 0 if <paramref name="value"/> is empty or not found.
+    /// </returns>
+    public static int CountOccurrences(ReadOnlySpan<char> text, ReadOnlySpan<char> value)
     {
-        ReadOnlySpan<char> tripleQuotes = "\"\"\"";
+        if (value.IsEmpty)
+        {
+            return 0;
+        }
 
         var span = text;
         var count = 0;
         while (true)
         {
-            var index = span.IndexOf(tripleQuotes);
+            var index = span.IndexOf(value);
             if (index == -1)
             {
                 return count;
             }
 
+            span = span.Slice(index + value.Length);
             count++;
-            span = span.Slice(index + tripleQuotes.Length);
         }
     }
 
