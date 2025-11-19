@@ -15,7 +15,7 @@ Simple command-line parser for .NET console applications.
 
 ## Requirements
 
-**.NET 8** or later
+**.NET 10** or later
 
 
 
