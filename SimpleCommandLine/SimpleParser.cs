@@ -1524,8 +1524,11 @@ public class SimpleParser : ISimpleParser
     /// <summary>
     /// Shows a list of commands.
     /// </summary>
-    public void ShowList()
+    public void ShowCommandList(int maxLength = 10)
     {
+        var windowWidth = Console.WindowWidth;
+        var array = this.SimpleCommands.Keys.ToArray();
+
         var sb = new StringBuilder();
         this.AppendList(sb);
         Console.WriteLine(sb.ToString());
