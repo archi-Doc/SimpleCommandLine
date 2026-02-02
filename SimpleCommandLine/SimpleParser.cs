@@ -1531,6 +1531,7 @@ public class SimpleParser : ISimpleParser
         var array = this.SimpleCommands.Keys.OrderBy(static x => x, StringComparer.OrdinalIgnoreCase).ToArray();
         if (array.Length == 0)
         {
+            Console.Out.WriteLine();
             return;
         }
 
@@ -1548,6 +1549,7 @@ public class SimpleParser : ISimpleParser
         var columnWidth = Math.Min(Math.Min(max, maxLength), windowWidth);
         if (columnWidth == 0)
         {
+            Console.Out.WriteLine();
             return;
         }
 
