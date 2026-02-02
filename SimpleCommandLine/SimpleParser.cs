@@ -1522,13 +1522,86 @@ public class SimpleParser : ISimpleParser
     }
 
     /// <summary>
-    /// Shows a list of commands.
+    /// Shows a list of commands.<br/>
+    /// Because width calculation is complex, currently only alphabetic commands are supported.
     /// </summary>
-    public void ShowList()
+    /// <param name="maxLength">The maximum length of each command name in the displayed list.</param>
+    public void ShowCommandList(int maxLength = 19)
     {
-        var sb = new StringBuilder();
-        this.AppendList(sb);
-        Console.WriteLine(sb.ToString());
+        var array = this.SimpleCommands.Keys.OrderBy(static x => x, StringComparer.OrdinalIgnoreCase).ToArray();
+        if (array.Length == 0)
+        {
+            Console.Out.WriteLine();
+            return;
+        }
+
+        var windowWidth = Console.WindowWidth;
+        Span<char> buffer = stackalloc char[windowWidth];
+        var max = 0;
+        foreach (var x in array)
+        {
+            if (x.Length > max)
+            {
+                max = x.Length;
+            }
+        }
+
+        var columnWidth = Math.Min(Math.Min(max, maxLength), windowWidth);
+        if (columnWidth == 0)
+        {
+            Console.Out.WriteLine();
+            return;
+        }
+
+        var numberOfColumns = windowWidth / (columnWidth + 1);
+        var numberOfRows = array.Length / numberOfColumns;
+        var r = array.Length % numberOfColumns;
+        if (r == 0)
+        {
+            r = numberOfColumns;
+        }
+        else
+        {
+            numberOfRows++;
+        }
+
+        for (var row = 0; row < numberOfRows; row++)
+        {
+            var span = buffer;
+            span.Fill(' ');
+            var index = row;
+            for (var column = 0; column < numberOfColumns; column++)
+            {
+                if (row >= (numberOfRows - 1) && (column >= r))
+                {
+                    break;
+                }
+                else
+                {
+                    if (array[index].Length > columnWidth)
+                    {
+                        array[index].AsSpan(0, columnWidth).CopyTo(span);
+                    }
+                    else
+                    {
+                        array[index].AsSpan().CopyTo(span);
+                    }
+                }
+
+                if (column < r)
+                {
+                    index += numberOfRows;
+                }
+                else
+                {
+                    index += numberOfRows - 1;
+                }
+
+                span = span.Slice(columnWidth + 1);
+            }
+
+            Console.Out.WriteLine(buffer);
+        }
     }
 
     /// <summary>
