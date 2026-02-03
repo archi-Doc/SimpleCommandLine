@@ -1009,9 +1009,9 @@ public class SimpleParser : ISimpleParser
 
         public string? ShortName { get; }
 
-        public string? Description { get; }
+        public string Description { get; set; }
 
-        public string? DefaultValueText { get; }
+        public string? DefaultValueText { get; set; }
 
         public string OptionText { get; }
 

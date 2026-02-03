@@ -23,7 +23,7 @@ public class SimpleOptionAttribute : Attribute
     /// <summary>
     /// Gets or sets the description of the command-line option.
     /// </summary>
-    public string? Description { get; set; }
+    public string Description { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets or sets the default value text of the command-line option.
