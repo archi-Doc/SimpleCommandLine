@@ -360,7 +360,7 @@ public class SimpleParser : ISimpleParser
 
         public bool Default { get; internal set; }
 
-        public string? Description { get; }
+        public string Description { get; set; }
 
         public bool IsSubcommand { get; }
 
@@ -390,14 +390,7 @@ public class SimpleParser : ISimpleParser
 
         internal void AppendCommand(StringBuilder sb)
         {
-            if (this.CommandName == string.Empty)
-            {
-                sb.AppendLine($"{this.Description}");
-            }
-            else
-            {
-                sb.AppendLine($"{this.CommandName}: {this.Description}");
-            }
+            sb.AppendLine($"{this.CommandName} {this.Description}");
 
             this.OptionClass.AppendOption(sb, false);
         }
@@ -1016,9 +1009,9 @@ public class SimpleParser : ISimpleParser
 
         public string? ShortName { get; }
 
-        public string? Description { get; }
+        public string Description { get; set; }
 
-        public string? DefaultValueText { get; }
+        public string? DefaultValueText { get; set; }
 
         public string OptionText { get; }
 
@@ -1065,8 +1058,9 @@ public class SimpleParser : ISimpleParser
         this.ParserOptions = parserOptions ?? SimpleParserOptions.Standard;
 
         Command? firstOrDefault = null;
-        this.SimpleCommands = new(StringComparer.InvariantCultureIgnoreCase);
+        this.NameToCommand = new(StringComparer.InvariantCultureIgnoreCase);
         this.AliasToCommand = new(StringComparer.InvariantCultureIgnoreCase);
+        // this.TypeToCommand = new();
         this.ErrorMessage = new();
         this.OptionClassUsage = new();
         foreach (var x in simpleCommands)
@@ -1081,7 +1075,7 @@ public class SimpleParser : ISimpleParser
             // Get Command from Type x
             var name = attribute.CommandName;
             Command? command;
-            if (this.SimpleCommands.TryGetValue(name, out command))
+            if (this.NameToCommand.TryGetValue(name, out command))
             {
                 if (x != command.CommandType)
                 {// Duplicate name.
@@ -1091,7 +1085,8 @@ public class SimpleParser : ISimpleParser
             else
             {
                 command = new(this, x, attribute);
-                this.SimpleCommands.Add(name, command);
+                this.NameToCommand.Add(name, command);
+                // this.TypeToCommand.TryAdd(x, command);
 
                 /* // Option 2: The first default command is the default command.
                 if (command.Default && this.DefaultCommandName == null)
@@ -1123,7 +1118,7 @@ public class SimpleParser : ISimpleParser
         // Auto-alias
         if (this.ParserOptions.AutoAlias)
         {
-            foreach (var x in this.SimpleCommands.Values)
+            foreach (var x in this.NameToCommand.Values)
             {
                 if (string.IsNullOrEmpty(x.Alias))
                 {
@@ -1227,7 +1222,7 @@ public class SimpleParser : ISimpleParser
         {
             if (!arguments[0].IsOptionString())
             {// Command
-                if (this.SimpleCommands.ContainsKey(arguments[0]))
+                if (this.NameToCommand.ContainsKey(arguments[0]))
                 {// CommandName Found
                     commandName = arguments[0];
                     commandSpecified = true;
@@ -1251,7 +1246,7 @@ public class SimpleParser : ISimpleParser
             this.ParserOptions.ReadCommandFromEnvironment &&
             Environment.GetEnvironmentVariable(SimpleParser.CommandString) is { } env)
         {
-            if (this.SimpleCommands.ContainsKey(env))
+            if (this.NameToCommand.ContainsKey(env))
             {// CommandName Found
                 commandName = env;
                 commandSpecified = true;
@@ -1282,7 +1277,7 @@ public class SimpleParser : ISimpleParser
             return false;
         }
 
-        if (this.SimpleCommands.TryGetValue(commandName, out var command))
+        if (this.NameToCommand.TryGetValue(commandName, out var command))
         {
             if (commandSpecified && !command.IsSubcommand &&
                 arguments.Length > start && OptionEquals(arguments[start], HelpString))
@@ -1326,7 +1321,7 @@ public class SimpleParser : ISimpleParser
             if (OptionEquals(arguments[0], HelpString) ||
                 (this.ParserOptions.AutoAlias && OptionEquals(arguments[0], HelpAlias)))
             {// Help
-                if (arguments.Length >= 2 && !arguments[1].IsOptionString() && this.SimpleCommands.ContainsKey(arguments[1]))
+                if (arguments.Length >= 2 && !arguments[1].IsOptionString() && this.NameToCommand.ContainsKey(arguments[1]))
                 {// help command
                     this.HelpCommand = arguments[1];
                 }
@@ -1434,6 +1429,48 @@ public class SimpleParser : ISimpleParser
     }
 
     /// <summary>
+    /// Attempts to retrieve the command associated with the specified command name.
+    /// </summary>
+    /// <param name="commandName">The name of the command to retrieve.</param>
+    /// <param name="command">When this method returns, contains the command associated with the specified type, if the type is found; otherwise, <see langword="null"/>.</param>
+    /// <returns><see langword="true"/> if the command is found; otherwise, <see langword="false"/>.</returns>
+    public bool TryGetCommand(string commandName, [MaybeNullWhen(false)] out Command command)
+        => this.NameToCommand.TryGetValue(commandName, out command);
+
+    /// <summary>
+    /// Attempts to retrieve the option associated with the specified command and option name.
+    /// </summary>
+    /// <param name="commandName">The name of the command to search for.</param>
+    /// <param name="optionName">The name of the option to search for within the command.</param>
+    /// <param name="option">
+    /// When this method returns, contains the <see cref="Option"/> associated with the specified option name,
+    /// if the option is found; otherwise, <see langword="null"/>.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> if the option is found; otherwise, <see langword="false"/>.
+    /// </returns>
+    public bool TryGetOption(string commandName, string optionName, [MaybeNullWhen(false)] out Option option)
+    {
+        if (!this.NameToCommand.TryGetValue(commandName, out var command))
+        {
+            option = default;
+            return false;
+        }
+
+        foreach (var x in command.OptionClass.Options)
+        {
+            if (x.LongName == optionName)
+            {
+                option = x;
+                return true;
+            }
+        }
+
+        option = default;
+        return false;
+    }
+
+    /// <summary>
     /// Shows help messages.
     /// </summary>
     /// <param name="command">The name of the command for which help message will be displayed (string.Empty targets all commands).</param>
@@ -1472,13 +1509,13 @@ public class SimpleParser : ISimpleParser
         Command? c = null;
         if (command != null)
         {
-            this.SimpleCommands.TryGetValue(command, out c);
+            this.NameToCommand.TryGetValue(command, out c);
         }
 
         if (c == null)
         {
             this.AppendCommandList(sb);
-            foreach (var x in this.SimpleCommands)
+            foreach (var x in this.NameToCommand)
             {
                 x.Value.AppendCommand(sb);
             }
@@ -1494,7 +1531,7 @@ public class SimpleParser : ISimpleParser
             x.AppendOption(sb, true);
         }
 
-        Console.WriteLine(sb.ToString());
+        Console.Out.WriteLine(sb);
     }
 
     /// <summary>
@@ -1528,7 +1565,7 @@ public class SimpleParser : ISimpleParser
     /// <param name="maxLength">The maximum length of each command name in the displayed list.</param>
     public void ShowCommandList(int maxLength = 19)
     {
-        var array = this.SimpleCommands.Keys.OrderBy(static x => x, StringComparer.OrdinalIgnoreCase).ToArray();
+        var array = this.NameToCommand.Keys.OrderBy(static x => x, StringComparer.OrdinalIgnoreCase).ToArray();
         if (array.Length == 0)
         {
             Console.Out.WriteLine();
@@ -1639,9 +1676,11 @@ public class SimpleParser : ISimpleParser
     /// <summary>
     /// Gets the collection of simple commands.
     /// </summary>
-    public Dictionary<string, Command> SimpleCommands { get; private set; }
+    public Dictionary<string, Command> NameToCommand { get; private set; }
 
     public Dictionary<string, Command> AliasToCommand { get; private set; }
+
+    // public Dictionary<Type, Command> TypeToCommand { get; private set; }
 
     public void AddErrorMessage(string message) => this.ErrorMessage.Add(message);
 
@@ -1663,7 +1702,7 @@ public class SimpleParser : ISimpleParser
 
     private void AppendList(StringBuilder sb)
     {
-        foreach (var x in this.SimpleCommands.Keys.OrderBy(a => a))
+        foreach (var x in this.NameToCommand.Keys.OrderBy(a => a))
         {
             sb.Append(x);
             sb.Append(' ');
@@ -1685,7 +1724,7 @@ public class SimpleParser : ISimpleParser
     private void AppendCommandList(StringBuilder sb)
     {
         sb.AppendLine("Commands:");
-        foreach (var x in this.SimpleCommands)
+        foreach (var x in this.NameToCommand)
         {
             sb.Append(IndentString);
             sb.Append(x.Key);

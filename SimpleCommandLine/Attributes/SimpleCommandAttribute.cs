@@ -28,7 +28,7 @@ public class SimpleCommandAttribute : Attribute
     /// <summary>
     /// Gets or sets the description of the command.
     /// </summary>
-    public string? Description { get; set; }
+    public string Description { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets or sets a value indicating whether the command is a subcommand or not (subcommand accepts unknown option names).
