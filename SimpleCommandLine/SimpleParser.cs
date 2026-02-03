@@ -360,7 +360,7 @@ public class SimpleParser : ISimpleParser
 
         public bool Default { get; internal set; }
 
-        public string? Description { get; }
+        public string Description { get; set; }
 
         public bool IsSubcommand { get; }
 
@@ -390,14 +390,7 @@ public class SimpleParser : ISimpleParser
 
         internal void AppendCommand(StringBuilder sb)
         {
-            if (this.CommandName == string.Empty)
-            {
-                sb.AppendLine($"{this.Description}");
-            }
-            else
-            {
-                sb.AppendLine($"{this.CommandName}: {this.Description}");
-            }
+            sb.AppendLine($"{this.CommandName} {this.Description}");
 
             this.OptionClass.AppendOption(sb, false);
         }
@@ -1494,7 +1487,12 @@ public class SimpleParser : ISimpleParser
             x.AppendOption(sb, true);
         }
 
-        Console.WriteLine(sb.ToString());
+        if (c is not null)
+        {
+            sb.AppendLine("Extra");
+        }
+
+        Console.Out.WriteLine(sb);
     }
 
     /// <summary>

@@ -114,6 +114,11 @@ namespace ConsoleApp1
 
             await SimpleParser.ParseAndRunAsync(commandTypes, "oioi");
 
+            var simpleParser = new SimpleParser(commandTypes);
+            simpleParser.SimpleCommands.TryGetValue("test", out var command);
+            command.Description = "yaya";
+            await simpleParser.ParseAndRunAsync("test -help");
+
             // await SimpleParser.ParseAndRunAsync(commandTypes, "test3 -t aa -options3b }-name2 ya -name tst} "); // -options {-n 99}
             // await SimpleParser.ParseAndRunAsync(commandTypes, "-n 12 -op5 {-file \"jj\"}"); // -options {-n 99}
             // await SimpleParser.ParseAndRunAsync(commandTypes, "test3 -text aaa -options3b -encodedCommand ewB9AA== -inputFormat xml -outputFormat text");
