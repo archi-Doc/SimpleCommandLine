@@ -9,8 +9,8 @@
     <Project Path="Tests/ServiceProviderTest/ServiceProviderTest.csproj" />
     <Project Path="Tests/TypeTest/TypeTest.csproj" />
   </Folder>
-  <Project Path="ConsoleApp1/ConsoleApp1.csproj" />
   <Project Path="Playground/Playground.csproj" />
+  <Project Path="QuickStart/QuickStart.csproj" />
   <Project Path="SimpleCommandLine/SimpleCommandLine.csproj" />
   <Project Path="xUnitTest/xUnitTest.csproj" />
 </Solution>

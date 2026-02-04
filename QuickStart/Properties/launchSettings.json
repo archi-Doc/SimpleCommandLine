@@ -1,6 +1,6 @@
 {
   "profiles": {
-    "ConsoleApp1": {
+    "QuickStart": {
       "commandName": "Project",
       "commandLineArgs": "-text abc"
     }

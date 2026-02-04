@@ -1,36 +1,4 @@
-## SimpleCommandLine
-
-![Nuget](https://img.shields.io/nuget/v/SimpleCommandLine) ![Build and Test](https://github.com/archi-Doc/SimpleCommandLine/workflows/Build%20and%20Test/badge.svg)
-
-Simple command-line parser for .NET console applications.
-
-
-
-## Table of Contents
-
-- [Requirements](#requirements)
-- [Quick Start](#quick-start)
-
-
-
-## Requirements
-
-**.NET 10** or later
-
-
-
-## Quick Start
-
-Install SimpleCommandLine using Package Manager Console.
-
-```
-Install-Package SimpleCommandLine
-```
-
-This is a small sample code to use SimpleCommandLine.
-
-```csharp
-// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
+﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System;
 using System.Threading.Tasks;
@@ -97,5 +65,3 @@ public class Program
         Console.WriteLine();
     }
 }
-```
-
