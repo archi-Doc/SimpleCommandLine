@@ -16,7 +16,7 @@ namespace ConsoleApp1
 
     public class TestOptions : BaseOptions
     {
-        [SimpleOption("name", Required = true)]
+        [SimpleOption("name", Required = true, Description = "Desc")]
         public string Name { get; set; } = string.Empty;
 
         [SimpleOption("number", ShortName = "n")]

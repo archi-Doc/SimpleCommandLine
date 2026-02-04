@@ -752,7 +752,7 @@ public class SimpleParser : ISimpleParser
 
                 if (x.Required)
                 {
-                    if (x.DefaultValueText != null)
+                    if (x.DefaultValueText is not null)
                     {
                         sb.Append($" (Required: {x.DefaultValueText})");
                     }
@@ -761,7 +761,7 @@ public class SimpleParser : ISimpleParser
                         sb.Append($" (Required)");
                     }
                 }
-                else if (x.DefaultValueText != null)
+                else if (x.DefaultValueText is not null)
                 {
                     if (x.OptionType == typeof(string))
                     {
@@ -1522,6 +1522,8 @@ public class SimpleParser : ISimpleParser
         }
         else
         {
+            // A property may be modified during command instantiation (inside the constructor), so verify that the instance is created beforehand.
+            _ = c.CommandInstance;
             c.AppendCommand(sb);
         }
 
