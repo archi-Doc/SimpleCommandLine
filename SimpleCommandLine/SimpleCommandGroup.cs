@@ -1,5 +1,5 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
-
+/*
 using System;
 using System.Threading.Tasks;
 using Arc.Unit;
@@ -108,3 +108,4 @@ public abstract class SimpleCommandGroup<TCommand> : ISimpleCommandAsync
     private SimpleParser? simpleParser;
     private string? defaultArgument;
 }
+*/
