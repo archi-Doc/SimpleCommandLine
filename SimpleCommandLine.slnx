@@ -10,7 +10,9 @@
     <Project Path="Tests/TypeTest/TypeTest.csproj" />
   </Folder>
   <Project Path="Playground/Playground.csproj" />
-  <Project Path="QuickStart/QuickStart.csproj" />
+  <Project Path="QuickStart/QuickStart.csproj">
+    <Build Solution="Debug|*" Project="false" />
+  </Project>
   <Project Path="SimpleCommandLine/SimpleCommandLine.csproj" />
   <Project Path="xUnitTest/xUnitTest.csproj" />
 </Solution>
