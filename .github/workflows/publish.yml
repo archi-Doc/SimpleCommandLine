@@ -14,9 +14,9 @@ jobs:
     - name: Install dependencies
       run: dotnet restore
     - name: Build
-      run: dotnet build --configuration Release --no-restore
+      run: dotnet build --configuration Release
     - name: Test
-      run: dotnet test --no-restore --verbosity normal
+      run: dotnet test --verbosity normal
 
     - name: Package
       run: dotnet pack -c Release -o bin SimpleCommandLine/SimpleCommandLine.csproj
