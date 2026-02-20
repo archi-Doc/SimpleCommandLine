@@ -17,38 +17,6 @@ public static class SimpleParserHelper
     #endregion
 
     /// <summary>
-    /// Counts how many times <paramref name="value"/> appears in <paramref name="text"/>.<br/>
-    /// Overlapping occurrences are not counted.
-    /// </summary>
-    /// <param name="text">The source text to search.</param>
-    /// <param name="value">The substring to look for. Must not be empty.</param>
-    /// <returns>
-    /// The number of non-overlapping occurrences of <paramref name="value"/> in <paramref name="text"/>.
-    /// Returns 0 if <paramref name="value"/> is empty or not found.
-    /// </returns>
-    public static int CountOccurrences(ReadOnlySpan<char> text, ReadOnlySpan<char> value)
-    {
-        if (value.IsEmpty)
-        {
-            return 0;
-        }
-
-        var span = text;
-        var count = 0;
-        while (true)
-        {
-            var index = span.IndexOf(value);
-            if (index == -1)
-            {
-                return count;
-            }
-
-            span = span.Slice(index + value.Length);
-            count++;
-        }
-    }
-
-    /// <summary>
     /// Joins a collection of strings with space separators.
     /// </summary>
     /// <param name="values">The collection of strings to join.</param>
