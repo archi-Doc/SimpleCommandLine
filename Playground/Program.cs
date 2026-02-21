@@ -156,10 +156,13 @@ public partial class TestCommand3 : ISimpleCommandAsync<TestCommand3.Options>
     [TinyhandObject(ImplicitMemberNameAsKey = true)]
     public partial record class Options
     {
+        [SimpleOption("A", Description = "AA")]
         public int A { get; set; }
 
+        [SimpleOption("B", Description = "BB")]
         public double B { get; set; }
 
+        [SimpleOption("C", Description = "CC")]
         public string C { get; set; } = string.Empty;
     }
 
@@ -213,7 +216,8 @@ public class Program
 
         var p = new SimpleParser(commandTypes, parserOptions);
 
-        await p.ParseAndRunAsync("test3 A=2 B = 3.2 C=\"abc\"");
+        var op = TinyhandSerializer.DeserializeFromString<TestCommand3.Options>("A=2 B = 3.2 C=\"abc\"");
+        await p.ParseAndRunAsync("test3 --help A=2 B = 3.2 C=\"abc\"");
 
         await p.ParseAndRunAsync("test -targetip ttt A=2 B = 3");
         await p.ParseAndRunAsync("test help");
