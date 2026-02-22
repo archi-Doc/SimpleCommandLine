@@ -1313,7 +1313,7 @@ public class SimpleParser : ISimpleParser
             return ret;
         }
 
-        if (commandName == default)
+        if (commandName.IsEmpty)
         {
             this.AddErrorMessage("Specify the command name");
             this.HelpCommand = string.Empty;
