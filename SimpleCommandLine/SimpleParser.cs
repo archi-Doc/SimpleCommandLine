@@ -1222,24 +1222,23 @@ public class SimpleParser : ISimpleParser
         var commandName = this.DefaultCommandName;
         var commandSpecified = false;
 
-        var idx = argSpan.IndexOfSeparator();
-        if (idx >= 0)
+        SplitFirstTwoBySeparator(argSpan, out var firstSpan, out var secondSpan);
+        if (firstSpan.Length > 0)
         {
-            var firstArg = argSpan.Slice(0, idx);
-            if (!firstArg.IsOptionString())
+            if (!firstSpan.IsOptionString())
             {// Command
-                var firstArgString = firstArg.ToString();
+                var firstArgString = firstSpan.ToString();
                 if (this.NameToCommand.ContainsKey(firstArgString))
                 {// CommandName Found
                     commandName = firstArgString;
                     commandSpecified = true;
-                    argSpan = argSpan.Slice(0, idx + 1);
+                    argSpan = argSpan.Slice(firstSpan.Length + 1).TrimStart();
                 }
                 else if (this.AliasToCommand.TryGetValue(firstArgString, out var cmd))
                 {// Alias Found
                     commandName = cmd.CommandName;
                     commandSpecified = true;
-                    argSpan = argSpan.Slice(0, idx + 1);
+                    argSpan = argSpan.Slice(firstSpan.Length + 1).TrimStart();
                 }
             }
         }
@@ -1261,7 +1260,6 @@ public class SimpleParser : ISimpleParser
             }
         }
 
-        SplitFirstTwoBySeparator(argSpan, out var firstSpan, out var secondSpan);
         if (!commandSpecified)
         {// "help", "help command", "version"
             if (OptionEquals(firstSpan, HelpString) ||
