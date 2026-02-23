@@ -9,6 +9,8 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using Arc;
+using Arc.Collections;
 using Tinyhand;
 
 namespace SimpleCommandLine;
@@ -1202,48 +1204,6 @@ public class SimpleParser : ISimpleParser
     /// <returns><see langword="true"/> if the arguments are successfully parsed.</returns>
     public bool Parse(string[] args) => this.Parse(string.Join(' ', args));
 
-    private static int IndexOfSeparator(ReadOnlySpan<char> span)
-    {
-        var remaining = span.Length;
-        for (var i = 0; i < span.Length; i++, remaining--)
-        {
-            var val = span[i];
-
-            if ((val <= 0x0D && val >= 0x09) || val == 0x20)
-            { // U+0009 to U+000D, U+0020
-                return i;
-            }
-            else if (val == TinyhandConstants.Separator || val == TinyhandConstants.Separator2)
-            { // Separator
-                return i;
-            }
-            else if (val == 0xC2 && remaining >= 2 && span[i + 1] == 0xA0)
-            { // U+00A0 (C2 A0)
-                return i;
-            }
-            else if (val == 0xE2 && remaining >= 3 && span[i + 1] == 0x80)
-            {
-                if (span[i + 2] >= 0x80 && span[i + 2] <= 0x8A)
-                {// U+2000 to U+200A, E2 80 80 to E2 80 8A
-                    return i;
-                }
-                else if (span[i + 2] == 0xA8 || span[i + 2] == 0xA9)
-                {// U+2028- U+2029, E2 80 A8 to E2 80 A9
-                    return i;
-                }
-            }
-
-            if (val == 0xE3 && remaining >= 3 && span[i + 1] == 0x80 && span[i + 2] == 0x80)
-            { // U+3000, E3 80 80
-                return i;
-            }
-
-            // Not white space.
-        }
-
-        return -1;
-    }
-
     /// <summary>
     /// Parse the arguments.
     /// </summary>
@@ -1258,26 +1218,27 @@ public class SimpleParser : ISimpleParser
         this.VersionCommand = false;
         this.ErrorMessage.Clear();
 
-        var commandName = this.DefaultCommandName.AsSpan();
+        var commandName = this.DefaultCommandName;
         var commandSpecified = false;
 
-        var idx = IndexOfSeparator(argSpan);
+        var idx = argSpan.IndexOfSeparator();
         if (idx >= 0)
         {
             var firstArg = argSpan.Slice(0, idx);
             if (!firstArg.IsOptionString())
             {// Command
-                if (this.NameToCommand.ContainsKey(firstArg))
+                var firstArgString = firstArg.ToString();
+                if (this.NameToCommand.ContainsKey(firstArgString))
                 {// CommandName Found
-                    commandName = firstArg;
+                    commandName = firstArgString;
                     commandSpecified = true;
-                    argSpan = argSpan.Slice(0, idx + arg);
+                    argSpan = argSpan.Slice(0, idx + 1);
                 }
-                else if (this.AliasToCommand.TryGetValue(firstArg, out var cmd))
+                else if (this.AliasToCommand.TryGetValue(firstArgString, out var cmd))
                 {// Alias Found
                     commandName = cmd.CommandName;
                     commandSpecified = true;
-                    argSpan = argSpan.Slice(0, idx + arg);
+                    argSpan = argSpan.Slice(0, idx + 1);
                 }
             }
             else
@@ -1313,7 +1274,7 @@ public class SimpleParser : ISimpleParser
             return ret;
         }
 
-        if (commandName.IsEmpty)
+        if (commandName is null)
         {
             this.AddErrorMessage("Specify the command name");
             this.HelpCommand = string.Empty;
@@ -1361,7 +1322,7 @@ public class SimpleParser : ISimpleParser
                 return;
             }
 
-            if (OptionEquals(arguments[0], HelpString) ||
+            if (OptionEquals(firstArg, HelpString) ||
                 (this.ParserOptions.AutoAlias && OptionEquals(arguments[0], HelpAlias)))
             {// Help
                 if (arguments.Length >= 2 && !arguments[1].IsOptionString() && this.NameToCommand.ContainsKey(arguments[1]))
@@ -1743,7 +1704,8 @@ public class SimpleParser : ISimpleParser
 
     private List<OptionClass> OptionClassUsage { get; }
 
-    internal static bool OptionEquals(string arg, string command) => arg.Trim(SimpleParser.OptionPrefix).Equals(command, StringComparison.OrdinalIgnoreCase);
+    internal static bool OptionEquals(ReadOnlySpan<char> arg, ReadOnlySpan<char> command)
+        => arg.Trim(SimpleParser.OptionPrefix).Equals(command, StringComparison.OrdinalIgnoreCase);
 
     private void AppendList(StringBuilder sb)
     {
