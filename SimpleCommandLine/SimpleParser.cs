@@ -1261,15 +1261,16 @@ public class SimpleParser : ISimpleParser
             }
         }
 
-        SplitFirstTwoBySpace(argSpan, out var firstSpan, out var secondSpan);
+        SplitFirstTwoBySeparator(argSpan, out var firstSpan, out var secondSpan);
         if (!commandSpecified)
         {// "help", "help command", "version"
             if (OptionEquals(firstSpan, HelpString) ||
                 (this.ParserOptions.AutoAlias && OptionEquals(firstSpan, HelpAlias)))
             {// Help
-                if (secondSpan.Length > 0 && !secondSpan.IsOptionString() && this.NameToCommand.ContainsKey(secondSpan))
+                var secondString = secondSpan.ToString();
+                if (secondSpan.Length > 0 && !secondSpan.IsOptionString() && this.NameToCommand.ContainsKey(secondString))
                 {// help command
-                    this.HelpCommand = secondSpan.ToString();
+                    this.HelpCommand = secondString;
                 }
                 else
                 {
@@ -1327,7 +1328,7 @@ public class SimpleParser : ISimpleParser
 
         return ret;
 
-        static void SplitFirstTwoBySpace(ReadOnlySpan<char> source, out ReadOnlySpan<char> first, out ReadOnlySpan<char> second)
+        static void SplitFirstTwoBySeparator(ReadOnlySpan<char> source, out ReadOnlySpan<char> first, out ReadOnlySpan<char> second)
         {
             var start = 0;
             while (start < source.Length && char.IsWhiteSpace(source[start]))
