@@ -1211,6 +1211,7 @@ public class SimpleParser : ISimpleParser
     /// <returns><see langword="true"/> if the arguments are successfully parsed.</returns>
     public bool Parse(string arg)
     {
+        arg = arg.Trim();
         var argSpan = arg.AsSpan();
         var ret = true;
         this.OriginalArguments = arg;
@@ -1241,10 +1242,6 @@ public class SimpleParser : ISimpleParser
                     argSpan = argSpan.Slice(0, idx + 1);
                 }
             }
-            else
-            {// Other (option or value)
-                TryProcessHelpAndVersion(); // "app.exe -help", "app.exe -version"
-            }
         }
 
         // Not found. Tried to read from environment.
@@ -1264,9 +1261,25 @@ public class SimpleParser : ISimpleParser
             }
         }
 
+        SplitFirstTwoBySpace(argSpan, out var firstSpan, out var secondSpan);
         if (!commandSpecified)
-        {
-            TryProcessHelpAndVersion(); // "app.exe help", "app.exe version"
+        {// "help", "help command", "version"
+            if (OptionEquals(firstSpan, HelpString) ||
+                (this.ParserOptions.AutoAlias && OptionEquals(firstSpan, HelpAlias)))
+            {// Help
+                if (secondSpan.Length > 0 && !secondSpan.IsOptionString() && this.NameToCommand.ContainsKey(secondSpan))
+                {// help command
+                    this.HelpCommand = secondSpan.ToString();
+                }
+                else
+                {
+                    this.HelpCommand = string.Empty;
+                }
+            }
+            else if (OptionEquals(firstSpan, VersionString))
+            {// Version
+                this.VersionCommand = true;
+            }
         }
 
         if (this.HelpCommand != null || this.VersionCommand)
@@ -1283,22 +1296,21 @@ public class SimpleParser : ISimpleParser
 
         if (this.NameToCommand.TryGetValue(commandName, out var command))
         {
-            if (commandSpecified && !command.IsSubcommand &&
-                arguments.Length > start && OptionEquals(arguments[start], HelpString))
+            if (commandSpecified && !command.IsSubcommand && OptionEquals(secondSpan, HelpString))
             {
-                if (arguments[start].IsOptionString() &&
-                    (command.OptionClass.LongNameToOption.ContainsKey(HelpString) || command.OptionClass.ShortNameToOption.ContainsKey(HelpString)))
-                {// "app.exe command -help"
+                if (command.OptionClass.LongNameToOption.ContainsKey(HelpString) ||
+                    command.OptionClass.ShortNameToOption.ContainsKey(HelpString))
+                {// help option
                 }
                 else
-                {// "app.exe command help"
+                {// "command help"
                     this.HelpCommand = commandName;
                     return true;
                 }
             }
 
             command.OptionClass.ResetOptionInstance();
-            if (command.OptionClass.Parse(arg, command.IsSubcommand))
+            if (command.OptionClass.Parse(argSpan, command.IsSubcommand))
             {// Success
                 this.CurrentCommand = command;
             }
@@ -1315,29 +1327,50 @@ public class SimpleParser : ISimpleParser
 
         return ret;
 
-        void TryProcessHelpAndVersion()
+        static void SplitFirstTwoBySpace(ReadOnlySpan<char> source, out ReadOnlySpan<char> first, out ReadOnlySpan<char> second)
         {
-            if (arguments.Length == 0)
+            var start = 0;
+            while (start < source.Length && char.IsWhiteSpace(source[start]))
             {
+                start++;
+            }
+
+            if (start >= source.Length)
+            {
+                first = default;
+                second = default;
                 return;
             }
 
-            if (OptionEquals(firstArg, HelpString) ||
-                (this.ParserOptions.AutoAlias && OptionEquals(arguments[0], HelpAlias)))
-            {// Help
-                if (arguments.Length >= 2 && !arguments[1].IsOptionString() && this.NameToCommand.ContainsKey(arguments[1]))
-                {// help command
-                    this.HelpCommand = arguments[1];
-                }
-                else
-                {
-                    this.HelpCommand = string.Empty;
-                }
+            // Find end of first token
+            var i = start;
+            while (i < source.Length && !BaseHelper.IsSeparator(source[i]))
+            {
+                i++;
             }
-            else if (OptionEquals(arguments[0], VersionString))
-            {// Version
-                this.VersionCommand = true;
+
+            first = source.Slice(start, i - start);
+
+            // Skip whitespace between first and second
+            while (i < source.Length && char.IsWhiteSpace(source[i]))
+            {
+                i++;
             }
+
+            if (i >= source.Length)
+            {
+                second = default;
+                return;
+            }
+
+            // Second is the remainder token until next whitespace (optional)
+            var j = i;
+            while (j < source.Length && !BaseHelper.IsSeparator(source[j]))
+            {
+                j++;
+            }
+
+            second = source.Slice(i, j - i);
         }
     }
 
