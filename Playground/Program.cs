@@ -234,8 +234,8 @@ public class Program
 
         var tt = new TestClass("tes");
         var st2 = tt.ConvertToString();
-        TestClass.TryParse(st2, out tt, out _,default);
-        TestClass.TryParse("test", out tt, out _,default);
+        TestClass.TryParse(st2, out tt, out _, default);
+        TestClass.TryParse("test", out tt, out _, default);
 
         var container = new Container();
         container.Register<ICommandService, CommandService>(Reuse.Singleton);
@@ -262,8 +262,6 @@ public class Program
         // await RunArg("", parserOptions);
 
         // await SimpleParser.ParseAndRunAsync(commandTypes, args, parserOptions); // Main process
-
-        var args233 = SimpleParserHelper.FormatArguments("new-certificate-proof -Credit @uksRjgB25xVyPcvhEXoFHTvOt7zDfUN216bYwo5itoixTKNG/(s!DUI8H1Uv03SyUqVmfRKzgWKT-gx10O1JtIhLax0EZwQaCcwN) -Code \"ExCode\"");
 
         var p = new SimpleParser(commandTypes, parserOptions);
 

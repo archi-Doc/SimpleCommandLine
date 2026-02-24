@@ -1007,7 +1007,7 @@ public class SimpleParser : ISimpleParser
                 var typeIdentifier = this.OptionClass.OptionTypeIdentifier;
                 if (typeIdentifier != 0 && TinyhandTypeIdentifier.IsRegistered(typeIdentifier))
                 {
-                    var obj = TinyhandTypeIdentifier.TryDeserializeFromString(typeIdentifier, arg, SerializerOptions);
+                    var obj = TinyhandTypeIdentifier.TryParseOrDeserializeFromString(typeIdentifier, arg, SerializerOptions);
                     if (obj is not null)
                     {
                         this.OptionClass.optionInstance = obj;
