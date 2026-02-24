@@ -499,7 +499,9 @@ public class SimpleParser : ISimpleParser
                 this.OptionTypeIdentifier = TinyhandTypeIdentifier.GetTypeIdentifier(optionType);
             }
 
-            if (this.OptionType != null && this.OptionType.GetConstructor(Type.EmptyTypes) == null)
+            if (this.OptionType is not null &&
+                !TinyhandTypeIdentifier.IsRegistered(this.OptionTypeIdentifier) &&
+                this.OptionType.GetConstructor(Type.EmptyTypes) == null)
             {
                 throw new InvalidOperationException($"Default constructor (parameterless constructor) is required for type '{this.OptionType.ToString()}'.");
             }

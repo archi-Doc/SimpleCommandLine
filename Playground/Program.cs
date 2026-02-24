@@ -84,6 +84,11 @@ public record TestOptions
 [TinyhandObject(AddAlternateKey = true)]
 public partial record TestSubOptions
 {
+    public TestSubOptions(string name)
+    {
+        this.Name = name;
+    }
+
     [Key(0)]
     [SimpleOption("name", ShortName = "n", Required = true)]
     public string Name { get; set; } = string.Empty;
@@ -153,10 +158,9 @@ public class TestCommand2 : ISimpleCommandAsync
 }
 
 [SimpleCommand("test3")]
-public partial class TestCommand3 : ISimpleCommandAsync<TestCommand3.Options>
+public class TestCommand3 : ISimpleCommandAsync<TestCommand3.Options>
 {
-    [TinyhandObject(ImplicitMemberNameAsKey = true)]
-    public partial record class Options
+    public record class Options
     {
         [SimpleOption("A", Description = "AA")]
         public int A { get; set; }
@@ -165,7 +169,7 @@ public partial class TestCommand3 : ISimpleCommandAsync<TestCommand3.Options>
         public double B { get; set; }
 
         [SimpleOption("C", Description = "CC")]
-        public TestSubOptions SubOptions { get; set; } = new();
+        public TestSubOptions SubOptions { get; set; } = TestSubOptions.UnsafeConstructor();
     }
 
     public async Task RunAsync(Options options, string[] args)
@@ -218,15 +222,13 @@ public class Program
 
         var p = new SimpleParser(commandTypes, parserOptions);
 
-        var op = TinyhandSerializer.DeserializeFromString<TestCommand3.Options>("A=2 B = 3.2 C=\"abc\"");
-
         /*await p.ParseAndRunAsync("test3 help");
         await p.ParseAndRunAsync("test3 -help");
         await p.ParseAndRunAsync("help test3");*/
 
-        /*await p.ParseAndRunAsync("test3 -A 2 -B 3.2 -C {Name=abc}");
+        await p.ParseAndRunAsync("test3 -A 2 -B 3.2 -C {Name=abc}");
 
-        await p.ParseAndRunAsync("test -targetip ttt -A 2 -B 3");
+        /*await p.ParseAndRunAsync("test -targetip ttt -A 2 -B 3");
         await p.ParseAndRunAsync("test help");
         p.Parse("t -mode receive -targetport 1000 -enum hanbun -n 999"); // -port 12211 -targetip 127.0.0.1
         await p.RunAsync();*/
