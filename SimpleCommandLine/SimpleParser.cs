@@ -491,7 +491,11 @@ public class SimpleParser : ISimpleParser
             }
 
             this.Parser = parser;
-            this.OptionType = optionType;
+            if (optionType is not null)
+            {
+                this.OptionType = optionType;
+                this.OptionTypeIdentifier = TinyhandTypeIdentifier.GetTypeIdentifier(optionType);
+            }
 
             if (this.OptionType != null && this.OptionType.GetConstructor(Type.EmptyTypes) == null)
             {
@@ -553,8 +557,14 @@ public class SimpleParser : ISimpleParser
 
         public bool Parse(ReadOnlySpan<char> arg, bool acceptUnknownOptionName)
         {
+            if (this.OptionTypeIdentifier != 0 &&
+                TinyhandTypeIdentifier.IsRe)
+            {
+
+            }
             //TinyhandTypeIdentifier.TrySerialize
-            //this.OptionType
+            var typeIdentifier =
+            this.OptionType
             var args = arg.FormatArguments();
             var errorFlag = false;
             List<string> remaining = new();
@@ -700,6 +710,8 @@ public class SimpleParser : ISimpleParser
         }
 
         public Type? OptionType { get; }
+
+        public uint OptionTypeIdentifier { get; }
 
         public List<Option> Options { get; }
 
