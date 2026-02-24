@@ -566,7 +566,7 @@ public class SimpleParser : ISimpleParser
 
             foreach (var x in this.Options)
             {
-                x.ValueIsSet = false;
+                x.Reset();
             }
 
             for (var n = start; n < args.Length; n++)
@@ -1123,6 +1123,12 @@ public class SimpleParser : ISimpleParser
             {
                 return null;
             }
+        }
+
+        internal void Reset()
+        {
+            this.ValueIsSet = false;
+            this.OptionClass?.optionInstance = default;
         }
     }
 
