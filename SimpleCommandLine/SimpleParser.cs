@@ -945,15 +945,15 @@ public class SimpleParser : ISimpleParser
             }
             else if (!SimpleParser.ParserTypeConverter.ContainsKey(this.OptionType))
             {
-                var optionClass = new OptionClass(this.Parser, this.OptionType, optionStack);
-                if (optionClass.Options.Count > 0)
+                this.OptionClass = new OptionClass(this.Parser, this.OptionType, optionStack);
+                /*if (optionClass.Options.Count > 0)
                 {
                     this.OptionClass = optionClass;
                 }
                 else
                 {
                     throw new InvalidOperationException($"Type: '{this.OptionType.Name}' is not supported for SimpleOption.");
-                }
+                }*/
             }
 
             if (attribute.ShortName != null)
