@@ -1,6 +1,7 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
@@ -9,6 +10,8 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using Arc;
+using Tinyhand;
 
 namespace SimpleCommandLine;
 
@@ -35,6 +38,8 @@ public class SimpleParser : ISimpleParser
     internal const string TripleQuotes = "\"\"\"";
     internal const char SingleQuote = '\'';
     internal const char OptionPrefix = '-';
+
+    private static readonly TinyhandSerializerOptions SerializerOptions = TinyhandSerializerOptions.ConvertToStrictString;
 
     static SimpleParser()
     {
@@ -98,14 +103,13 @@ public class SimpleParser : ISimpleParser
 
         var parser = new HollowParser(SimpleParserOptions.Standard);
 
-        var arguments = args.FormatArguments();
         var optionClass = new OptionClass(parser, typeof(TOptions), null);
         if (original != null)
         {
             optionClass.optionInstance = original;
         }
 
-        optionClass.Parse(arguments, 0, true);
+        optionClass.Parse(args.FormatArguments(), 0, true);
         if (optionClass.FatalError)
         {
             options = default;
@@ -489,7 +493,11 @@ public class SimpleParser : ISimpleParser
             }
 
             this.Parser = parser;
-            this.OptionType = optionType;
+            if (optionType is not null)
+            {
+                this.OptionType = optionType;
+                this.OptionTypeIdentifier = TinyhandTypeIdentifier.GetTypeIdentifier(optionType);
+            }
 
             if (this.OptionType != null && this.OptionType.GetConstructor(Type.EmptyTypes) == null)
             {
@@ -696,6 +704,8 @@ public class SimpleParser : ISimpleParser
 
         public Type? OptionType { get; }
 
+        public uint OptionTypeIdentifier { get; }
+
         public List<Option> Options { get; }
 
         public Dictionary<string, Option> LongNameToOption { get; }
@@ -833,6 +843,45 @@ public class SimpleParser : ISimpleParser
             }
         }
 
+        /*private bool TryParseObject(ReadOnlySpan<char> arg, uint typeIdentifier)
+        {
+            char[]? rent = default;
+
+            if (arg.Length < 2 || arg[0] != TinyhandConstants.OpenBraceChar || arg[^1] != TinyhandConstants.CloseBraceChar)
+            {
+                rent = ArrayPool<char>.Shared.Rent(arg.Length + 2);
+                var span = rent.AsSpan();
+                span[0] = TinyhandConstants.OpenBraceChar;
+                span = span.Slice(1);
+                arg.CopyTo(span);
+                span = span.Slice(arg.Length);
+                span[0] = TinyhandConstants.CloseBraceChar;
+
+                arg = rent.AsSpan(0, arg.Length + 2);
+            }
+
+            try
+            {
+                var obj = TinyhandTypeIdentifier.TryDeserializeFromString(this.OptionTypeIdentifier, arg, SerializerOptions);
+                if (obj is null)
+                {// Deserialization failed.
+                    return false;
+                }
+            }
+            catch
+            {
+            }
+            finally
+            {
+                if (rent is not null)
+                {
+                    ArrayPool<char>.Shared.Return(rent);
+                }
+            }
+
+            return true;
+        }*/
+
         private void ReadFromEnvironment(bool acceptUnknownOptionName)
         {
             foreach (var x in this.Options.Where(x => !x.ValueIsSet && x.ReadFromEnvironment))
@@ -937,20 +986,33 @@ public class SimpleParser : ISimpleParser
             }
 
             object value;
-            if (this.OptionClass != null)
+            if (this.OptionClass is not null)
             {
-                if (arg.Length >= 2 && arg.StartsWith(SimpleParser.OpenBracket) && arg.EndsWith(SimpleParser.CloseBracket))
+                var typeIdentifier = this.OptionClass.OptionTypeIdentifier;
+                if (typeIdentifier != 0 && TinyhandTypeIdentifier.IsRegistered(typeIdentifier))
                 {
-                    arg = arg.Substring(1, arg.Length - 2);
+                    var obj = TinyhandTypeIdentifier.TryDeserializeFromString(typeIdentifier, arg, SerializerOptions);
+                    if (obj is not null)
+                    {
+                        this.OptionClass.optionInstance = obj;
+                    }
                 }
 
-                var ret = this.OptionClass.Parse(arg.FormatArguments(), 0, acceptUnknownOptionName);
-                if (!ret || this.OptionClass.OptionInstance == null)
+                if (this.OptionClass.optionInstance is null)
                 {
-                    return false;
+                    if (arg.Length >= 2 && arg.StartsWith(SimpleParser.OpenBracket) && arg.EndsWith(SimpleParser.CloseBracket))
+                    {
+                        arg = arg.Substring(1, arg.Length - 2);
+                    }
+
+                    var ret = this.OptionClass.Parse(arg.FormatArguments(), 0, acceptUnknownOptionName);
+                    if (!ret || this.OptionClass.OptionInstance == null)
+                    {
+                        return false;
+                    }
                 }
 
-                value = this.OptionClass.OptionInstance;
+                value = this.OptionClass.OptionInstance!;
             }
             else if (this.OptionType.IsEnum)
             {// Enum
@@ -1235,13 +1297,9 @@ public class SimpleParser : ISimpleParser
                     start = 1;
                 }
             }
-            else
-            {// Other (option or value)
-                TryProcessHelpAndVersion(); // "app.exe -help", "app.exe -version"
-            }
         }
 
-        // Not found. Tried to read from environment.
+        // Not found. Try to load the command from environment variables.
         if (start == 0 &&
             this.ParserOptions.ReadCommandFromEnvironment &&
             Environment.GetEnvironmentVariable(SimpleParser.CommandString) is { } env)
@@ -1700,7 +1758,8 @@ public class SimpleParser : ISimpleParser
 
     private List<OptionClass> OptionClassUsage { get; }
 
-    internal static bool OptionEquals(string arg, string command) => arg.Trim(SimpleParser.OptionPrefix).Equals(command, StringComparison.OrdinalIgnoreCase);
+    internal static bool OptionEquals(ReadOnlySpan<char> arg, ReadOnlySpan<char> command)
+        => arg.Trim(SimpleParser.OptionPrefix).Equals(command, StringComparison.OrdinalIgnoreCase);
 
     private void AppendList(StringBuilder sb)
     {

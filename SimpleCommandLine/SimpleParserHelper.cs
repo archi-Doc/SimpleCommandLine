@@ -332,7 +332,7 @@ public static class SimpleParserHelper
 
     public static string[] SplitAtSpace(this string text) => text.Split((char[])null!, StringSplitOptions.RemoveEmptyEntries);
 
-    public static bool IsOptionString(this string text) => text.StartsWith(SimpleParser.OptionPrefix);
+    public static bool IsOptionString(this ReadOnlySpan<char> text) => text.StartsWith(SimpleParser.OptionPrefix);
 
     public static string[] SeparateArguments(this string arg)
     {
@@ -374,9 +374,8 @@ public static class SimpleParserHelper
         return list.ToArray();
     }
 
-    public static string[] FormatArguments(this string arg)
+    public static string[] FormatArguments(this ReadOnlySpan<char> span)
     {
-        var span = arg.AsSpan();
         var list = new List<string>();
 
         var start = 0;
