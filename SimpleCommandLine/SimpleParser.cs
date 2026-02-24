@@ -720,7 +720,14 @@ public class SimpleParser : ISimpleParser
             {
                 if (this.optionInstance is null && this.OptionType is not null)
                 {
-                    this.optionInstance = Activator.CreateInstance(this.OptionType);
+                    try
+                    {
+                        this.optionInstance = Activator.CreateInstance(this.OptionType);
+                    }
+                    catch
+                    {
+                        this.optionInstance = TinyhandTypeIdentifier.TryReconstruct(this.OptionTypeIdentifier);
+                    }
                 }
 
                 return this.optionInstance;
