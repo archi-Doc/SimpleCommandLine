@@ -1297,13 +1297,9 @@ public class SimpleParser : ISimpleParser
                     start = 1;
                 }
             }
-            else
-            {// Other (option or value)
-                TryProcessHelpAndVersion(); // "app.exe -help", "app.exe -version"
-            }
         }
 
-        // Not found. Tried to read from environment.
+        // Not found. Try to load the command from environment variables.
         if (start == 0 &&
             this.ParserOptions.ReadCommandFromEnvironment &&
             Environment.GetEnvironmentVariable(SimpleParser.CommandString) is { } env)
