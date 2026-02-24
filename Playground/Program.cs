@@ -2,6 +2,7 @@
 
 using System;
 using System.Threading.Tasks;
+using Arc;
 using DryIoc;
 using SimpleCommandLine;
 using Tinyhand;
@@ -94,6 +95,40 @@ public partial record TestSubOptions
     public string Name { get; set; } = string.Empty;
 }
 
+[TinyhandObject(AddAlternateKey = true)]
+public partial record TestClass : IStringConvertible<TestClass>
+{
+    public TestClass(string name)
+    {
+        this.Name = name;
+    }
+
+    static int IStringConvertible<TestClass>.MaxStringLength => 16;
+
+    [Key(0)]
+    public string Name { get; set; } = string.Empty;
+
+    public static bool TryParse(ReadOnlySpan<char> source, out TestClass? @object, out int read, IConversionOptions? conversionOptions)
+    {
+        @object = new(source.ToString());
+        read = source.Length;
+        return true;
+    }
+
+    int IStringConvertible<TestClass>.GetStringLength()
+    {
+        return this.Name.Length;
+    }
+
+    bool IStringConvertible<TestClass>.TryFormat(Span<char> destination, out int written, IConversionOptions? conversionOptions)
+    {
+        var span = this.Name.AsSpan();
+        span.CopyTo(destination);
+        written = span.Length;
+        return true;
+    }
+}
+
 [SimpleCommand("test", Description = "description", Alias = "t")]
 public class TestCommand : ISimpleCommandAsync<TestOptions>
 {
@@ -170,6 +205,9 @@ public class TestCommand3 : ISimpleCommandAsync<TestCommand3.Options>
 
         [SimpleOption("C", Description = "CC")]
         public TestSubOptions SubOptions { get; set; } = TestSubOptions.UnsafeConstructor();
+
+        [SimpleOption("Class1", Description = "DD")]
+        public TestClass Class1 { get; set; } = TestClass.UnsafeConstructor();
     }
 
     public async Task RunAsync(Options options, string[] args)
@@ -193,6 +231,11 @@ public class Program
             typeof(DerivedCommand),
             typeof(SyncCommand),
         };
+
+        var tt = new TestClass("tes");
+        var st2 = tt.ConvertToString();
+        TestClass.TryParse(st2, out tt, out _, default);
+        TestClass.TryParse("test", out tt, out _, default);
 
         var container = new Container();
         container.Register<ICommandService, CommandService>(Reuse.Singleton);
@@ -226,7 +269,8 @@ public class Program
         await p.ParseAndRunAsync("test3 -help");
         await p.ParseAndRunAsync("help test3");*/
 
-        await p.ParseAndRunAsync("test3 -A 2 -B 3.2 -C {Name=abc}");
+        await p.ParseAndRunAsync("test3 -A 2 -B 3.2 -C {Name=abc} -Class1 {Name=asdf}");
+        await p.ParseAndRunAsync("test3 -A 2 -B 3.2 -C {Name=abc} -Class1 qwer");
 
         /*await p.ParseAndRunAsync("test -targetip ttt -A 2 -B 3");
         await p.ParseAndRunAsync("test help");

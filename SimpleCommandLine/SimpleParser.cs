@@ -720,7 +720,14 @@ public class SimpleParser : ISimpleParser
             {
                 if (this.optionInstance is null && this.OptionType is not null)
                 {
-                    this.optionInstance = Activator.CreateInstance(this.OptionType);
+                    try
+                    {
+                        this.optionInstance = Activator.CreateInstance(this.OptionType);
+                    }
+                    catch
+                    {
+                        this.optionInstance = TinyhandTypeIdentifier.TryReconstruct(this.OptionTypeIdentifier);
+                    }
                 }
 
                 return this.optionInstance;
@@ -841,7 +848,14 @@ public class SimpleParser : ISimpleParser
         {
             if (this.OptionType != null)
             {
-                this.optionInstance = Activator.CreateInstance(this.OptionType);
+                try
+                {
+                    this.optionInstance = Activator.CreateInstance(this.OptionType);
+                }
+                catch
+                {
+                    this.optionInstance = TinyhandTypeIdentifier.TryReconstruct(this.OptionTypeIdentifier);
+                }
             }
         }
 
@@ -945,15 +959,15 @@ public class SimpleParser : ISimpleParser
             }
             else if (!SimpleParser.ParserTypeConverter.ContainsKey(this.OptionType))
             {
-                var optionClass = new OptionClass(this.Parser, this.OptionType, optionStack);
-                if (optionClass.Options.Count > 0)
+                this.OptionClass = new OptionClass(this.Parser, this.OptionType, optionStack);
+                /*if (optionClass.Options.Count > 0)
                 {
                     this.OptionClass = optionClass;
                 }
                 else
                 {
                     throw new InvalidOperationException($"Type: '{this.OptionType.Name}' is not supported for SimpleOption.");
-                }
+                }*/
             }
 
             if (attribute.ShortName != null)
@@ -993,7 +1007,7 @@ public class SimpleParser : ISimpleParser
                 var typeIdentifier = this.OptionClass.OptionTypeIdentifier;
                 if (typeIdentifier != 0 && TinyhandTypeIdentifier.IsRegistered(typeIdentifier))
                 {
-                    var obj = TinyhandTypeIdentifier.TryDeserializeFromString(typeIdentifier, arg, SerializerOptions);
+                    var obj = TinyhandTypeIdentifier.TryParseOrDeserializeFromString(typeIdentifier, arg, SerializerOptions);
                     if (obj is not null)
                     {
                         this.OptionClass.optionInstance = obj;
