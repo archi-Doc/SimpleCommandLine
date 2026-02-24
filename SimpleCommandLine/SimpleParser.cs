@@ -559,13 +559,6 @@ public class SimpleParser : ISimpleParser
 
         public bool Parse(ReadOnlySpan<char> arg, bool acceptUnknownOptionName)
         {
-            if (this.OptionTypeIdentifier != 0 &&
-                TinyhandTypeIdentifier.IsRegistered(this.OptionTypeIdentifier))
-            {
-                // arg = arg.TrimQuotesAndBracket();
-                this.TryParseObject(arg, this.OptionTypeIdentifier);
-            }
-
             var args = arg.FormatArguments();
             var errorFlag = false;
             List<string> remaining = new();
@@ -851,19 +844,19 @@ public class SimpleParser : ISimpleParser
             }
         }
 
-        private bool TryParseObject(ReadOnlySpan<char> arg, uint typeIdentifier)
+        /*private bool TryParseObject(ReadOnlySpan<char> arg, uint typeIdentifier)
         {
             char[]? rent = default;
 
-            if (arg.Length < 2 || arg[0] != '{' || arg[^1] != '}')
-            {//OpenBraceChar
+            if (arg.Length < 2 || arg[0] != TinyhandConstants.OpenBraceChar || arg[^1] != TinyhandConstants.CloseBraceChar)
+            {
                 rent = ArrayPool<char>.Shared.Rent(arg.Length + 2);
                 var span = rent.AsSpan();
-                span[0] = '{';
+                span[0] = TinyhandConstants.OpenBraceChar;
                 span = span.Slice(1);
                 arg.CopyTo(span);
                 span = span.Slice(arg.Length);
-                span[0] = '}';
+                span[0] = TinyhandConstants.CloseBraceChar;
 
                 arg = rent.AsSpan(0, arg.Length + 2);
             }
@@ -876,6 +869,9 @@ public class SimpleParser : ISimpleParser
                     return false;
                 }
             }
+            catch
+            {
+            }
             finally
             {
                 if (rent is not null)
@@ -885,7 +881,7 @@ public class SimpleParser : ISimpleParser
             }
 
             return true;
-        }
+        }*/
 
         private void ReadFromEnvironment(bool acceptUnknownOptionName)
         {
@@ -991,20 +987,33 @@ public class SimpleParser : ISimpleParser
             }
 
             object value;
-            if (this.OptionClass != null)
+            if (this.OptionClass is not null)
             {
-                if (arg.Length >= 2 && arg.StartsWith(SimpleParser.OpenBracket) && arg.EndsWith(SimpleParser.CloseBracket))
+                var typeIdentifier = this.OptionClass.OptionTypeIdentifier;
+                if (typeIdentifier != 0 && TinyhandTypeIdentifier.IsRegistered(typeIdentifier))
                 {
-                    arg = arg.Substring(1, arg.Length - 2);
+                    var obj = TinyhandTypeIdentifier.TryDeserializeFromString(typeIdentifier, arg, SerializerOptions);
+                    if (obj is not null)
+                    {
+                        this.OptionClass.optionInstance = obj;
+                    }
                 }
 
-                var ret = this.OptionClass.Parse(arg, acceptUnknownOptionName);
-                if (!ret || this.OptionClass.OptionInstance == null)
+                if (this.OptionClass.optionInstance is null)
                 {
-                    return false;
+                    if (arg.Length >= 2 && arg.StartsWith(SimpleParser.OpenBracket) && arg.EndsWith(SimpleParser.CloseBracket))
+                    {
+                        arg = arg.Substring(1, arg.Length - 2);
+                    }
+
+                    var ret = this.OptionClass.Parse(arg, acceptUnknownOptionName);
+                    if (!ret || this.OptionClass.OptionInstance == null)
+                    {
+                        return false;
+                    }
                 }
 
-                value = this.OptionClass.OptionInstance;
+                value = this.OptionClass.OptionInstance!;
             }
             else if (this.OptionType.IsEnum)
             {// Enum

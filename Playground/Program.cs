@@ -220,14 +220,13 @@ public class Program
 
         var op = TinyhandSerializer.DeserializeFromString<TestCommand3.Options>("A=2 B = 3.2 C=\"abc\"");
 
-        await p.ParseAndRunAsync("--help test3");
-        await p.ParseAndRunAsync("test3 A=2 B = 3.2 C=\"abc\"");
+        // await p.ParseAndRunAsync("--help test3");
+        await p.ParseAndRunAsync("test3 -A 2 -B 3.2 -C {Name=abc}");
 
-        /* 
-        await p.ParseAndRunAsync("test -targetip ttt A=2 B = 3");
+        await p.ParseAndRunAsync("test -targetip ttt -A 2 -B 3");
         await p.ParseAndRunAsync("test help");
         p.Parse("t -mode receive -targetport 1000 -enum hanbun -n 999"); // -port 12211 -targetip 127.0.0.1
-        await p.RunAsync();*/
+        await p.RunAsync();
 
         /*var p = SimpleParser.Parse(commandTypes, args);
         p.Run();
