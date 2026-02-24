@@ -848,7 +848,14 @@ public class SimpleParser : ISimpleParser
         {
             if (this.OptionType != null)
             {
-                this.optionInstance = Activator.CreateInstance(this.OptionType);
+                try
+                {
+                    this.optionInstance = Activator.CreateInstance(this.OptionType);
+                }
+                catch
+                {
+                    this.optionInstance = TinyhandTypeIdentifier.TryReconstruct(this.OptionTypeIdentifier);
+                }
             }
         }
 
