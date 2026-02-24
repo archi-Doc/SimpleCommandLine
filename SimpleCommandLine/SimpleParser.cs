@@ -553,6 +553,8 @@ public class SimpleParser : ISimpleParser
 
         public bool Parse(ReadOnlySpan<char> arg, bool acceptUnknownOptionName)
         {
+            //TinyhandTypeIdentifier.TrySerialize
+            //this.OptionType
             var args = arg.FormatArguments();
             var errorFlag = false;
             List<string> remaining = new();
@@ -1213,12 +1215,12 @@ public class SimpleParser : ISimpleParser
     {
         arg = arg.Trim();
         var argSpan = arg.AsSpan();
-        var ret = true;
         this.OriginalArguments = arg;
         this.HelpCommand = null;
         this.VersionCommand = false;
         this.ErrorMessage.Clear();
 
+        var ret = true;
         var commandName = this.DefaultCommandName;
         var commandSpecified = false;
 
