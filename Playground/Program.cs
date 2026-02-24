@@ -81,8 +81,10 @@ public record TestOptions
     public TestSubOptions Sub { get; } = default!;
 }
 
-public record TestSubOptions
+[TinyhandObject(AddAlternateKey = true)]
+public partial record TestSubOptions
 {
+    [Key(0)]
     [SimpleOption("name", ShortName = "n", Required = true)]
     public string Name { get; set; } = string.Empty;
 }
@@ -163,7 +165,7 @@ public partial class TestCommand3 : ISimpleCommandAsync<TestCommand3.Options>
         public double B { get; set; }
 
         [SimpleOption("C", Description = "CC")]
-        public string C { get; set; } = string.Empty;
+        public TestSubOptions SubOptions { get; set; } = new();
     }
 
     public async Task RunAsync(Options options, string[] args)
