@@ -1,6 +1,7 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
@@ -10,7 +11,6 @@ using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using Arc;
-using Arc.Collections;
 using Tinyhand;
 
 namespace SimpleCommandLine;
@@ -38,6 +38,8 @@ public class SimpleParser : ISimpleParser
     internal const string TripleQuotes = "\"\"\"";
     internal const char SingleQuote = '\'';
     internal const char OptionPrefix = '-';
+
+    private static readonly TinyhandSerializerOptions SerializerOptions = TinyhandSerializerOptions.ConvertToStrictString;
 
     static SimpleParser()
     {
@@ -558,13 +560,12 @@ public class SimpleParser : ISimpleParser
         public bool Parse(ReadOnlySpan<char> arg, bool acceptUnknownOptionName)
         {
             if (this.OptionTypeIdentifier != 0 &&
-                TinyhandTypeIdentifier.IsRe)
+                TinyhandTypeIdentifier.IsRegistered(this.OptionTypeIdentifier))
             {
-
+                // arg = arg.TrimQuotesAndBracket();
+                this.TryParseObject(arg, this.OptionTypeIdentifier);
             }
-            //TinyhandTypeIdentifier.TrySerialize
-            var typeIdentifier =
-            this.OptionType
+
             var args = arg.FormatArguments();
             var errorFlag = false;
             List<string> remaining = new();
@@ -848,6 +849,42 @@ public class SimpleParser : ISimpleParser
             {
                 this.optionInstance = Activator.CreateInstance(this.OptionType);
             }
+        }
+
+        private bool TryParseObject(ReadOnlySpan<char> arg, uint typeIdentifier)
+        {
+            char[]? rent = default;
+
+            if (arg.Length < 2 || arg[0] != '{' || arg[^1] != '}')
+            {//OpenBraceChar
+                rent = ArrayPool<char>.Shared.Rent(arg.Length + 2);
+                var span = rent.AsSpan();
+                span[0] = '{';
+                span = span.Slice(1);
+                arg.CopyTo(span);
+                span = span.Slice(arg.Length);
+                span[0] = '}';
+
+                arg = rent.AsSpan(0, arg.Length + 2);
+            }
+
+            try
+            {
+                var obj = TinyhandTypeIdentifier.TryDeserializeFromString(this.OptionTypeIdentifier, arg, SerializerOptions);
+                if (obj is null)
+                {// Deserialization failed.
+                    return false;
+                }
+            }
+            finally
+            {
+                if (rent is not null)
+                {
+                    ArrayPool<char>.Shared.Return(rent);
+                }
+            }
+
+            return true;
         }
 
         private void ReadFromEnvironment(bool acceptUnknownOptionName)
