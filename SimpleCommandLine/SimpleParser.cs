@@ -1619,6 +1619,7 @@ public class SimpleParser : ISimpleParser
     /// <summary>
     /// Show version.
     /// </summary>
+    /// <param name="prefix">An optional prefix to display before the version string.</param>
     public void ShowVersion(string? prefix = default)
     {
         var st = VersionHelper.VersionString;
@@ -1627,7 +1628,7 @@ public class SimpleParser : ISimpleParser
             st = $"{prefix} {st}";
         }
 
-        Console.WriteLine($"{st}");
+        Console.Out.WriteLine($"{st}");
 
         /*var asm = Assembly.GetEntryAssembly();
         var version = "1.0.0";

@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Arc;
 using Arc.Unit;
 using DryIoc;
+using DryIoc.Microsoft.DependencyInjection;
 using SimpleCommandLine;
 using Tinyhand;
 
@@ -240,7 +241,7 @@ public class Program
             typeof(SyncCommand),
         };
 
-        /*var builder = new UnitBuilder();
+        var builder = new UnitBuilder();
         builder.Configure(context =>
         {
             context.AddSingleton<IConsoleService, ConsoleService>();
@@ -250,9 +251,13 @@ public class Program
             {
                 context.AddCommand(x);
             }
-        });*/
+        });
 
         var container = new Container(rules => rules.WithMicrosoftDependencyInjectionRules());
+        builder.SetServiceProviderFactory(services => container.WithDependencyInjectionAdapter(services));
+        var unit = builder.Build();
+
+        /*var container = new Container(rules => rules.WithMicrosoftDependencyInjectionRules());
 
         container.Register<IConsoleService, ConsoleService>(Reuse.Singleton);
         container.Register<ICommandService, CommandService>(Reuse.Singleton);
@@ -261,11 +266,11 @@ public class Program
             container.Register(x, Reuse.Singleton);
         }
 
-        container.ValidateAndThrow();
+        container.ValidateAndThrow();*/
 
         var parserOptions = SimpleParserOptions.Standard with
         {
-            ServiceProvider = container,
+            ServiceProvider = unit.Context.ServiceProvider,
             RequireStrictCommandName = true,
             RequireStrictOptionName = true,
             DoNotDisplayUsage = true,
