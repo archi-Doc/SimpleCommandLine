@@ -37,7 +37,7 @@ public class Program
         // Command type must have SimpleCommandAttribute and implement ISimpleCommandAsync<T> or ISimpleCommand<T>.
         var commandTypes = new Type[]
         {
-                typeof(TestCommand),
+            typeof(TestCommand),
         };
 
         // Parse arguments and call the appropriate command method.
@@ -46,11 +46,11 @@ public class Program
 
         // You can manually create a parser and parse an argument string.
         var p = new SimpleParser(commandTypes);
-        p.Parse("-number 1 -text sample");
+        p.Parse("-number 1 -text example");
         await p.RunAsync();
         Console.WriteLine();
 
-        p.ShowVersion(); // Show application version (1.0.0)
+        p.ShowVersion("QuickStart"); // Show application version (1.0.0)
         Console.WriteLine();
 
         p.ShowHelp(); // Show help text.

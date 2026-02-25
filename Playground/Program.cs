@@ -3,7 +3,9 @@
 using System;
 using System.Threading.Tasks;
 using Arc;
+using Arc.Unit;
 using DryIoc;
+using DryIoc.Microsoft.DependencyInjection;
 using SimpleCommandLine;
 using Tinyhand;
 
@@ -210,9 +212,16 @@ public class TestCommand3 : ISimpleCommandAsync<TestCommand3.Options>
         public TestClass Class1 { get; set; } = TestClass.UnsafeConstructor();
     }
 
+    private readonly IConsoleService consoleService;
+
+    public TestCommand3(IConsoleService consoleService)
+    {
+        this.consoleService = consoleService;
+    }
+
     public async Task RunAsync(Options options, string[] args)
     {
-        Console.WriteLine($"Test3: {options}");
+        this.consoleService.WriteLine($"Test3: {options}", ConsoleColor.Red);
     }
 }
 
@@ -232,23 +241,36 @@ public class Program
             typeof(SyncCommand),
         };
 
-        var tt = new TestClass("tes");
-        var st2 = tt.ConvertToString();
-        TestClass.TryParse(st2, out tt, out _, default);
-        TestClass.TryParse("test", out tt, out _, default);
+        var builder = new UnitBuilder();
+        builder.Configure(context =>
+        {
+            context.AddSingleton<IConsoleService, ConsoleService>();
+            context.AddSingleton<ICommandService, CommandService>();
 
-        var container = new Container();
+            foreach (var x in commandTypes)
+            {
+                context.AddCommand(x);
+            }
+        });
+
+        var container = new Container(rules => rules.WithMicrosoftDependencyInjectionRules());
+        builder.SetServiceProviderFactory(services => container.WithDependencyInjectionAdapter(services));
+        var unit = builder.Build();
+
+        /*var container = new Container(rules => rules.WithMicrosoftDependencyInjectionRules());
+
+        container.Register<IConsoleService, ConsoleService>(Reuse.Singleton);
         container.Register<ICommandService, CommandService>(Reuse.Singleton);
         foreach (var x in commandTypes)
         {
             container.Register(x, Reuse.Singleton);
         }
 
-        container.ValidateAndThrow();
+        container.ValidateAndThrow();*/
 
         var parserOptions = SimpleParserOptions.Standard with
         {
-            ServiceProvider = container,
+            ServiceProvider = unit.Context.ServiceProvider,
             RequireStrictCommandName = true,
             RequireStrictOptionName = true,
             DoNotDisplayUsage = true,

@@ -1619,9 +1619,18 @@ public class SimpleParser : ISimpleParser
     /// <summary>
     /// Show version.
     /// </summary>
-    public void ShowVersion()
+    /// <param name="prefix">An optional prefix to display before the version string.</param>
+    public void ShowVersion(string? prefix = default)
     {
-        var asm = Assembly.GetEntryAssembly();
+        var st = VersionHelper.VersionString;
+        if (!string.IsNullOrEmpty(prefix))
+        {
+            st = $"{prefix} {st}";
+        }
+
+        Console.Out.WriteLine($"{st}");
+
+        /*var asm = Assembly.GetEntryAssembly();
         var version = "1.0.0";
         var infoVersion = asm!.GetCustomAttribute<AssemblyInformationalVersionAttribute>();
         if (infoVersion != null)
@@ -1637,7 +1646,7 @@ public class SimpleParser : ISimpleParser
             }
         }
 
-        Console.WriteLine(version);
+        Console.WriteLine(version);*/
     }
 
     /// <summary>
