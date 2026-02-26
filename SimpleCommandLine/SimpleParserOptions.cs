@@ -65,4 +65,10 @@ public record SimpleParserOptions
     /// Gets a value indicating whether or not to read the command name from the environment variable <see cref="SimpleParser.CommandString"/>.
     /// </summary>
     public bool ReadCommandFromEnvironment { get; init; } = true;
+
+    /// <summary>
+    /// Gets the argument delimiter string used to separate arguments.<br/>
+    /// The default value is <see cref="SimpleParser.TripleQuotes"/>.
+    /// </summary>
+    public string? ArgumentDelimiter { get; init; } = SimpleParser.TripleQuotes;
 }

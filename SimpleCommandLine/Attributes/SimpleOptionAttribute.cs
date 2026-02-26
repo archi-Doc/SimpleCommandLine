@@ -41,6 +41,11 @@ public class SimpleOptionAttribute : Attribute
     public bool ReadFromEnvironment { get; set; }
 
     /// <summary>
+    /// Gets or sets how the argument should be processed.
+    /// </summary>
+    public ArgumentProcessing ArgumentProcessing { get; set; }
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="SimpleOptionAttribute"/> class.
     /// </summary>
     /// <param name="longName">The long command-line name.</param>
