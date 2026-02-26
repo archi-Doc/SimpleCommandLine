@@ -48,6 +48,7 @@ public class SimpleParser : ISimpleParser
         public HollowParser(SimpleParserOptions parserOptions)
         {
             this.ParserOptions = parserOptions;
+            SimpleParserHelper.InitializeTypeConverter(this);
         }
 
         public SimpleParserOptions ParserOptions { get; }
@@ -115,57 +116,6 @@ public class SimpleParser : ISimpleParser
 
         options = (TOptions)optionClass.OptionInstance!;
         return options != null;
-    }
-
-    private void InitializeTypeConverter()
-    {
-        this.TypeConverters.Add(typeof(bool), static x =>
-        {
-            var st = x.ToLower();
-            if (st == "true")
-            {
-                return true;
-            }
-            else if (st == "false")
-            {
-                return false;
-            }
-            else
-            {
-                throw new InvalidOperationException();
-            }
-        });
-
-        this.TypeConverters.Add(typeof(string), x =>
-        {
-            if (x.Length >= this.ParserOptions.TwoDelimitersLength && x.StartsWith(this.ParserOptions.ArgumentDelimiter) && x.EndsWith(this.ParserOptions.ArgumentDelimiter))
-            {
-                return x.Substring(3, x.Length - 6);
-            }
-            else if (x.Length >= 2 && x.StartsWith(Quote) && x.EndsWith(Quote))
-            {
-                return x.Substring(1, x.Length - 2);
-            }
-            else if (x.Length >= 2 && x.StartsWith(SingleQuote) && x.EndsWith(SingleQuote))
-            {
-                return x.Substring(1, x.Length - 2);
-            }
-
-            return x;
-        });
-
-        this.TypeConverters.Add(typeof(sbyte), static x => Convert.ToSByte(x, CultureInfo.InvariantCulture));
-        this.TypeConverters.Add(typeof(byte), static x => Convert.ToByte(x, CultureInfo.InvariantCulture));
-        this.TypeConverters.Add(typeof(short), static x => Convert.ToInt16(x, CultureInfo.InvariantCulture));
-        this.TypeConverters.Add(typeof(ushort), static x => Convert.ToUInt16(x, CultureInfo.InvariantCulture));
-        this.TypeConverters.Add(typeof(int), static x => Convert.ToInt32(x, CultureInfo.InvariantCulture));
-        this.TypeConverters.Add(typeof(uint), static x => Convert.ToUInt32(x, CultureInfo.InvariantCulture));
-        this.TypeConverters.Add(typeof(long), static x => Convert.ToInt64(x, CultureInfo.InvariantCulture));
-        this.TypeConverters.Add(typeof(ulong), static x => Convert.ToUInt64(x, CultureInfo.InvariantCulture));
-        this.TypeConverters.Add(typeof(float), static x => Convert.ToSingle(x, CultureInfo.InvariantCulture));
-        this.TypeConverters.Add(typeof(double), static x => Convert.ToDouble(x, CultureInfo.InvariantCulture));
-        this.TypeConverters.Add(typeof(decimal), static x => Convert.ToDecimal(x, CultureInfo.InvariantCulture));
-        this.TypeConverters.Add(typeof(char), static x => Convert.ToChar(x, CultureInfo.InvariantCulture));
     }
 
     public class Command
@@ -1137,7 +1087,7 @@ public class SimpleParser : ISimpleParser
     public SimpleParser(IEnumerable<Type> simpleCommands, SimpleParserOptions? parserOptions = null)
     {
         this.ParserOptions = parserOptions ?? SimpleParserOptions.Standard;
-        this.InitializeTypeConverter();
+        SimpleParserHelper.InitializeTypeConverter(this);
 
         Command? firstOrDefault = null;
         this.NameToCommand = new(StringComparer.InvariantCultureIgnoreCase);

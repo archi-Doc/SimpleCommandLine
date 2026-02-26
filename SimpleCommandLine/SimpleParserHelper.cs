@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Text;
 
 #pragma warning disable SA1124 // Do not use regions
@@ -545,6 +546,57 @@ AddString:
         }
 
         return list.ToArray();
+    }
+
+    internal static void InitializeTypeConverter(ISimpleParser parser)
+    {
+        parser.TypeConverters.Add(typeof(bool), static x =>
+        {
+            var st = x.ToLower();
+            if (st == "true")
+            {
+                return true;
+            }
+            else if (st == "false")
+            {
+                return false;
+            }
+            else
+            {
+                throw new InvalidOperationException();
+            }
+        });
+
+        parser.TypeConverters.Add(typeof(string), x =>
+        {
+            if (x.Length >= parser.ParserOptions.TwoDelimitersLength && x.StartsWith(parser.ParserOptions.ArgumentDelimiter) && x.EndsWith(parser.ParserOptions.ArgumentDelimiter))
+            {
+                return x.Substring(3, x.Length - 6);
+            }
+            else if (x.Length >= 2 && x.StartsWith(SimpleParser.Quote) && x.EndsWith(SimpleParser.Quote))
+            {
+                return x.Substring(1, x.Length - 2);
+            }
+            else if (x.Length >= 2 && x.StartsWith(SimpleParser.SingleQuote) && x.EndsWith(SimpleParser.SingleQuote))
+            {
+                return x.Substring(1, x.Length - 2);
+            }
+
+            return x;
+        });
+
+        parser.TypeConverters.Add(typeof(sbyte), static x => Convert.ToSByte(x, CultureInfo.InvariantCulture));
+        parser.TypeConverters.Add(typeof(byte), static x => Convert.ToByte(x, CultureInfo.InvariantCulture));
+        parser.TypeConverters.Add(typeof(short), static x => Convert.ToInt16(x, CultureInfo.InvariantCulture));
+        parser.TypeConverters.Add(typeof(ushort), static x => Convert.ToUInt16(x, CultureInfo.InvariantCulture));
+        parser.TypeConverters.Add(typeof(int), static x => Convert.ToInt32(x, CultureInfo.InvariantCulture));
+        parser.TypeConverters.Add(typeof(uint), static x => Convert.ToUInt32(x, CultureInfo.InvariantCulture));
+        parser.TypeConverters.Add(typeof(long), static x => Convert.ToInt64(x, CultureInfo.InvariantCulture));
+        parser.TypeConverters.Add(typeof(ulong), static x => Convert.ToUInt64(x, CultureInfo.InvariantCulture));
+        parser.TypeConverters.Add(typeof(float), static x => Convert.ToSingle(x, CultureInfo.InvariantCulture));
+        parser.TypeConverters.Add(typeof(double), static x => Convert.ToDouble(x, CultureInfo.InvariantCulture));
+        parser.TypeConverters.Add(typeof(decimal), static x => Convert.ToDecimal(x, CultureInfo.InvariantCulture));
+        parser.TypeConverters.Add(typeof(char), static x => Convert.ToChar(x, CultureInfo.InvariantCulture));
     }
 
     /*public static string[] FormatArguments(this string arg)
