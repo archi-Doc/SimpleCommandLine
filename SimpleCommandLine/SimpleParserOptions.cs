@@ -23,6 +23,14 @@ public record SimpleParserOptions
     /// </summary>
     protected internal SimpleParserOptions()
     {
+        if (this.ArgumentDelimiter is null)
+        {
+            this.TwoDelimitersLength = int.MaxValue;
+        }
+        else
+        {
+            this.TwoDelimitersLength = this.ArgumentDelimiter.Length * 2;
+        }
     }
 
     /// <summary>
@@ -70,5 +78,7 @@ public record SimpleParserOptions
     /// Gets the argument delimiter string used to separate arguments.<br/>
     /// The default value is <see cref="SimpleParser.TripleQuotes"/>.
     /// </summary>
-    public string? ArgumentDelimiter { get; init; } = SimpleParser.TripleQuotes;
+    public string ArgumentDelimiter { get; init; } = SimpleParser.TripleQuotes;
+
+    internal int TwoDelimitersLength { get; }
 }

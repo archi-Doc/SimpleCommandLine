@@ -8,6 +8,21 @@ namespace SimpleCommandLine;
 public enum ArgumentProcessing
 {
     /// <summary>
+    /// Replace newline characters with spaces.
+    /// </summary>
+    ReplaceNewlinesWithSpace = 0,
+
+    /// <summary>
+    /// Leave the input as-is (no newline handling).
+    /// </summary>
+    AsIs = 1,
+
+    /// <summary>
+    /// Remove newline characters from the result.
+    /// </summary>
+    RemoveNewlines = 3,
+
+    /*/// <summary>
     /// Unwrap, then replace newline characters with spaces.
     /// </summary>
     UnwrapAndReplaceNewlinesWithSpace = 0,
@@ -26,5 +41,5 @@ public enum ArgumentProcessing
     /// <summary>
     /// Unwrap, then remove newline characters from the result.
     /// </summary>
-    UnwrapAndRemoveNewlines = 3,
+    UnwrapAndRemoveNewlines = 3,*/
 }

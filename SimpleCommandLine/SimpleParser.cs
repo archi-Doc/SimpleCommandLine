@@ -41,13 +41,10 @@ public class SimpleParser : ISimpleParser
 
     private static readonly TinyhandSerializerOptions SerializerOptions = TinyhandSerializerOptions.ConvertToStrictString;
 
-    static SimpleParser()
-    {
-        InitializeTypeConverter();
-    }
-
     private class HollowParser : ISimpleParser
     {
+        public Dictionary<Type, Func<string, object?>> TypeConverters { get; } = new();
+
         public HollowParser(SimpleParserOptions parserOptions)
         {
             this.ParserOptions = parserOptions;
@@ -120,9 +117,9 @@ public class SimpleParser : ISimpleParser
         return options != null;
     }
 
-    private static void InitializeTypeConverter()
+    private void InitializeTypeConverter()
     {
-        ParserTypeConverter.Add(typeof(bool), static x =>
+        this.TypeConverters.Add(typeof(bool), static x =>
         {
             var st = x.ToLower();
             if (st == "true")
@@ -139,9 +136,9 @@ public class SimpleParser : ISimpleParser
             }
         });
 
-        ParserTypeConverter.Add(typeof(string), static x =>
+        this.TypeConverters.Add(typeof(string), x =>
         {
-            if (x.Length >= 6 && x.StartsWith(TripleQuotes) && x.EndsWith(TripleQuotes))
+            if (x.Length >= this.ParserOptions.TwoDelimitersLength && x.StartsWith(this.ParserOptions.ArgumentDelimiter) && x.EndsWith(this.ParserOptions.ArgumentDelimiter))
             {
                 return x.Substring(3, x.Length - 6);
             }
@@ -157,18 +154,18 @@ public class SimpleParser : ISimpleParser
             return x;
         });
 
-        ParserTypeConverter.Add(typeof(sbyte), static x => Convert.ToSByte(x, CultureInfo.InvariantCulture));
-        ParserTypeConverter.Add(typeof(byte), static x => Convert.ToByte(x, CultureInfo.InvariantCulture));
-        ParserTypeConverter.Add(typeof(short), static x => Convert.ToInt16(x, CultureInfo.InvariantCulture));
-        ParserTypeConverter.Add(typeof(ushort), static x => Convert.ToUInt16(x, CultureInfo.InvariantCulture));
-        ParserTypeConverter.Add(typeof(int), static x => Convert.ToInt32(x, CultureInfo.InvariantCulture));
-        ParserTypeConverter.Add(typeof(uint), static x => Convert.ToUInt32(x, CultureInfo.InvariantCulture));
-        ParserTypeConverter.Add(typeof(long), static x => Convert.ToInt64(x, CultureInfo.InvariantCulture));
-        ParserTypeConverter.Add(typeof(ulong), static x => Convert.ToUInt64(x, CultureInfo.InvariantCulture));
-        ParserTypeConverter.Add(typeof(float), static x => Convert.ToSingle(x, CultureInfo.InvariantCulture));
-        ParserTypeConverter.Add(typeof(double), static x => Convert.ToDouble(x, CultureInfo.InvariantCulture));
-        ParserTypeConverter.Add(typeof(decimal), static x => Convert.ToDecimal(x, CultureInfo.InvariantCulture));
-        ParserTypeConverter.Add(typeof(char), static x => Convert.ToChar(x, CultureInfo.InvariantCulture));
+        this.TypeConverters.Add(typeof(sbyte), static x => Convert.ToSByte(x, CultureInfo.InvariantCulture));
+        this.TypeConverters.Add(typeof(byte), static x => Convert.ToByte(x, CultureInfo.InvariantCulture));
+        this.TypeConverters.Add(typeof(short), static x => Convert.ToInt16(x, CultureInfo.InvariantCulture));
+        this.TypeConverters.Add(typeof(ushort), static x => Convert.ToUInt16(x, CultureInfo.InvariantCulture));
+        this.TypeConverters.Add(typeof(int), static x => Convert.ToInt32(x, CultureInfo.InvariantCulture));
+        this.TypeConverters.Add(typeof(uint), static x => Convert.ToUInt32(x, CultureInfo.InvariantCulture));
+        this.TypeConverters.Add(typeof(long), static x => Convert.ToInt64(x, CultureInfo.InvariantCulture));
+        this.TypeConverters.Add(typeof(ulong), static x => Convert.ToUInt64(x, CultureInfo.InvariantCulture));
+        this.TypeConverters.Add(typeof(float), static x => Convert.ToSingle(x, CultureInfo.InvariantCulture));
+        this.TypeConverters.Add(typeof(double), static x => Convert.ToDouble(x, CultureInfo.InvariantCulture));
+        this.TypeConverters.Add(typeof(decimal), static x => Convert.ToDecimal(x, CultureInfo.InvariantCulture));
+        this.TypeConverters.Add(typeof(char), static x => Convert.ToChar(x, CultureInfo.InvariantCulture));
     }
 
     public class Command
@@ -957,7 +954,7 @@ public class SimpleParser : ISimpleParser
             if (this.OptionType.IsEnum)
             {// Enum
             }
-            else if (!SimpleParser.ParserTypeConverter.ContainsKey(this.OptionType))
+            else if (!this.Parser.TypeConverters.ContainsKey(this.OptionType))
             {
                 this.OptionClass = new OptionClass(this.Parser, this.OptionType, optionStack);
                 /*if (optionClass.Options.Count > 0)
@@ -1050,7 +1047,7 @@ public class SimpleParser : ISimpleParser
             {
                 try
                 {
-                    value = SimpleParser.ParserTypeConverter[this.OptionType](arg)!;
+                    value = this.Parser.TypeConverters[this.OptionType](arg)!;
                 }
                 catch
                 {
@@ -1140,6 +1137,7 @@ public class SimpleParser : ISimpleParser
     public SimpleParser(IEnumerable<Type> simpleCommands, SimpleParserOptions? parserOptions = null)
     {
         this.ParserOptions = parserOptions ?? SimpleParserOptions.Standard;
+        this.InitializeTypeConverter();
 
         Command? firstOrDefault = null;
         this.NameToCommand = new(StringComparer.InvariantCultureIgnoreCase);
@@ -1732,11 +1730,6 @@ public class SimpleParser : ISimpleParser
         }
     }
 
-    /// <summary>
-    /// Gets the collection of type converters.
-    /// </summary>
-    public static Dictionary<Type, Func<string, object?>> ParserTypeConverter { get; private set; } = new();
-
     public SimpleParserOptions ParserOptions { get; }
 
     /// <summary>
@@ -1785,12 +1778,14 @@ public class SimpleParser : ISimpleParser
         }
     }
 
+    public Dictionary<Type, Func<string, object?>> TypeConverters { get; } = new();
+
     private List<string> ErrorMessage { get; }
 
     private List<OptionClass> OptionClassUsage { get; }
 
     internal static bool OptionEquals(ReadOnlySpan<char> arg, ReadOnlySpan<char> command)
-        => arg.Trim(SimpleParser.OptionPrefix).Equals(command, StringComparison.OrdinalIgnoreCase);
+            => arg.Trim(SimpleParser.OptionPrefix).Equals(command, StringComparison.OrdinalIgnoreCase);
 
     private void AppendList(StringBuilder sb)
     {
