@@ -646,6 +646,11 @@ public class SimpleParser : ISimpleParser
                 return !errorFlag;
             }
 
+            for (var i = 0; i < remaining.Count; i++)
+            {
+                remaining[i] = SimpleParserHelper.ProcessArgument(remaining[i], this.Parser.ParserOptions, ArgumentProcessing.ReplaceNewlinesWithSpace);
+            }
+
             this.RemainingArguments = remaining.ToArray();
             return true;
         }
