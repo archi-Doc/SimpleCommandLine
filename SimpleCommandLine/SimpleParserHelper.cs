@@ -13,6 +13,7 @@ public static class SimpleParserHelper
 {
     #region FieldAndProperty
 
+    private static readonly IFormatProvider DefautFormatProvider = CultureInfo.InvariantCulture;
     private static string? commandlineArguments;
 
     #endregion
@@ -377,6 +378,7 @@ public static class SimpleParserHelper
 
     public static string ProcessArgument(string input, ArgumentProcessing argumentProcessing)
     {
+        return string.Empty;
     }
 
     public static string[] FormatArguments(this ReadOnlySpan<char> span, ReadOnlySpan<char> delimiter = default)
@@ -584,18 +586,18 @@ AddString:
             return x;
         });
 
-        parser.TypeConverters.Add(typeof(sbyte), static x => Convert.ToSByte(x, CultureInfo.InvariantCulture));
-        parser.TypeConverters.Add(typeof(byte), static x => Convert.ToByte(x, CultureInfo.InvariantCulture));
-        parser.TypeConverters.Add(typeof(short), static x => Convert.ToInt16(x, CultureInfo.InvariantCulture));
-        parser.TypeConverters.Add(typeof(ushort), static x => Convert.ToUInt16(x, CultureInfo.InvariantCulture));
-        parser.TypeConverters.Add(typeof(int), static x => Convert.ToInt32(x, CultureInfo.InvariantCulture));
-        parser.TypeConverters.Add(typeof(uint), static x => Convert.ToUInt32(x, CultureInfo.InvariantCulture));
-        parser.TypeConverters.Add(typeof(long), static x => Convert.ToInt64(x, CultureInfo.InvariantCulture));
-        parser.TypeConverters.Add(typeof(ulong), static x => Convert.ToUInt64(x, CultureInfo.InvariantCulture));
-        parser.TypeConverters.Add(typeof(float), static x => Convert.ToSingle(x, CultureInfo.InvariantCulture));
-        parser.TypeConverters.Add(typeof(double), static x => Convert.ToDouble(x, CultureInfo.InvariantCulture));
-        parser.TypeConverters.Add(typeof(decimal), static x => Convert.ToDecimal(x, CultureInfo.InvariantCulture));
-        parser.TypeConverters.Add(typeof(char), static x => Convert.ToChar(x, CultureInfo.InvariantCulture));
+        parser.TypeConverters.Add(typeof(sbyte), static x => Convert.ToSByte(x, DefautFormatProvider));
+        parser.TypeConverters.Add(typeof(byte), static x => Convert.ToByte(x, DefautFormatProvider));
+        parser.TypeConverters.Add(typeof(short), static x => Convert.ToInt16(x, DefautFormatProvider));
+        parser.TypeConverters.Add(typeof(ushort), static x => Convert.ToUInt16(x, DefautFormatProvider));
+        parser.TypeConverters.Add(typeof(int), static x => Convert.ToInt32(x, DefautFormatProvider));
+        parser.TypeConverters.Add(typeof(uint), static x => Convert.ToUInt32(x, DefautFormatProvider));
+        parser.TypeConverters.Add(typeof(long), static x => Convert.ToInt64(x, DefautFormatProvider));
+        parser.TypeConverters.Add(typeof(ulong), static x => Convert.ToUInt64(x, DefautFormatProvider));
+        parser.TypeConverters.Add(typeof(float), static x => Convert.ToSingle(x, DefautFormatProvider));
+        parser.TypeConverters.Add(typeof(double), static x => Convert.ToDouble(x, DefautFormatProvider));
+        parser.TypeConverters.Add(typeof(decimal), static x => Convert.ToDecimal(x, DefautFormatProvider));
+        parser.TypeConverters.Add(typeof(char), static x => Convert.ToChar(x, DefautFormatProvider));
     }
 
     /*public static string[] FormatArguments(this string arg)

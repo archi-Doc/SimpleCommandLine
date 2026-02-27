@@ -97,7 +97,7 @@ namespace ConsoleApp1
                 typeof(TypeCommand),
             };
 
-            await SimpleParser.ParseAndRunAsync(commandTypes, args);
+            await SimpleParser.ParseAndRunAsync(commandTypes, "-double a1.2345");
         }
     }
 }
