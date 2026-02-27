@@ -574,11 +574,11 @@ AddString:
                 var length = parser.ParserOptions.ArgumentDelimiter.Length;
                 return x.Substring(length, span.Length - length - length);
             }
-            else if (span.Length >= 2 && span.StartsWith(SimpleParser.Quote) && span.EndsWith(SimpleParser.Quote))
+            else if (span.Length >= 2 && span[0] == SimpleParser.Quote && span[^1] == SimpleParser.Quote)
             {
                 return x.Substring(1, span.Length - 2);
             }
-            else if (span.Length >= 2 && span.StartsWith(SimpleParser.SingleQuote) && span.EndsWith(SimpleParser.SingleQuote))
+            else if (span.Length >= 2 && span[0] == SimpleParser.SingleQuote && span[^1] == SimpleParser.SingleQuote)
             {
                 return x.Substring(1, span.Length - 2);
             }
@@ -586,7 +586,20 @@ AddString:
             return x;
         });
 
-        parser.TypeConverters.Add(typeof(sbyte), static x => Convert.ToSByte(x, DefautFormatProvider));
+        parser.TypeConverters.Add(typeof(sbyte), static x => sbyte.Parse(x, DefautFormatProvider));
+        parser.TypeConverters.Add(typeof(byte), static x => byte.Parse(x, DefautFormatProvider));
+        parser.TypeConverters.Add(typeof(short), static x => short.Parse(x, DefautFormatProvider));
+        parser.TypeConverters.Add(typeof(ushort), static x => ushort.Parse(x, DefautFormatProvider));
+        parser.TypeConverters.Add(typeof(int), static x => int.Parse(x, DefautFormatProvider));
+        parser.TypeConverters.Add(typeof(uint), static x => uint.Parse(x, DefautFormatProvider));
+        parser.TypeConverters.Add(typeof(long), static x => long.Parse(x, DefautFormatProvider));
+        parser.TypeConverters.Add(typeof(ulong), static x => ulong.Parse(x, DefautFormatProvider));
+        parser.TypeConverters.Add(typeof(float), static x => float.Parse(x, DefautFormatProvider));
+        parser.TypeConverters.Add(typeof(double), static x => double.Parse(x, DefautFormatProvider));
+        parser.TypeConverters.Add(typeof(decimal), static x => decimal.Parse(x, DefautFormatProvider));
+        parser.TypeConverters.Add(typeof(char), static x => char.Parse(x));
+
+        /*parser.TypeConverters.Add(typeof(sbyte), static x => Convert.ToSByte(x, DefautFormatProvider));
         parser.TypeConverters.Add(typeof(byte), static x => Convert.ToByte(x, DefautFormatProvider));
         parser.TypeConverters.Add(typeof(short), static x => Convert.ToInt16(x, DefautFormatProvider));
         parser.TypeConverters.Add(typeof(ushort), static x => Convert.ToUInt16(x, DefautFormatProvider));
@@ -597,7 +610,7 @@ AddString:
         parser.TypeConverters.Add(typeof(float), static x => Convert.ToSingle(x, DefautFormatProvider));
         parser.TypeConverters.Add(typeof(double), static x => Convert.ToDouble(x, DefautFormatProvider));
         parser.TypeConverters.Add(typeof(decimal), static x => Convert.ToDecimal(x, DefautFormatProvider));
-        parser.TypeConverters.Add(typeof(char), static x => Convert.ToChar(x, DefautFormatProvider));
+        parser.TypeConverters.Add(typeof(char), static x => Convert.ToChar(x, DefautFormatProvider));*/
     }
 
     /*public static string[] FormatArguments(this string arg)
