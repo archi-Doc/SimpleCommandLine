@@ -377,6 +377,7 @@ public static class SimpleParserHelper
 
     public static string[] FormatArguments(this ReadOnlySpan<char> span)
     {
+        const char DelimiterChar = 'd';
         var list = new List<string>();
 
         var start = 0;
@@ -395,7 +396,7 @@ public static class SimpleParserHelper
                     goto AddString;
                 }
                 else if (currentChar == SimpleParser.Separator)
-                {
+                {// A|B
                     nextPosition = position;
                     goto AddString;
                 }
@@ -404,7 +405,7 @@ public static class SimpleParserHelper
                     span[position + 1] == SimpleParser.Quote &&
                     span[position + 2] == SimpleParser.Quote)
                 {// """A B"""
-                    enclosed.Push('3');
+                    enclosed.Push(DelimiterChar);
                     nextPosition = position + 3;
                     goto AddString;
                 }
@@ -438,7 +439,7 @@ public static class SimpleParserHelper
                         index++;
                     }
 
-                    if (enclosed.Peek() == '3')
+                    if (enclosed.Peek() == DelimiterChar)
                     {// """abc"""
                         enclosed.Pop();
                         if (enclosed.Count == 0)
@@ -464,7 +465,7 @@ public static class SimpleParserHelper
                             goto AddString;
                         }
                     }
-                    else if (peek == '3')
+                    else if (peek == DelimiterChar)
                     {
                     }
                     else
@@ -483,7 +484,7 @@ public static class SimpleParserHelper
                             goto AddString;
                         }
                     }
-                    else if (peek == '3')
+                    else if (peek == DelimiterChar)
                     {
                     }
                     else

@@ -42,7 +42,8 @@ static void Test(string arg)
 static void Test2(StringBuilder sb, string arg, string[]? formatted)
 {
     var result = formatted ?? arg.FormatArguments();
-    sb.Append($"{arg} = {string.Join(',', result)}");
+    var prefix = formatted is null ? string.Empty : "  /  ";
+    sb.Append($"{prefix}{arg}  ->  {string.Join(',', result)}");
     foreach (var x in result)
     {
         if (x.Length >= 2 && x.StartsWith('{') && arg.EndsWith('}'))
