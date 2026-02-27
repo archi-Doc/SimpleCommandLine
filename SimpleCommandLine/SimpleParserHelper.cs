@@ -569,17 +569,18 @@ AddString:
 
         parser.TypeConverters.Add(typeof(string), x =>
         {
-            if (x.Length >= parser.ParserOptions.TwoDelimitersLength && x.StartsWith(parser.ParserOptions.ArgumentDelimiter) && x.EndsWith(parser.ParserOptions.ArgumentDelimiter))
+            var span = x.AsSpan();
+            if (span.Length >= parser.ParserOptions.TwoDelimitersLength && span.StartsWith(parser.ParserOptions.ArgumentDelimiter) && span.EndsWith(parser.ParserOptions.ArgumentDelimiter))
             {
-                return x.Substring(3, x.Length - 6);
+                return x.Substring(3, span.Length - 6);
             }
-            else if (x.Length >= 2 && x.StartsWith(SimpleParser.Quote) && x.EndsWith(SimpleParser.Quote))
+            else if (span.Length >= 2 && span.StartsWith(SimpleParser.Quote) && span.EndsWith(SimpleParser.Quote))
             {
-                return x.Substring(1, x.Length - 2);
+                return x.Substring(1, span.Length - 2);
             }
-            else if (x.Length >= 2 && x.StartsWith(SimpleParser.SingleQuote) && x.EndsWith(SimpleParser.SingleQuote))
+            else if (span.Length >= 2 && span.StartsWith(SimpleParser.SingleQuote) && span.EndsWith(SimpleParser.SingleQuote))
             {
-                return x.Substring(1, x.Length - 2);
+                return x.Substring(1, span.Length - 2);
             }
 
             return x;
