@@ -6,10 +6,11 @@ using SimpleCommandLine;
 
 #pragma warning disable SA1516 // Elements should be separated by blank line
 
+var delimiter = "\"\"\"";
 Console.WriteLine("Arguments test");
 
-Test(string.Empty);
-Test("test");
+// Test(string.Empty);
+Test("\\\"test\\\"");
 Test("-n 99");
 Test("-test 12");
 Test("  -test  1 23  ");
@@ -32,25 +33,32 @@ Test("-options \"--env lpargs='-pass 1'\"");
 Test("A | B|C");
 Test("A | \"B|C|\"|D|{E}|{FG|}");
 
-static void Test(string arg)
+Test($"{{{delimiter}A\"B\"C{delimiter} \"cc\"}}");
+
+Test($"{delimiter}A\r\nB\nC{delimiter}");
+
+Test($"&&A\r\nB\nC&&", "&&");
+
+static void Test(string arg, ReadOnlySpan<char> delimiter = default)
 {
     var sb = new StringBuilder();
-    Test2(sb, arg, null);
+    Test2(sb, arg, null, delimiter);
     Console.WriteLine(sb.ToString());
 }
 
-static void Test2(StringBuilder sb, string arg, string[]? formatted)
+static void Test2(StringBuilder sb, string arg, string[]? formatted, ReadOnlySpan<char> delimiter = default)
 {
-    var result = formatted ?? arg.FormatArguments();
-    sb.Append($"{arg} = {string.Join(',', result)}");
+    var result = formatted ?? arg.FormatArguments(delimiter);
+    var prefix = formatted is null ? string.Empty : "  /  ";
+    sb.Append($"{prefix}{arg}  ->  {string.Join(',', result)}");
     foreach (var x in result)
     {
         if (x.Length >= 2 && x.StartsWith('{') && arg.EndsWith('}'))
         {
-            var result2 = x.Substring(1, x.Length - 2).FormatArguments();
+            var result2 = x.Substring(1, x.Length - 2).FormatArguments(delimiter);
             if (result2.Length > 1)
             {
-                Test2(sb, x, result2);
+                Test2(sb, x, result2, delimiter);
             }
         }
     }

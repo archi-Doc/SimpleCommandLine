@@ -1,12 +1,15 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
+using System;
+using System.Collections.Generic;
+
 namespace SimpleCommandLine;
 
 internal interface ISimpleParser
 {
-    public void AddErrorMessage(string message);
+    void AddErrorMessage(string message);
 
-    public void TryAddOptionClassUsage(SimpleParser.OptionClass optionClass);
+    void TryAddOptionClassUsage(SimpleParser.OptionClass optionClass);
 
-    public SimpleParserOptions ParserOptions { get; }
+    SimpleParserOptions ParserOptions { get; }
 }

@@ -2,7 +2,9 @@
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Text;
+using Arc;
 
 #pragma warning disable SA1124 // Do not use regions
 
@@ -12,9 +14,29 @@ public static class SimpleParserHelper
 {
     #region FieldAndProperty
 
+    private static readonly IFormatProvider DefautFormatProvider = CultureInfo.InvariantCulture;
     private static string? commandlineArguments;
 
+    internal static Dictionary<Type, Func<ReadOnlySpan<char>, object?>> TypeConverters { get; } = new();
+
     #endregion
+
+    static SimpleParserHelper()
+    {
+        TypeConverters.Add(typeof(bool), static x => bool.Parse(x));
+        TypeConverters.Add(typeof(sbyte), static x => sbyte.Parse(x, DefautFormatProvider));
+        TypeConverters.Add(typeof(byte), static x => byte.Parse(x, DefautFormatProvider));
+        TypeConverters.Add(typeof(short), static x => short.Parse(x, DefautFormatProvider));
+        TypeConverters.Add(typeof(ushort), static x => ushort.Parse(x, DefautFormatProvider));
+        TypeConverters.Add(typeof(int), static x => int.Parse(x, DefautFormatProvider));
+        TypeConverters.Add(typeof(uint), static x => uint.Parse(x, DefautFormatProvider));
+        TypeConverters.Add(typeof(long), static x => long.Parse(x, DefautFormatProvider));
+        TypeConverters.Add(typeof(ulong), static x => ulong.Parse(x, DefautFormatProvider));
+        TypeConverters.Add(typeof(float), static x => float.Parse(x, DefautFormatProvider));
+        TypeConverters.Add(typeof(double), static x => double.Parse(x, DefautFormatProvider));
+        TypeConverters.Add(typeof(decimal), static x => decimal.Parse(x, DefautFormatProvider));
+        TypeConverters.Add(typeof(char), static x => x[0]);
+    }
 
     /// <summary>
     /// Joins a collection of strings with space separators.
@@ -334,9 +356,9 @@ public static class SimpleParserHelper
 
     public static bool IsOptionString(this ReadOnlySpan<char> text) => text.StartsWith(SimpleParser.OptionPrefix);
 
-    public static string[] SeparateArguments(this string arg)
+    public static string[] SeparateArguments(this string arg, ReadOnlySpan<char> delimiter = default)
     {
-        var args = arg.FormatArguments();
+        var args = arg.FormatArguments(delimiter);
         StringBuilder? sb = default;
         List<string> list = new();
 
@@ -374,14 +396,144 @@ public static class SimpleParserHelper
         return list.ToArray();
     }
 
-    public static string[] FormatArguments(this ReadOnlySpan<char> span)
+    public static string ProcessArgument(string arg, SimpleParserOptions parserOptions, ArgumentProcessing argumentProcessing)
     {
+        var span = arg.AsSpan();
+
+        // Unwrap ', ", """
+        if (span.Length >= parserOptions.TwoDelimitersLength && span.StartsWith(parserOptions.ArgumentDelimiter) && span.EndsWith(parserOptions.ArgumentDelimiter))
+        {
+            var length = parserOptions.ArgumentDelimiter.Length;
+            span = span.Slice(length, span.Length - length - length);
+        }
+        else if (span.Length >= 2 && span[0] == SimpleParser.Quote && span[^1] == SimpleParser.Quote)
+        {
+            span = span.Slice(1, span.Length - 2);
+        }
+        else if (span.Length >= 2 && span[0] == SimpleParser.SingleQuote && span[^1] == SimpleParser.SingleQuote)
+        {
+            span = span.Slice(1, span.Length - 2);
+        }
+
+        if (argumentProcessing == ArgumentProcessing.RemoveNewlines)
+        {
+            var subtraction = 0;
+            for (var i = 0; i < span.Length; i++)
+            {
+                if (span[i] == '\r' || span[i] == '\n')
+                {
+                    subtraction++;
+                }
+                else if (span[i] == '\\' && i + 1 < span.Length &&
+                    (span[i + 1] == '\'' || span[i + 1] == '\"'))
+                {// Unescape \' \"
+                    i++;
+                    subtraction++;
+                }
+            }
+
+            if (subtraction == 0)
+            {
+                goto Exit;
+            }
+
+            var resultLength = span.Length - subtraction;
+            return string.Create(resultLength, span, static (dest, src) =>
+            {
+                var position = 0;
+                for (var i = 0; i < src.Length; i++)
+                {
+                    if (src[i] == '\r' || src[i] == '\n')
+                    {
+                    }
+                    else if (src[i] == '\\' && i + 1 < src.Length &&
+                    (src[i + 1] == '\'' || src[i + 1] == '\"'))
+                    {// Unescape \' \"
+                        dest[position++] = src[i + 1];
+                        i++;
+                    }
+                    else
+                    {
+                        dest[position++] = src[i];
+                    }
+                }
+            });
+        }
+        else if (argumentProcessing == ArgumentProcessing.ReplaceNewlinesWithSpace)
+        {
+            var subtraction = 0;
+            for (var i = 0; i < span.Length; i++)
+            {
+                if (span[i] == '\r')
+                {// Remove \r
+                    subtraction++;
+                }
+                else if (span[i] == '\\' && i + 1 < span.Length &&
+                    (span[i + 1] == '\'' || span[i + 1] == '\"'))
+                {// Unescape \' \"
+                    i++;
+                    subtraction++;
+                }
+            }
+
+            if (subtraction == 0)
+            {
+                goto Exit;
+            }
+
+            var resultLength = span.Length - subtraction;
+            return string.Create(resultLength, span, static (dest, src) =>
+            {
+                var position = 0;
+                for (var i = 0; i < src.Length; i++)
+                {
+                    if (src[i] == '\r')
+                    {// Remove \r
+                    }
+                    else if (src[i] == '\n')
+                    {// \n -> Space
+                        dest[position++] = ' ';
+                    }
+                    else if (src[i] == '\\' && i + 1 < src.Length &&
+                    (src[i + 1] == '\'' || src[i + 1] == '\"'))
+                    {// Unescape \' \"
+                        dest[position++] = src[i + 1];
+                        i++;
+                    }
+                    else
+                    {
+                        dest[position++] = src[i];
+                    }
+                }
+            });
+        }
+
+Exit:
+// If the value has changed, create a new string; otherwise, return the original string.
+        if (span.Length == arg.Length)
+        {
+            return arg;
+        }
+        else
+        {
+            return span.ToString();
+        }
+    }
+
+    public static string[] FormatArguments(this ReadOnlySpan<char> span, ReadOnlySpan<char> delimiter = default)
+    {
+        const char DelimiterChar = 'd';
         var list = new List<string>();
 
         var start = 0;
         var position = 0;
         var nextPosition = 0;
         var enclosed = new Stack<char>();
+        if (delimiter.IsEmpty)
+        {
+            delimiter = SimpleParser.DefaultDelimiter;
+        }
+
         while (position < span.Length)
         {
             var currentChar = span[position];
@@ -394,16 +546,13 @@ public static class SimpleParserHelper
                     goto AddString;
                 }
                 else if (currentChar == SimpleParser.Separator)
-                {
+                {// A|B
                     nextPosition = position;
                     goto AddString;
                 }
-                else if (currentChar == SimpleParser.Quote &&
-                    (position + 2) < span.Length &&
-                    span[position + 1] == SimpleParser.Quote &&
-                    span[position + 2] == SimpleParser.Quote)
-                {// """A B"""
-                    enclosed.Push('3');
+                else if (span.Slice(position).StartsWith(delimiter))
+                {// Delimiter """A B"""
+                    enclosed.Push(DelimiterChar);
                     nextPosition = position + 3;
                     goto AddString;
                 }
@@ -425,24 +574,14 @@ public static class SimpleParserHelper
             {
                 var peek = enclosed.Peek();
 
-                if (currentChar == SimpleParser.Quote &&
-                    (position + 2) < span.Length &&
-                    span[position + 1] == SimpleParser.Quote &&
-                    span[position + 2] == SimpleParser.Quote)
+                if (span.Slice(position).StartsWith(delimiter))
                 {// """
-                    var index = 3;
-                    while ((position + index) < span.Length &&
-                        span[position + index] == SimpleParser.Quote)
-                    {
-                        index++;
-                    }
-
-                    if (enclosed.Peek() == '3')
+                    if (peek == DelimiterChar)
                     {// """abc"""
                         enclosed.Pop();
                         if (enclosed.Count == 0)
                         {
-                            position += index;
+                            position += delimiter.Length;
                             nextPosition = position;
                             goto AddString;
                         }
@@ -463,7 +602,7 @@ public static class SimpleParserHelper
                             goto AddString;
                         }
                     }
-                    else if (peek == '3')
+                    else if (peek == DelimiterChar)
                     {
                     }
                     else
@@ -482,7 +621,7 @@ public static class SimpleParserHelper
                             goto AddString;
                         }
                     }
-                    else if (peek == '3')
+                    else if (peek == DelimiterChar)
                     {
                     }
                     else
@@ -546,6 +685,42 @@ AddString:
 
         return list.ToArray();
     }
+
+    /*internal static void InitializeTypeConverter(ISimpleParser parser)
+    {
+        parser.TypeConverters.Add(typeof(string), x =>
+        {
+            var span = x;
+            if (span.Length >= parser.ParserOptions.TwoDelimitersLength && span.StartsWith(parser.ParserOptions.ArgumentDelimiter) && span.EndsWith(parser.ParserOptions.ArgumentDelimiter))
+            {
+                var length = parser.ParserOptions.ArgumentDelimiter.Length;
+                return x.Slice(length, span.Length - length - length).ToArray();
+            }
+            else if (span.Length >= 2 && span[0] == SimpleParser.Quote && span[^1] == SimpleParser.Quote)
+            {
+                return x.Slice(1, span.Length - 2).ToArray();
+            }
+            else if (span.Length >= 2 && span[0] == SimpleParser.SingleQuote && span[^1] == SimpleParser.SingleQuote)
+            {
+                return x.Slice(1, span.Length - 2).ToArray();
+            }
+
+            return span.ToArray();
+        });
+
+        parser.TypeConverters.Add(typeof(sbyte), static x => Convert.ToSByte(x, DefautFormatProvider));
+        parser.TypeConverters.Add(typeof(byte), static x => Convert.ToByte(x, DefautFormatProvider));
+        parser.TypeConverters.Add(typeof(short), static x => Convert.ToInt16(x, DefautFormatProvider));
+        parser.TypeConverters.Add(typeof(ushort), static x => Convert.ToUInt16(x, DefautFormatProvider));
+        parser.TypeConverters.Add(typeof(int), static x => Convert.ToInt32(x, DefautFormatProvider));
+        parser.TypeConverters.Add(typeof(uint), static x => Convert.ToUInt32(x, DefautFormatProvider));
+        parser.TypeConverters.Add(typeof(long), static x => Convert.ToInt64(x, DefautFormatProvider));
+        parser.TypeConverters.Add(typeof(ulong), static x => Convert.ToUInt64(x, DefautFormatProvider));
+        parser.TypeConverters.Add(typeof(float), static x => Convert.ToSingle(x, DefautFormatProvider));
+        parser.TypeConverters.Add(typeof(double), static x => Convert.ToDouble(x, DefautFormatProvider));
+        parser.TypeConverters.Add(typeof(decimal), static x => Convert.ToDecimal(x, DefautFormatProvider));
+        parser.TypeConverters.Add(typeof(char), static x => Convert.ToChar(x, DefautFormatProvider));
+    }*/
 
     /*public static string[] FormatArguments(this string arg)
     {

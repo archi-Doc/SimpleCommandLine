@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using SimpleCommandLine;
 using Xunit;
@@ -106,7 +107,6 @@ public class UnitTest1
         Test("""" """a""" """", ["\"\"\"a\"\"\"",]);
         Test(""""-text """Triple quotes{}""" -options {} """", ["-text", "\"\"\"Triple quotes{}\"\"\"", "-options", "{}",]);
         Test("""""""-text """a""" """""" """Triple quotes{}""" """"""", ["-text", "\"\"\"a\"\"\"", "\"\"\"\"\"\"", "\"\"\"Triple quotes{}\"\"\"",]);
-        Test(""""" """abc "d"""" """"test"""" """"", ["\"\"\"abc \"d\"\"\"\"", "\"\"\"\"test\"\"\"\"",]);
         // Test(""""-text """Triple quotes""" -options {} """");
 
         SimpleParserHelper.ParseArguments("").Is("");

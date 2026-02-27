@@ -27,6 +27,8 @@ public class SimpleParser : ISimpleParser
     public const string SeparatorString = "|";
     public const string CommandString = "Command";
 
+    public static ReadOnlySpan<char> DefaultDelimiter => "\"\"\"";
+
     internal const string RunMethodString = "Run";
     internal const string RunAsyncMethodString = "RunAsync";
     internal const string IndentString = "  ";
@@ -40,11 +42,6 @@ public class SimpleParser : ISimpleParser
     internal const char OptionPrefix = '-';
 
     private static readonly TinyhandSerializerOptions SerializerOptions = TinyhandSerializerOptions.ConvertToStrictString;
-
-    static SimpleParser()
-    {
-        InitializeTypeConverter();
-    }
 
     private class HollowParser : ISimpleParser
     {
@@ -109,7 +106,7 @@ public class SimpleParser : ISimpleParser
             optionClass.optionInstance = original;
         }
 
-        optionClass.Parse(args.FormatArguments(), 0, true);
+        optionClass.Parse(args.FormatArguments(parser.ParserOptions.ArgumentDelimiter), 0, true);
         if (optionClass.FatalError)
         {
             options = default;
@@ -118,57 +115,6 @@ public class SimpleParser : ISimpleParser
 
         options = (TOptions)optionClass.OptionInstance!;
         return options != null;
-    }
-
-    private static void InitializeTypeConverter()
-    {
-        ParserTypeConverter.Add(typeof(bool), static x =>
-        {
-            var st = x.ToLower();
-            if (st == "true")
-            {
-                return true;
-            }
-            else if (st == "false")
-            {
-                return false;
-            }
-            else
-            {
-                throw new InvalidOperationException();
-            }
-        });
-
-        ParserTypeConverter.Add(typeof(string), static x =>
-        {
-            if (x.Length >= 6 && x.StartsWith(TripleQuotes) && x.EndsWith(TripleQuotes))
-            {
-                return x.Substring(3, x.Length - 6);
-            }
-            else if (x.Length >= 2 && x.StartsWith(Quote) && x.EndsWith(Quote))
-            {
-                return x.Substring(1, x.Length - 2);
-            }
-            else if (x.Length >= 2 && x.StartsWith(SingleQuote) && x.EndsWith(SingleQuote))
-            {
-                return x.Substring(1, x.Length - 2);
-            }
-
-            return x;
-        });
-
-        ParserTypeConverter.Add(typeof(sbyte), static x => Convert.ToSByte(x, CultureInfo.InvariantCulture));
-        ParserTypeConverter.Add(typeof(byte), static x => Convert.ToByte(x, CultureInfo.InvariantCulture));
-        ParserTypeConverter.Add(typeof(short), static x => Convert.ToInt16(x, CultureInfo.InvariantCulture));
-        ParserTypeConverter.Add(typeof(ushort), static x => Convert.ToUInt16(x, CultureInfo.InvariantCulture));
-        ParserTypeConverter.Add(typeof(int), static x => Convert.ToInt32(x, CultureInfo.InvariantCulture));
-        ParserTypeConverter.Add(typeof(uint), static x => Convert.ToUInt32(x, CultureInfo.InvariantCulture));
-        ParserTypeConverter.Add(typeof(long), static x => Convert.ToInt64(x, CultureInfo.InvariantCulture));
-        ParserTypeConverter.Add(typeof(ulong), static x => Convert.ToUInt64(x, CultureInfo.InvariantCulture));
-        ParserTypeConverter.Add(typeof(float), static x => Convert.ToSingle(x, CultureInfo.InvariantCulture));
-        ParserTypeConverter.Add(typeof(double), static x => Convert.ToDouble(x, CultureInfo.InvariantCulture));
-        ParserTypeConverter.Add(typeof(decimal), static x => Convert.ToDecimal(x, CultureInfo.InvariantCulture));
-        ParserTypeConverter.Add(typeof(char), static x => Convert.ToChar(x, CultureInfo.InvariantCulture));
     }
 
     public class Command
@@ -954,10 +900,10 @@ public class SimpleParser : ISimpleParser
                 throw new InvalidOperationException();
             }
 
-            if (this.OptionType.IsEnum)
-            {// Enum
+            if (this.OptionType.IsEnum || this.OptionType == typeof(string))
+            {// Enum, string
             }
-            else if (!SimpleParser.ParserTypeConverter.ContainsKey(this.OptionType))
+            else if (!SimpleParserHelper.TypeConverters.ContainsKey(this.OptionType))
             {
                 this.OptionClass = new OptionClass(this.Parser, this.OptionType, optionStack);
                 /*if (optionClass.Options.Count > 0)
@@ -983,6 +929,7 @@ public class SimpleParser : ISimpleParser
             this.Required = attribute.Required;
             this.ReadFromEnvironment = attribute.ReadFromEnvironment;
             this.DefaultValueText = attribute.DefaultValueText;
+            this.ArgumentProcessing = attribute.ArgumentProcessing;
             var s = "-" + this.LongName + (this.ShortName == null ? string.Empty : ", -" + this.ShortName);
             if (this.OptionClass != null)
             {
@@ -1004,6 +951,7 @@ public class SimpleParser : ISimpleParser
             object value;
             if (this.OptionClass is not null)
             {
+                arg = SimpleParserHelper.ProcessArgument(arg, this.Parser.ParserOptions, this.ArgumentProcessing);
                 var typeIdentifier = this.OptionClass.OptionTypeIdentifier;
                 if (typeIdentifier != 0 && TinyhandTypeIdentifier.IsRegistered(typeIdentifier))
                 {
@@ -1021,7 +969,7 @@ public class SimpleParser : ISimpleParser
                         arg = arg.Substring(1, arg.Length - 2);
                     }
 
-                    var ret = this.OptionClass.Parse(arg.FormatArguments(), 0, acceptUnknownOptionName);
+                    var ret = this.OptionClass.Parse(arg.FormatArguments(this.Parser.ParserOptions.ArgumentDelimiter), 0, acceptUnknownOptionName);
                     if (!ret || this.OptionClass.OptionInstance == null)
                     {
                         return false;
@@ -1050,7 +998,14 @@ public class SimpleParser : ISimpleParser
             {
                 try
                 {
-                    value = SimpleParser.ParserTypeConverter[this.OptionType](arg)!;
+                    if (this.OptionType == typeof(string))
+                    {
+                        value = SimpleParserHelper.ProcessArgument(arg, this.Parser.ParserOptions, this.ArgumentProcessing);
+                    }
+                    else
+                    {
+                        value = SimpleParserHelper.TypeConverters[this.OptionType](arg)!;
+                    }
                 }
                 catch
                 {
@@ -1096,6 +1051,8 @@ public class SimpleParser : ISimpleParser
         public bool Required { get; }
 
         public bool ReadFromEnvironment { get; }
+
+        public ArgumentProcessing ArgumentProcessing { get; }
 
         public bool ValueIsSet { get; internal set; }
 
@@ -1293,7 +1250,7 @@ public class SimpleParser : ISimpleParser
     public bool Parse(string arg)
     {
         var ret = true;
-        var arguments = arg.FormatArguments();
+        var arguments = arg.FormatArguments(this.ParserOptions.ArgumentDelimiter);
         this.OriginalArguments = arg;
         this.HelpCommand = null;
         this.VersionCommand = false;
@@ -1732,11 +1689,6 @@ public class SimpleParser : ISimpleParser
         }
     }
 
-    /// <summary>
-    /// Gets the collection of type converters.
-    /// </summary>
-    public static Dictionary<Type, Func<string, object?>> ParserTypeConverter { get; private set; } = new();
-
     public SimpleParserOptions ParserOptions { get; }
 
     /// <summary>
@@ -1790,7 +1742,7 @@ public class SimpleParser : ISimpleParser
     private List<OptionClass> OptionClassUsage { get; }
 
     internal static bool OptionEquals(ReadOnlySpan<char> arg, ReadOnlySpan<char> command)
-        => arg.Trim(SimpleParser.OptionPrefix).Equals(command, StringComparison.OrdinalIgnoreCase);
+            => arg.Trim(SimpleParser.OptionPrefix).Equals(command, StringComparison.OrdinalIgnoreCase);
 
     private void AppendList(StringBuilder sb)
     {
