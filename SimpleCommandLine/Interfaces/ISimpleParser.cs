@@ -12,6 +12,4 @@ internal interface ISimpleParser
     void TryAddOptionClassUsage(SimpleParser.OptionClass optionClass);
 
     SimpleParserOptions ParserOptions { get; }
-
-    Dictionary<Type, Func<string, object?>> TypeConverters { get; }
 }

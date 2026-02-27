@@ -88,16 +88,53 @@ namespace ConsoleApp1
         }
     }
 
+    [SimpleCommand("string")]
+    public class StringCommand : ISimpleCommandAsync<StringCommand.Options>
+    {
+        public class Options
+        {
+            [SimpleOption("s0", ArgumentProcessing = ArgumentProcessing.RemoveNewlines)]
+            public string S0 { get; set; } = string.Empty;
+
+            [SimpleOption("s1", ArgumentProcessing = ArgumentProcessing.AsIs)]
+            public string S1 { get; set; } = string.Empty;
+
+            [SimpleOption("s2", ArgumentProcessing = ArgumentProcessing.AsIs)]
+            public string S2 { get; set; } = string.Empty;
+
+            [SimpleOption("s3")]
+            public string S3 { get; set; } = string.Empty;
+
+            [SimpleOption("s4")]
+            public string S4 { get; set; } = string.Empty;
+        }
+
+        public async Task RunAsync(StringCommand.Options options, string[] args)
+        {
+            Console.WriteLine("String command:");
+
+            Console.WriteLine($"S0: {options.S0}");
+            Console.WriteLine($"S1: {options.S1}");
+            Console.WriteLine($"S2: {options.S2}");
+            Console.WriteLine($"S3: {options.S3}");
+            Console.WriteLine($"S4: {options.S4}");
+        }
+    }
+
     public class Program
     {
         public static async Task Main(string[] args)
         {
+            var delimiter = "\"\"\"";
+
             var commandTypes = new Type[]
             {
                 typeof(TypeCommand),
+                typeof(StringCommand),
             };
 
-            await SimpleParser.ParseAndRunAsync(commandTypes, "-double a1.2345");
+            // await SimpleParser.ParseAndRunAsync(commandTypes, "-double 1.2345 -String abc");
+            await SimpleParser.ParseAndRunAsync(commandTypes, $"string -s0 \"ab\r\nc\" -s1 'bbb' -s2 {delimiter}a\r\nb\nc{delimiter} -s3 {delimiter}a\r\nb\nc{delimiter} -s4 \\\"test\\\"");
         }
     }
 }

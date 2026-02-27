@@ -45,12 +45,9 @@ public class SimpleParser : ISimpleParser
 
     private class HollowParser : ISimpleParser
     {
-        public Dictionary<Type, Func<string, object?>> TypeConverters { get; } = new();
-
         public HollowParser(SimpleParserOptions parserOptions)
         {
             this.ParserOptions = parserOptions;
-            SimpleParserHelper.InitializeTypeConverter(this);
         }
 
         public SimpleParserOptions ParserOptions { get; }
@@ -903,10 +900,10 @@ public class SimpleParser : ISimpleParser
                 throw new InvalidOperationException();
             }
 
-            if (this.OptionType.IsEnum)
-            {// Enum
+            if (this.OptionType.IsEnum || this.OptionType == typeof(string))
+            {// Enum, string
             }
-            else if (!this.Parser.TypeConverters.ContainsKey(this.OptionType))
+            else if (!SimpleParserHelper.TypeConverters.ContainsKey(this.OptionType))
             {
                 this.OptionClass = new OptionClass(this.Parser, this.OptionType, optionStack);
                 /*if (optionClass.Options.Count > 0)
@@ -932,6 +929,7 @@ public class SimpleParser : ISimpleParser
             this.Required = attribute.Required;
             this.ReadFromEnvironment = attribute.ReadFromEnvironment;
             this.DefaultValueText = attribute.DefaultValueText;
+            this.ArgumentProcessing = attribute.ArgumentProcessing;
             var s = "-" + this.LongName + (this.ShortName == null ? string.Empty : ", -" + this.ShortName);
             if (this.OptionClass != null)
             {
@@ -953,6 +951,7 @@ public class SimpleParser : ISimpleParser
             object value;
             if (this.OptionClass is not null)
             {
+                arg = SimpleParserHelper.ProcessArgument(arg, this.Parser.ParserOptions, this.ArgumentProcessing);
                 var typeIdentifier = this.OptionClass.OptionTypeIdentifier;
                 if (typeIdentifier != 0 && TinyhandTypeIdentifier.IsRegistered(typeIdentifier))
                 {
@@ -999,7 +998,14 @@ public class SimpleParser : ISimpleParser
             {
                 try
                 {
-                    value = this.Parser.TypeConverters[this.OptionType](arg)!;
+                    if (this.OptionType == typeof(string))
+                    {
+                        value = SimpleParserHelper.ProcessArgument(arg, this.Parser.ParserOptions, this.ArgumentProcessing);
+                    }
+                    else
+                    {
+                        value = SimpleParserHelper.TypeConverters[this.OptionType](arg)!;
+                    }
                 }
                 catch
                 {
@@ -1046,6 +1052,8 @@ public class SimpleParser : ISimpleParser
 
         public bool ReadFromEnvironment { get; }
 
+        public ArgumentProcessing ArgumentProcessing { get; }
+
         public bool ValueIsSet { get; internal set; }
 
         public Type OptionType => this.PropertyInfo != null ? this.PropertyInfo.PropertyType : this.FieldInfo!.FieldType;
@@ -1089,7 +1097,6 @@ public class SimpleParser : ISimpleParser
     public SimpleParser(IEnumerable<Type> simpleCommands, SimpleParserOptions? parserOptions = null)
     {
         this.ParserOptions = parserOptions ?? SimpleParserOptions.Standard;
-        SimpleParserHelper.InitializeTypeConverter(this);
 
         Command? firstOrDefault = null;
         this.NameToCommand = new(StringComparer.InvariantCultureIgnoreCase);
@@ -1729,8 +1736,6 @@ public class SimpleParser : ISimpleParser
             this.OptionClassUsage.Add(optionClass);
         }
     }
-
-    public Dictionary<Type, Func<string, object?>> TypeConverters { get; } = new();
 
     private List<string> ErrorMessage { get; }
 
