@@ -36,26 +36,29 @@ Test("A | \"B|C|\"|D|{E}|{FG|}");
 Test($"{{{delimiter}A\"B\"C{delimiter} \"cc\"}}");
 
 Test($"{delimiter}A\r\nB\nC{delimiter}");
-static void Test(string arg)
+
+Test($"&&A\r\nB\nC&&", "&&");
+
+static void Test(string arg, ReadOnlySpan<char> delimiter = default)
 {
     var sb = new StringBuilder();
-    Test2(sb, arg, null);
+    Test2(sb, arg, null, delimiter);
     Console.WriteLine(sb.ToString());
 }
 
-static void Test2(StringBuilder sb, string arg, string[]? formatted)
+static void Test2(StringBuilder sb, string arg, string[]? formatted, ReadOnlySpan<char> delimiter = default)
 {
-    var result = formatted ?? arg.FormatArguments();
+    var result = formatted ?? arg.FormatArguments(delimiter);
     var prefix = formatted is null ? string.Empty : "  /  ";
     sb.Append($"{prefix}{arg}  ->  {string.Join(',', result)}");
     foreach (var x in result)
     {
         if (x.Length >= 2 && x.StartsWith('{') && arg.EndsWith('}'))
         {
-            var result2 = x.Substring(1, x.Length - 2).FormatArguments();
+            var result2 = x.Substring(1, x.Length - 2).FormatArguments(delimiter);
             if (result2.Length > 1)
             {
-                Test2(sb, x, result2);
+                Test2(sb, x, result2, delimiter);
             }
         }
     }

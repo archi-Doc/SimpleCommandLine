@@ -375,6 +375,10 @@ public static class SimpleParserHelper
         return list.ToArray();
     }
 
+    public static string ProcessArgument(string input, ArgumentProcessing argumentProcessing)
+    {
+    }
+
     public static string[] FormatArguments(this ReadOnlySpan<char> span, ReadOnlySpan<char> delimiter = default)
     {
         const char DelimiterChar = 'd';
@@ -565,7 +569,8 @@ AddString:
             var span = x.AsSpan();
             if (span.Length >= parser.ParserOptions.TwoDelimitersLength && span.StartsWith(parser.ParserOptions.ArgumentDelimiter) && span.EndsWith(parser.ParserOptions.ArgumentDelimiter))
             {
-                return x.Substring(3, span.Length - 6);
+                var length = parser.ParserOptions.ArgumentDelimiter.Length;
+                return x.Substring(length, span.Length - length - length);
             }
             else if (span.Length >= 2 && span.StartsWith(SimpleParser.Quote) && span.EndsWith(SimpleParser.Quote))
             {
