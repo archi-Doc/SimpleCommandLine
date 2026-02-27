@@ -27,6 +27,8 @@ public class SimpleParser : ISimpleParser
     public const string SeparatorString = "|";
     public const string CommandString = "Command";
 
+    public static ReadOnlySpan<char> DefaultDelimiter => "\"\"\"";
+
     internal const string RunMethodString = "Run";
     internal const string RunAsyncMethodString = "RunAsync";
     internal const string IndentString = "  ";
@@ -107,7 +109,7 @@ public class SimpleParser : ISimpleParser
             optionClass.optionInstance = original;
         }
 
-        optionClass.Parse(args.FormatArguments(), 0, true);
+        optionClass.Parse(args.FormatArguments(parser.ParserOptions.ArgumentDelimiter), 0, true);
         if (optionClass.FatalError)
         {
             options = default;
@@ -968,7 +970,7 @@ public class SimpleParser : ISimpleParser
                         arg = arg.Substring(1, arg.Length - 2);
                     }
 
-                    var ret = this.OptionClass.Parse(arg.FormatArguments(), 0, acceptUnknownOptionName);
+                    var ret = this.OptionClass.Parse(arg.FormatArguments(this.Parser.ParserOptions.ArgumentDelimiter), 0, acceptUnknownOptionName);
                     if (!ret || this.OptionClass.OptionInstance == null)
                     {
                         return false;
@@ -1241,7 +1243,7 @@ public class SimpleParser : ISimpleParser
     public bool Parse(string arg)
     {
         var ret = true;
-        var arguments = arg.FormatArguments();
+        var arguments = arg.FormatArguments(this.ParserOptions.ArgumentDelimiter);
         this.OriginalArguments = arg;
         this.HelpCommand = null;
         this.VersionCommand = false;

@@ -335,9 +335,9 @@ public static class SimpleParserHelper
 
     public static bool IsOptionString(this ReadOnlySpan<char> text) => text.StartsWith(SimpleParser.OptionPrefix);
 
-    public static string[] SeparateArguments(this string arg)
+    public static string[] SeparateArguments(this string arg, ReadOnlySpan<char> delimiter = default)
     {
-        var args = arg.FormatArguments();
+        var args = arg.FormatArguments(delimiter);
         StringBuilder? sb = default;
         List<string> list = new();
 
@@ -375,7 +375,7 @@ public static class SimpleParserHelper
         return list.ToArray();
     }
 
-    public static string[] FormatArguments(this ReadOnlySpan<char> span)
+    public static string[] FormatArguments(this ReadOnlySpan<char> span, ReadOnlySpan<char> delimiter = default)
     {
         const char DelimiterChar = 'd';
         var list = new List<string>();
@@ -384,6 +384,11 @@ public static class SimpleParserHelper
         var position = 0;
         var nextPosition = 0;
         var enclosed = new Stack<char>();
+        if (delimiter.IsEmpty)
+        {
+            delimiter = SimpleParser.DefaultDelimiter;
+        }
+
         while (position < span.Length)
         {
             var currentChar = span[position];
@@ -400,11 +405,8 @@ public static class SimpleParserHelper
                     nextPosition = position;
                     goto AddString;
                 }
-                else if (currentChar == SimpleParser.Quote &&
-                    (position + 2) < span.Length &&
-                    span[position + 1] == SimpleParser.Quote &&
-                    span[position + 2] == SimpleParser.Quote)
-                {// """A B"""
+                else if (span.Slice(position).StartsWith(delimiter))
+                {// Delimiter """A B"""
                     enclosed.Push(DelimiterChar);
                     nextPosition = position + 3;
                     goto AddString;
@@ -427,24 +429,14 @@ public static class SimpleParserHelper
             {
                 var peek = enclosed.Peek();
 
-                if (currentChar == SimpleParser.Quote &&
-                    (position + 2) < span.Length &&
-                    span[position + 1] == SimpleParser.Quote &&
-                    span[position + 2] == SimpleParser.Quote)
+                if (span.Slice(position).StartsWith(delimiter))
                 {// """
-                    var index = 3;
-                    while ((position + index) < span.Length &&
-                        span[position + index] == SimpleParser.Quote)
-                    {
-                        index++;
-                    }
-
                     if (enclosed.Peek() == DelimiterChar)
                     {// """abc"""
                         enclosed.Pop();
                         if (enclosed.Count == 0)
                         {
-                            position += index;
+                            position += delimiter.Length;
                             nextPosition = position;
                             goto AddString;
                         }

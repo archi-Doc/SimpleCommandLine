@@ -6,6 +6,7 @@ using SimpleCommandLine;
 
 #pragma warning disable SA1516 // Elements should be separated by blank line
 
+var delimiter = "\"\"\"";
 Console.WriteLine("Arguments test");
 
 Test(string.Empty);
@@ -32,6 +33,9 @@ Test("-options \"--env lpargs='-pass 1'\"");
 Test("A | B|C");
 Test("A | \"B|C|\"|D|{E}|{FG|}");
 
+Test($"{delimiter}A\"B\"C{delimiter}");
+
+Test($"{delimiter}A\r\nB\nC{delimiter}");
 static void Test(string arg)
 {
     var sb = new StringBuilder();
