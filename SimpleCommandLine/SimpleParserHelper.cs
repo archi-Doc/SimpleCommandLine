@@ -415,37 +415,44 @@ public static class SimpleParserHelper
             span = span.Slice(1, span.Length - 2);
         }
 
-        if (argumentProcessing == ArgumentProcessing.AsIs ||
-            !span.Contains('\n'))
-        {// If the value has changed, create a new string; otherwise, return the original string.
-            if (span.Length == arg.Length)
-            {
-                return arg;
-            }
-            else
-            {
-                return span.ToString();
-            }
-        }
-
         if (argumentProcessing == ArgumentProcessing.RemoveNewlines)
         {
-            var removeCount = 0;
+            var subtraction = 0;
             for (var i = 0; i < span.Length; i++)
             {
                 if (span[i] == '\r' || span[i] == '\n')
                 {
-                    removeCount++;
+                    subtraction++;
+                }
+                else if (span[i] == '\\' && i + 1 < span.Length &&
+                    (span[i + 1] == '\'' || span[i + 1] == '\"'))
+                {// Unescape \' \"
+                    i++;
+                    subtraction++;
                 }
             }
 
-            var resultLength = span.Length - removeCount;
+            if (subtraction == 0)
+            {
+                goto Exit;
+            }
+
+            var resultLength = span.Length - subtraction;
             return string.Create(resultLength, span, static (dest, src) =>
             {
                 var position = 0;
                 for (var i = 0; i < src.Length; i++)
                 {
-                    if (src[i] != '\r' && src[i] != '\n')
+                    if (src[i] == '\r' || src[i] == '\n')
+                    {
+                    }
+                    else if (src[i] == '\\' && i + 1 < src.Length &&
+                    (src[i + 1] == '\'' || src[i + 1] == '\"'))
+                    {// Unescape \' \"
+                        dest[position++] = src[i + 1];
+                        i++;
+                    }
+                    else
                     {
                         dest[position++] = src[i];
                     }
@@ -454,8 +461,27 @@ public static class SimpleParserHelper
         }
         else if (argumentProcessing == ArgumentProcessing.ReplaceNewlinesWithSpace)
         {
-            var removeCount = span.Count('\r');
-            var resultLength = span.Length - removeCount;
+            var subtraction = 0;
+            for (var i = 0; i < span.Length; i++)
+            {
+                if (span[i] == '\r')
+                {// Remove \r
+                    subtraction++;
+                }
+                else if (span[i] == '\\' && i + 1 < span.Length &&
+                    (span[i + 1] == '\'' || span[i + 1] == '\"'))
+                {// Unescape \' \"
+                    i++;
+                    subtraction++;
+                }
+            }
+
+            if (subtraction == 0)
+            {
+                goto Exit;
+            }
+
+            var resultLength = span.Length - subtraction;
             return string.Create(resultLength, span, static (dest, src) =>
             {
                 var position = 0;
@@ -468,6 +494,12 @@ public static class SimpleParserHelper
                     {// \n -> Space
                         dest[position++] = ' ';
                     }
+                    else if (src[i] == '\\' && i + 1 < src.Length &&
+                    (src[i + 1] == '\'' || src[i + 1] == '\"'))
+                    {// Unescape \' \"
+                        dest[position++] = src[i + 1];
+                        i++;
+                    }
                     else
                     {
                         dest[position++] = src[i];
@@ -476,7 +508,16 @@ public static class SimpleParserHelper
             });
         }
 
-        return arg;
+Exit:
+// If the value has changed, create a new string; otherwise, return the original string.
+        if (span.Length == arg.Length)
+        {
+            return arg;
+        }
+        else
+        {
+            return span.ToString();
+        }
     }
 
     public static string[] FormatArguments(this ReadOnlySpan<char> span, ReadOnlySpan<char> delimiter = default)
