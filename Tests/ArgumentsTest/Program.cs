@@ -33,7 +33,7 @@ Test("-options \"--env lpargs='-pass 1'\"");
 Test("A | B|C");
 Test("A | \"B|C|\"|D|{E}|{FG|}");
 
-Test($"{delimiter}A\"B\"C{delimiter}");
+Test($"{{{delimiter}A\"B\"C{delimiter} \"cc\"}}");
 
 Test($"{delimiter}A\r\nB\nC{delimiter}");
 static void Test(string arg)

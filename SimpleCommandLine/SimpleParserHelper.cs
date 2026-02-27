@@ -431,7 +431,7 @@ public static class SimpleParserHelper
 
                 if (span.Slice(position).StartsWith(delimiter))
                 {// """
-                    if (enclosed.Peek() == DelimiterChar)
+                    if (peek == DelimiterChar)
                     {// """abc"""
                         enclosed.Pop();
                         if (enclosed.Count == 0)
