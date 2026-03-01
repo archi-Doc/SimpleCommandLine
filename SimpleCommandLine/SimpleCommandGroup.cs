@@ -3,6 +3,7 @@
 using System;
 using System.Threading.Tasks;
 using Arc.Unit;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace SimpleCommandLine;
 
@@ -19,8 +20,9 @@ public abstract class SimpleCommandGroup<TCommand> : ISimpleCommandAsync
     /// <param name="context"><see cref="UnitBuilderContext"/>.</param>
     /// <param name="parentCommand"><see cref="Type"/> of the parent command.<br/>
     /// <see langword="null"/>: No parent.</param>
+    /// <param name="lifetime">The service lifetime for the command.</param>
     /// <returns><see cref="CommandGroup"/>.</returns>
-    public static CommandGroup ConfigureGroup(IUnitConfigurationContext context, Type? parentCommand = null)
+    public static CommandGroup ConfigureGroup(IUnitConfigurationContext context, Type? parentCommand = null, ServiceLifetime lifetime = ServiceLifetime.Scoped)
     {
         var commandType = typeof(TCommand);
 
@@ -35,7 +37,7 @@ public abstract class SimpleCommandGroup<TCommand> : ISimpleCommandAsync
             group = context.GetSubcommandGroup();
         }
 
-        group.AddCommand(commandType);
+        group.AddCommand(commandType, lifetime);
 
         // Get the command group.
         group = context.GetCommandGroup(commandType);
