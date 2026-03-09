@@ -4,13 +4,15 @@ using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 using Arc;
+using Arc.Unit;
+using Microsoft.Extensions.DependencyInjection;
 using Tinyhand;
 
 namespace SimpleCommandLine;
@@ -60,28 +62,6 @@ public class SimpleParser : ISimpleParser
         {
         }
     }
-
-    /*public static TOptions ParseOptions<TOptions>(string[] args, TOptions original)
-        => ParseOptions(string.Join(' ', args), original);
-
-    public static TOptions ParseOptions<TOptions>(string args, TOptions original)
-    {
-        var parser = new HollowParser(SimpleParserOptions.Standard);
-
-        var arguments = args.FormatArguments();
-        var optionClass = new OptionClass(parser, typeof(TOptions), null);
-        optionClass.optionInstance = original;
-
-        optionClass.Parse(arguments, 0, true);
-
-        if (!optionClass.FatalError &&
-            optionClass.OptionInstance is TOptions options)
-        {
-            return options;
-        }
-
-        return original;
-    }*/
 
     public static bool TryParseOptions<TOptions>(string[] args, [MaybeNullWhen(false)] out TOptions options, TOptions? original = default)
         => TryParseOptions(string.Join(' ', args), out options, original);
@@ -1102,6 +1082,7 @@ public class SimpleParser : ISimpleParser
     public SimpleParser(IEnumerable<Type> simpleCommands, SimpleParserOptions? parserOptions = null)
     {
         this.ParserOptions = parserOptions ?? SimpleParserOptions.Standard;
+        this.consoleService = this.ParserOptions.ServiceProvider?.GetService<IConsoleService>();
 
         Command? firstOrDefault = null;
         this.NameToCommand = new(StringComparer.InvariantCultureIgnoreCase);
@@ -1544,7 +1525,7 @@ public class SimpleParser : ISimpleParser
         if (string.IsNullOrEmpty(command) && this.ParserOptions.DisplayCommandListAsHelp)
         {
             this.AppendList(sb);
-            Console.WriteLine(sb.ToString());
+            this.WriteLine(sb.ToString());
             return;
         }
 
@@ -1575,7 +1556,7 @@ public class SimpleParser : ISimpleParser
             x.AppendOption(sb, true);
         }
 
-        Console.Out.WriteLine(sb);
+        this.WriteLine(sb.ToString());
     }
 
     /// <summary>
@@ -1590,7 +1571,7 @@ public class SimpleParser : ISimpleParser
             st = $"{prefix} {st}";
         }
 
-        Console.Out.WriteLine($"{st}");
+        this.WriteLine($"{st}");
 
         /*var asm = Assembly.GetEntryAssembly();
         var version = "1.0.0";
@@ -1608,7 +1589,7 @@ public class SimpleParser : ISimpleParser
             }
         }
 
-        Console.WriteLine(version);*/
+        this.WriteLine(version);*/
     }
 
     /// <summary>
@@ -1621,7 +1602,7 @@ public class SimpleParser : ISimpleParser
         var array = this.NameToCommand.Keys.OrderBy(static x => x, StringComparer.OrdinalIgnoreCase).ToArray();
         if (array.Length == 0)
         {
-            Console.Out.WriteLine();
+            this.WriteLine();
             return;
         }
 
@@ -1639,7 +1620,7 @@ public class SimpleParser : ISimpleParser
         var columnWidth = Math.Min(Math.Min(max, maxLength), windowWidth);
         if (columnWidth == 0)
         {
-            Console.Out.WriteLine();
+            this.WriteLine();
             return;
         }
 
@@ -1690,7 +1671,7 @@ public class SimpleParser : ISimpleParser
                 span = span.Slice(columnWidth + 1);
             }
 
-            Console.Out.WriteLine(buffer);
+            this.WriteLine(buffer);
         }
     }
 
@@ -1728,8 +1709,6 @@ public class SimpleParser : ISimpleParser
 
     public Dictionary<string, Command> AliasToCommand { get; private set; }
 
-    // public Dictionary<Type, Command> TypeToCommand { get; private set; }
-
     public void AddErrorMessage(string message) => this.ErrorMessage.Add(message);
 
     public bool RequireStrictOptionName => this.ParserOptions.RequireStrictOptionName;
@@ -1741,6 +1720,8 @@ public class SimpleParser : ISimpleParser
             this.OptionClassUsage.Add(optionClass);
         }
     }
+
+    private readonly IConsoleService? consoleService;
 
     private List<string> ErrorMessage { get; }
 
@@ -1788,5 +1769,18 @@ public class SimpleParser : ISimpleParser
         }
 
         sb.AppendLine();
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void WriteLine(ReadOnlySpan<char> message = default)
+    {
+        if (this.consoleService is null)
+        {
+            Console.Out.WriteLine(message);
+        }
+        else
+        {
+            this.consoleService.WriteLine(message);
+        }
     }
 }
