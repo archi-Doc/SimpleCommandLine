@@ -1783,4 +1783,17 @@ public class SimpleParser : ISimpleParser
             this.consoleService.WriteLine(message);
         }
     }
+
+    /*[MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void WriteLine(string? message = default)
+    {
+        if (this.consoleService is null)
+        {
+            Console.Out.WriteLine(message);
+        }
+        else
+        {
+            this.consoleService.WriteLine(message);
+        }
+    }*/
 }
