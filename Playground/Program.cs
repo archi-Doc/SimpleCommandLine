@@ -291,6 +291,7 @@ public class Program
         await p.ParseAndRunAsync("test3 -help");
         await p.ParseAndRunAsync("help test3");*/
 
+        await p.ParseAndRunAsync("test3 -abc");
         await p.ParseAndRunAsync("test3 -A 2 -B 3.2 -C {Name=abc1} -Class1 {Name=asdf}");
         await p.ParseAndRunAsync("test3 -A 2 -B 3.2 -C {Name=abc2} -Class1 qwer");
         await p.ParseAndRunAsync("test3 -A 2 -B 3.2 -C {Name=abc3} -Class1 {123}");
