@@ -1772,7 +1772,7 @@ public class SimpleParser : ISimpleParser
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void WriteLine(ReadOnlySpan<char> message = default)
+    private void WriteLine(ReadOnlySpan<char> message)
     {
         if (this.consoleService is null)
         {
@@ -1784,7 +1784,7 @@ public class SimpleParser : ISimpleParser
         }
     }
 
-    /*[MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void WriteLine(string? message = default)
     {
         if (this.consoleService is null)
@@ -1795,5 +1795,5 @@ public class SimpleParser : ISimpleParser
         {
             this.consoleService.WriteLine(message);
         }
-    }*/
+    }
 }
