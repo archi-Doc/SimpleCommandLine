@@ -9,6 +9,8 @@ using SimpleCommandLine;
 var delimiter = "\"\"\"";
 Console.WriteLine("Arguments test");
 
+Test($"{{E, 'F', \"G\"}}");
+
 // Test(string.Empty);
 Test("\\\"test\\\"");
 Test("-n 99");
@@ -38,6 +40,8 @@ Test($"{{{delimiter}A\"B\"C{delimiter} \"cc\"}}");
 Test($"{delimiter}A\r\nB\nC{delimiter}");
 
 Test($"&&A\r\nB\nC&&", "&&");
+
+Test($"A 'B' \"C\" {{D}} {{E 'F', \"G\"}}");
 
 static void Test(string arg, ReadOnlySpan<char> delimiter = default)
 {
