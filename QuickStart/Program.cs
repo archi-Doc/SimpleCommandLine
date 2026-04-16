@@ -17,7 +17,7 @@ public class TestOptions
 }
 
 [SimpleCommand("test", Description = "Test command.")] // Annotate SimpleCommandAttribute and specify a command name and description.
-public class TestCommand : ISimpleCommandAsync<TestOptions> // Implementation of either ISimpleCommandAsync<T> or ISimpleCommand<T> is required.
+public class TestCommand : ISimpleCommandAsync<TestOptions> // Implementation of either ISimpleCommand or ISimpleCommand<TOption> is required.
 {// Command class handles the command function.
     public async Task RunAsync(TestOptions option, string[] args, CancellationToken cancellationToken)
     {// RunAsync() method will be called if you specify "test" command-line argument.
@@ -35,7 +35,7 @@ public class Program
     public static async Task Main(string[] args)
     {
         // An array of command types.
-        // Command type must have SimpleCommandAttribute and implement ISimpleCommandAsync<T> or ISimpleCommand<T>.
+        // Command type must have SimpleCommandAttribute and implement ISimpleCommand or ISimpleCommand<TOption>.
         var commandTypes = new Type[]
         {
             typeof(TestCommand),

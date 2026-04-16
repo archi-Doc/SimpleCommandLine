@@ -102,7 +102,7 @@ public class SimpleParser : ISimpleParser
     {
         public Command(SimpleParser parser, Type commandType, SimpleCommandAttribute attribute)
         {
-            const string MultipleInterfacesException = "Type {0} can implement only one ISimpleCommand or ISimpleCommandAsync interface.";
+            const string MultipleInterfacesException = "Type {0} can implement only single ISimpleCommand interface.";
 
             this.Parser = parser;
             this.CommandType = commandType;
@@ -119,18 +119,6 @@ public class SimpleParser : ISimpleParser
 
             foreach (var y in commandType.GetInterfaces())
             {
-                /*if (y == typeof(ISimpleCommand))
-                {
-                    if (this.CommandInterface == null)
-                    {
-                        this.CommandInterface = y;
-                    }
-                    else
-                    {
-                        throw new InvalidOperationException(string.Format(MultipleInterfacesException, commandType.ToString()));
-                    }
-                }
-                else */
                 if (y == typeof(ISimpleCommandAsync))
                 {
                     if (this.CommandInterface == null)
@@ -145,7 +133,7 @@ public class SimpleParser : ISimpleParser
                 else if (y.IsGenericType)
                 {
                     var z = y.GetGenericTypeDefinition();
-                    if (/*z == typeof(ISimpleCommand<>) || */z == typeof(ISimpleCommandAsync<>))
+                    if (z == typeof(ISimpleCommandAsync<>))
                     {
                         if (this.CommandInterface == null)
                         {
@@ -162,7 +150,7 @@ public class SimpleParser : ISimpleParser
 
             if (this.CommandInterface == null)
             {
-                throw new InvalidOperationException($"Type \"{commandType.ToString()}\" must implement ISimpleCommand or ISimpleCommandAsync.");
+                throw new InvalidOperationException($"Type \"{commandType.ToString()}\" must implement ISimpleCommand or ISimpleCommand<TOption>.");
             }
 
             if (this.Parser.ParserOptions.ServiceProvider == null && this.CommandType.GetConstructor(Type.EmptyTypes) == null)
@@ -244,30 +232,13 @@ public class SimpleParser : ISimpleParser
                     await task;
                 }
             }
-
-            /*else if (this.CommandInterface == typeof(ISimpleCommand))
-            {// void Run(string[] args);
-                this.runMethod.Invoke(this.CommandInstance, [args]);
-            }
-            else if (this.CommandInterface == typeof(ISimpleCommand<>))
-            {// void Run(Options option, string[] args);
-                this.runMethod.Invoke(this.CommandInstance, [this.OptionClass.OptionInstance!, args]);
-            }*/
         }
 
         public void Run()
         {
             var args = this.OptionClass.RemainingArguments ?? Array.Empty<string>();
 
-            /*if (this.CommandInterface == typeof(ISimpleCommand))
-            {// void Run(string[] args);
-                this.runMethod.Invoke(this.CommandInstance, [args]);
-            }
-            else if (this.CommandInterface == typeof(ISimpleCommand<>))
-            {// void Run(Options option, string[] args);
-                this.runMethod.Invoke(this.CommandInstance, [this.OptionClass.OptionInstance!, args]);
-            }
-            else */if (this.CommandInterface == typeof(ISimpleCommandAsync))
+            if (this.CommandInterface == typeof(ISimpleCommandAsync))
             {// Task RunAsync(string[] args);
                 var task = (Task?)this.runMethod.Invoke(this.CommandInstance, [args]);
                 task?.Wait();
@@ -342,35 +313,7 @@ public class SimpleParser : ISimpleParser
 
             var methods = this.CommandType.GetMethods(BindingFlags.Public | BindingFlags.Instance).Where(x => x.Name == methodString);
 
-            /*if (this.CommandInterface == typeof(ISimpleCommand))
-            {
-                foreach (var x in methods)
-                {
-                    if (x.ReturnType == typeof(void))
-                    {
-                        var parameters = x.GetParameters();
-                        if (parameters.Length == 1 && parameters[0].ParameterType == typeof(string[]))
-                        {// void Run(string[] args);
-                            return x;
-                        }
-                    }
-                }
-            }
-            else if (this.CommandInterface == typeof(ISimpleCommand<>))
-            {
-                foreach (var x in methods)
-                {
-                    if (x.ReturnType == typeof(void))
-                    {
-                        var parameters = x.GetParameters();
-                        if (parameters.Length == 2 && parameters[0].ParameterType == this.OptionType && parameters[1].ParameterType == typeof(string[]))
-                        {// void Run(Options option, string[] args);
-                            return x;
-                        }
-                    }
-                }
-            }
-            else */if (this.CommandInterface == typeof(ISimpleCommandAsync))
+            if (this.CommandInterface == typeof(ISimpleCommandAsync))
             {
                 foreach (var x in methods)
                 {
