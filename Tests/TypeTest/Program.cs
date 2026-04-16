@@ -1,6 +1,7 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using SimpleCommandLine;
 
@@ -65,9 +66,9 @@ namespace ConsoleApp1
     }
 
     [SimpleCommand("type")]
-    public class TypeCommand : ISimpleCommandAsync<TypeOptions>
+    public class TypeCommand : ISimpleCommand<TypeOptions>
     {
-        public async Task RunAsync(TypeOptions option, string[] args)
+        public async Task Execute(TypeOptions option, string[] args, CancellationToken cancellationToken)
         {
             Console.WriteLine("Test command:");
             Console.WriteLine($"SByte: {option.SByte}");
@@ -89,7 +90,7 @@ namespace ConsoleApp1
     }
 
     [SimpleCommand("string")]
-    public class StringCommand : ISimpleCommandAsync<StringCommand.Options>
+    public class StringCommand : ISimpleCommand<StringCommand.Options>
     {
         public class Options
         {
@@ -109,7 +110,7 @@ namespace ConsoleApp1
             public string S4 { get; set; } = string.Empty;
         }
 
-        public async Task RunAsync(StringCommand.Options options, string[] args)
+        public async Task Execute(StringCommand.Options options, string[] args, CancellationToken cancellationToken)
         {
             Console.WriteLine("String command:");
 
@@ -133,8 +134,8 @@ namespace ConsoleApp1
                 typeof(StringCommand),
             };
 
-            // await SimpleParser.ParseAndRunAsync(commandTypes, "-double 1.2345 -String abc");
-            await SimpleParser.ParseAndRunAsync(commandTypes, $"string -s0 \"ab\r\nc\" -s1 'bbb' -s2 {delimiter}a\r\nb\nc{delimiter} -s3 {delimiter}a\r\nb\nc{delimiter} -s4 \\\"test\\\"");
+            // await SimpleParser.ParseAndExecute(commandTypes, "-double 1.2345 -String abc");
+            await SimpleParser.ParseAndExecute(commandTypes, $"string -s0 \"ab\r\nc\" -s1 'bbb' -s2 {delimiter}a\r\nb\nc{delimiter} -s3 {delimiter}a\r\nb\nc{delimiter} -s4 \\\"test\\\"");
         }
     }
 }

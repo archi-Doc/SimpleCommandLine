@@ -1,6 +1,7 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Arc.Unit;
 using Microsoft.Extensions.DependencyInjection;
@@ -11,7 +12,7 @@ namespace SimpleCommandLine;
 /// <see cref="SimpleCommandGroup{TCommand}"/> is base class for a group of commands.
 /// </summary>
 /// <typeparam name="TCommand">The type of command group.</typeparam>
-public abstract class SimpleCommandGroup<TCommand> : ISimpleCommandAsync
+public abstract class SimpleCommandGroup<TCommand> : ISimpleCommand
     where TCommand : SimpleCommandGroup<TCommand>
 {
     /// <summary>
@@ -78,15 +79,16 @@ public abstract class SimpleCommandGroup<TCommand> : ISimpleCommandAsync
     /// The default argument will be used if the argument is empty.
     /// </summary>
     /// <param name="args">The arguments to specify commands and options.</param>
+    /// <param name="cancellationToken">A token used to cancel command execution.</param>
     /// <returns><see cref="Task"/>.</returns>
-    public async Task RunAsync(string[] args)
+    public Task Execute(string[] args, CancellationToken cancellationToken)
     {
         if (args.Length == 0 && this.defaultArgument != null)
         {// Default argument
             args = [this.defaultArgument,];
         }
 
-        await this.SimpleParser.ParseAndRunAsync(args).ConfigureAwait(false);
+        return this.SimpleParser.ParseAndExecute(args);
     }
 
     /// <summary>

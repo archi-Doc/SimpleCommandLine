@@ -1,6 +1,7 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Arc;
 using Arc.Unit;
@@ -33,20 +34,6 @@ public class CommandService : ICommandService
     }
 }
 
-[SimpleCommand("test")]
-public class ObsoleteCommand
-{
-    [SimpleOption("number", ShortName = "n")]
-    public int N { get; set; } = 10;
-
-    public async Task Run(string[] args)
-    {
-        Console.WriteLine("Test command");
-        await Task.Delay(4000);
-        Console.WriteLine($"N is {this.N}");
-    }
-}
-
 public enum TestEnum
 {
     Yes,
@@ -54,7 +41,7 @@ public enum TestEnum
     Hanbun,
 }
 
-public record TestOptions
+public record class TestOptions
 {
     [SimpleOption("directory", Description = "base directory for storing application data")]
     public string Directory { get; set; } = string.Empty;
@@ -132,14 +119,14 @@ public partial record TestClass : IStringConvertible<TestClass>
 }
 
 [SimpleCommand("test", Description = "description", Alias = "t")]
-public class TestCommand : ISimpleCommandAsync<TestOptions>
+public class TestCommand : ISimpleCommand<TestOptions>
 {
     public TestCommand(ICommandService commandService)
     {
         this.CommandService = commandService;
     }
 
-    public async Task RunAsync(TestOptions options, string[] args)
+    public async Task Execute(TestOptions options, string[] args, CancellationToken cancellationToken)
     {
         Console.WriteLine("test command");
         Console.WriteLine();
@@ -170,7 +157,7 @@ public class DerivedCommand : TestCommand
     {
     }
 
-    public new async Task RunAsync(TestOptions options, string[] args)
+    public new async Task Execute(TestOptions options, string[] args, CancellationToken cancellationToken)
     {
         Console.WriteLine("derived command");
     }
@@ -179,23 +166,23 @@ public class DerivedCommand : TestCommand
 [SimpleCommand("nested-command", IsSubcommand = true)]
 public class SyncCommand : ISimpleCommand
 {
-    public void Run(string[] args)
+    public async Task Execute(string[] args, CancellationToken cancellationToken)
     {
-        SimpleParser.ParseAndRun(new[] { typeof(TestCommand2) }, args);
+        await SimpleParser.ParseAndExecute(new[] { typeof(TestCommand2) }, args);
     }
 }
 
 [SimpleCommand("test2")]
-public class TestCommand2 : ISimpleCommandAsync
+public class TestCommand2 : ISimpleCommand
 {
-    public async Task RunAsync(string[] args)
+    public async Task Execute(string[] args, CancellationToken cancellationToken)
     {
         Console.WriteLine("Test2");
     }
 }
 
 [SimpleCommand("test3")]
-public class TestCommand3 : ISimpleCommandAsync<TestCommand3.Options>
+public class TestCommand3 : ISimpleCommand<TestCommand3.Options>
 {
     public record class Options
     {
@@ -219,7 +206,7 @@ public class TestCommand3 : ISimpleCommandAsync<TestCommand3.Options>
         this.consoleService = consoleService;
     }
 
-    public async Task RunAsync(Options options, string[] args)
+    public async Task Execute(Options options, string[] args, CancellationToken cancellationToken)
     {
         this.consoleService.WriteLine($"Test3: {options}", ConsoleColor.Red);
     }
@@ -281,35 +268,27 @@ public class Program
         // var b = SimpleParser.TryParseOptions<TestOptions>("test  -targetip '127.0.0.1' \"testdir\" -targetport 123 -enum hanbun", out options);
         // b = SimpleParser.TryParseOptions<TestOptions>("-enum Yes", out options, options);
 
-        // await RunArg("", parserOptions);
-
-        // await SimpleParser.ParseAndRunAsync(commandTypes, args, parserOptions); // Main process
+        // await SimpleParser.ParseAndExecute(commandTypes, args, parserOptions); // Main process
 
         var p = new SimpleParser(commandTypes, parserOptions);
 
-        /*await p.ParseAndRunAsync("test3 help");
-        await p.ParseAndRunAsync("test3 -help");
-        await p.ParseAndRunAsync("help test3");*/
+        /*await p.ParseAndExecute("test3 help");
+        await p.ParseAndExecute("test3 -help");
+        await p.ParseAndExecute("help test3");*/
 
-        await p.ParseAndRunAsync("test3 -abc");
-        await p.ParseAndRunAsync("test3 -A 2 -B 3.2 -C {Name=abc1} -Class1 {Name=asdf}");
-        await p.ParseAndRunAsync("test3 -A 2 -B 3.2 -C {Name=abc2} -Class1 qwer");
-        await p.ParseAndRunAsync("test3 -A 2 -B 3.2 -C {Name=abc3} -Class1 {123}");
+        await p.ParseAndExecute("test3 -abc");
+        await p.ParseAndExecute("test3 -A 2 -B 3.2 -C {Name=abc1} -Class1 {Name=asdf}");
+        await p.ParseAndExecute("test3 -A 2 -B 3.2 -C {Name=abc2} -Class1 qwer");
+        await p.ParseAndExecute("test3 -A 2 -B 3.2 -C {Name=abc3} -Class1 {123}");
 
-        /*await p.ParseAndRunAsync("test -targetip ttt -A 2 -B 3");
-        await p.ParseAndRunAsync("test help");
+        /*await p.ParseAndExecute("test -targetip ttt -A 2 -B 3");
+        await p.ParseAndExecute("test help");
         p.Parse("t -mode receive -targetport 1000 -enum hanbun -n 999"); // -port 12211 -targetip 127.0.0.1
-        await p.RunAsync();*/
+        await p.Execute();*/
 
         /*var p = SimpleParser.Parse(commandTypes, args);
-        p.Run();
+        p.Execute();
         p.ShowHelp();*/
-
-        async Task RunArg(string arg, SimpleCommandLine.SimpleParserOptions options)
-        {
-            Console.WriteLine(arg);
-            await SimpleParser.ParseAndRunAsync(commandTypes!, arg, options);
-        }
 
         container.Dispose();
     }

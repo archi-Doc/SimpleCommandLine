@@ -1,6 +1,7 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using DryIoc;
 using SimpleCommandLine;
@@ -36,14 +37,14 @@ namespace ConsoleApp1
     }
 
     [SimpleCommand("test")]
-    public class TestCommand : ISimpleCommandAsync<TestOptions>
+    public class TestCommand : ISimpleCommand<TestOptions>
     {
         public TestCommand(ICommandService commandService)
         {
             this.CommandService = commandService;
         }
 
-        public async Task RunAsync(TestOptions options, string[] args)
+        public async Task Execute(TestOptions options, string[] args, CancellationToken cancellationToken)
         {
             this.CommandService.Enter(string.Empty);
 
@@ -58,9 +59,9 @@ namespace ConsoleApp1
     }
 
     [SimpleCommand("test2")]
-    public class TestCommand2 : ISimpleCommandAsync
+    public class TestCommand2 : ISimpleCommand
     {
-        public async Task RunAsync(string[] args)
+        public async Task Execute(string[] args, CancellationToken cancellationToken)
         {
         }
     }
@@ -91,7 +92,7 @@ namespace ConsoleApp1
                 RequireStrictOptionName = true,
             };
 
-            await SimpleParser.ParseAndRunAsync(commandTypes, args, parserOptions);
+            await SimpleParser.ParseAndExecute(commandTypes, args, parserOptions);
 
             container.Dispose();
         }

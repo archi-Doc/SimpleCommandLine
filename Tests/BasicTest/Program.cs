@@ -1,6 +1,7 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using SimpleCommandLine;
 
@@ -27,9 +28,9 @@ namespace ConsoleApp1
     }
 
     [SimpleCommand("test")]
-    public class TestCommand : ISimpleCommandAsync<TestOptions>
+    public class TestCommand : ISimpleCommand<TestOptions>
     {
-        public async Task RunAsync(TestOptions option, string[] args)
+        public async Task Execute(TestOptions option, string[] args, CancellationToken cancellationToken)
         {
             Console.WriteLine("Test command:");
             Console.WriteLine($"{option.Name}, {option.Number}, {option.Options5}");
@@ -39,7 +40,7 @@ namespace ConsoleApp1
     [SimpleCommand("test2")]
     public class TestCommand2 : ISimpleCommand
     {
-        public void Run(string[] args)
+        public async Task Execute(string[] args, CancellationToken cancellationToken)
         {
             Console.WriteLine("Test command2:");
         }
@@ -66,7 +67,7 @@ namespace ConsoleApp1
     [SimpleCommand("test3")]
     public class TestCommand3 : ISimpleCommand<TestOptions3>
     {
-        public void Run(TestOptions3 option, string[] args)
+        public async Task Execute(TestOptions3 option, string[] args, CancellationToken cancellationToken)
         {
             Console.WriteLine("Test command3:");
             Console.WriteLine($"Test: {option.Text}");
@@ -108,11 +109,11 @@ namespace ConsoleApp1
             var b = SimpleParser.TryParseOptions<TestOptions4>(string.Empty, out var op4b);
             b = SimpleParser.TryParseOptions<TestOptions4>(string.Empty, out op4b, op4);
 
-            // await SimpleParser.ParseAndRunAsync(commandTypes, args);
-            await SimpleParser.ParseAndRunAsync(commandTypes, "test \"\"\"ab\"c\"\"\" -ab 23");
+            // await SimpleParser.ParseAndExecute(commandTypes, args);
+            await SimpleParser.ParseAndExecute(commandTypes, "test \"\"\"ab\"c\"\"\" -ab 23");
             Console.WriteLine();
 
-            await SimpleParser.ParseAndRunAsync(commandTypes, "oioi");
+            await SimpleParser.ParseAndExecute(commandTypes, "oioi");
 
             var simpleParser = new SimpleParser(commandTypes);
             if (simpleParser.TryGetCommand("test", out var command))
@@ -125,13 +126,13 @@ namespace ConsoleApp1
                 option.DefaultValueText = "default value is...";
             }
 
-            await simpleParser.ParseAndRunAsync("test -help");
+            await simpleParser.ParseAndExecute("test -help");
 
-            // await SimpleParser.ParseAndRunAsync(commandTypes, "test3 -t aa -options3b }-name2 ya -name tst} "); // -options {-n 99}
-            // await SimpleParser.ParseAndRunAsync(commandTypes, "-n 12 -op5 {-file \"jj\"}"); // -options {-n 99}
-            // await SimpleParser.ParseAndRunAsync(commandTypes, "test3 -text aaa -options3b -encodedCommand ewB9AA== -inputFormat xml -outputFormat text");
+            // await SimpleParser.ParseAndExecute(commandTypes, "test3 -t aa -options3b }-name2 ya -name tst} "); // -options {-n 99}
+            // await SimpleParser.ParseAndExecute(commandTypes, "-n 12 -op5 {-file \"jj\"}"); // -options {-n 99}
+            // await SimpleParser.ParseAndExecute(commandTypes, "test3 -text aaa -options3b -encodedCommand ewB9AA== -inputFormat xml -outputFormat text");
 
-            // await SimpleParser.ParseAndRunAsync(commandTypes, "help");
+            // await SimpleParser.ParseAndExecute(commandTypes, "help");
         }
     }
 }
