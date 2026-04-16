@@ -8,9 +8,9 @@ namespace SimpleCommandLine;
 /// <summary>
 /// A simple command class with an options class requires an implementation of <seealso cref="ISimpleCommandAsync{T}"/>.
 /// </summary>
-/// <typeparam name="T">The type of options class.</typeparam>
-public interface ISimpleCommandAsync<T>
-    where T : new()
+/// <typeparam name="TOption">The type of options class.</typeparam>
+public interface ISimpleCommandAsync<TOption>
+    where TOption : new()
 {
     /// <summary>
     /// The asynchronous method called when the command is executed.
@@ -19,7 +19,7 @@ public interface ISimpleCommandAsync<T>
     /// <param name="args">The remaining command-line arguments.</param>
     /// <param name="cancellationToken">A token used to cancel command execution.</param>
     /// <returns>A task that represents the command execution.</returns>
-    Task RunAsync(T option, string[] args, CancellationToken cancellationToken);
+    Task RunAsync(TOption option, string[] args, CancellationToken cancellationToken);
 }
 
 /// <summary>

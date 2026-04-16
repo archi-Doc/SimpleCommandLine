@@ -55,7 +55,7 @@ public enum TestEnum
     Hanbun,
 }
 
-public record TestOptions
+public record class TestOptions
 {
     [SimpleOption("directory", Description = "base directory for storing application data")]
     public string Directory { get; set; } = string.Empty;
