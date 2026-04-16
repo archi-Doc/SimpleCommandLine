@@ -118,7 +118,7 @@ public class SimpleParser : ISimpleParser
 
             foreach (var y in commandType.GetInterfaces())
             {
-                if (y == typeof(ISimpleCommandAsync))
+                if (y == typeof(ISimpleCommand))
                 {
                     if (this.CommandInterface == null)
                     {
@@ -132,7 +132,7 @@ public class SimpleParser : ISimpleParser
                 else if (y.IsGenericType)
                 {
                     var z = y.GetGenericTypeDefinition();
-                    if (z == typeof(ISimpleCommandAsync<>))
+                    if (z == typeof(ISimpleCommand<>))
                     {
                         if (this.CommandInterface == null)
                         {
@@ -174,7 +174,7 @@ public class SimpleParser : ISimpleParser
         {
             var args = this.OptionClass.RemainingArguments ?? Array.Empty<string>();
 
-            if (this.CommandInterface == typeof(ISimpleCommandAsync))
+            if (this.CommandInterface == typeof(ISimpleCommand))
             {// Task Execute(string[] args, CancellationToken cancellationToken);
                 var task = (Task?)this.executeMethod.Invoke(this.CommandInstance, [args, cancellationToken]);
                 if (task != null)
@@ -182,7 +182,7 @@ public class SimpleParser : ISimpleParser
                     await task;
                 }
             }
-            else if (this.CommandInterface == typeof(ISimpleCommandAsync<>))
+            else if (this.CommandInterface == typeof(ISimpleCommand<>))
             {// Task Execute(Options option, string[] args, CancellationToken cancellationToken);
                 var task = (Task?)this.executeMethod.Invoke(this.CommandInstance, [this.OptionClass.OptionInstance, args, cancellationToken]);
                 if (task != null)
@@ -248,7 +248,7 @@ public class SimpleParser : ISimpleParser
         {
             var methods = this.CommandType.GetMethods(BindingFlags.Public | BindingFlags.Instance).Where(x => x.Name == ExecuteMethodString);
 
-            if (this.CommandInterface == typeof(ISimpleCommandAsync))
+            if (this.CommandInterface == typeof(ISimpleCommand))
             {
                 foreach (var x in methods)
                 {
@@ -264,7 +264,7 @@ public class SimpleParser : ISimpleParser
                     }
                 }
             }
-            else if (this.CommandInterface == typeof(ISimpleCommandAsync<>))
+            else if (this.CommandInterface == typeof(ISimpleCommand<>))
             {
                 foreach (var x in methods)
                 {

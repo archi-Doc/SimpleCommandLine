@@ -12,7 +12,7 @@ namespace SimpleCommandLine;
 /// <see cref="SimpleCommandGroup{TCommand}"/> is base class for a group of commands.
 /// </summary>
 /// <typeparam name="TCommand">The type of command group.</typeparam>
-public abstract class SimpleCommandGroup<TCommand> : ISimpleCommandAsync
+public abstract class SimpleCommandGroup<TCommand> : ISimpleCommand
     where TCommand : SimpleCommandGroup<TCommand>
 {
     /// <summary>

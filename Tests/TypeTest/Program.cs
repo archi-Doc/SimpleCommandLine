@@ -66,7 +66,7 @@ namespace ConsoleApp1
     }
 
     [SimpleCommand("type")]
-    public class TypeCommand : ISimpleCommandAsync<TypeOptions>
+    public class TypeCommand : ISimpleCommand<TypeOptions>
     {
         public async Task Execute(TypeOptions option, string[] args, CancellationToken cancellationToken)
         {
@@ -90,7 +90,7 @@ namespace ConsoleApp1
     }
 
     [SimpleCommand("string")]
-    public class StringCommand : ISimpleCommandAsync<StringCommand.Options>
+    public class StringCommand : ISimpleCommand<StringCommand.Options>
     {
         public class Options
         {

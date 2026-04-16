@@ -119,7 +119,7 @@ public partial record TestClass : IStringConvertible<TestClass>
 }
 
 [SimpleCommand("test", Description = "description", Alias = "t")]
-public class TestCommand : ISimpleCommandAsync<TestOptions>
+public class TestCommand : ISimpleCommand<TestOptions>
 {
     public TestCommand(ICommandService commandService)
     {
@@ -164,7 +164,7 @@ public class DerivedCommand : TestCommand
 }
 
 [SimpleCommand("nested-command", IsSubcommand = true)]
-public class SyncCommand : ISimpleCommandAsync
+public class SyncCommand : ISimpleCommand
 {
     public async Task Execute(string[] args, CancellationToken cancellationToken)
     {
@@ -173,7 +173,7 @@ public class SyncCommand : ISimpleCommandAsync
 }
 
 [SimpleCommand("test2")]
-public class TestCommand2 : ISimpleCommandAsync
+public class TestCommand2 : ISimpleCommand
 {
     public async Task Execute(string[] args, CancellationToken cancellationToken)
     {
@@ -182,7 +182,7 @@ public class TestCommand2 : ISimpleCommandAsync
 }
 
 [SimpleCommand("test3")]
-public class TestCommand3 : ISimpleCommandAsync<TestCommand3.Options>
+public class TestCommand3 : ISimpleCommand<TestCommand3.Options>
 {
     public record class Options
     {

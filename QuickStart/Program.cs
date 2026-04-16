@@ -17,7 +17,7 @@ public class TestOptions
 }
 
 [SimpleCommand("test", Description = "Test command.")] // Annotate SimpleCommandAttribute and specify a command name and description.
-public class TestCommand : ISimpleCommandAsync<TestOptions> // Implementation of either ISimpleCommand or ISimpleCommand<TOption> is required.
+public class TestCommand : ISimpleCommand<TestOptions> // Implementation of either ISimpleCommand or ISimpleCommand<TOption> is required.
 {// Command class handles the command function.
     public async Task Execute(TestOptions option, string[] args, CancellationToken cancellationToken)
     {// Execute() method will be called if you specify "test" command-line argument.

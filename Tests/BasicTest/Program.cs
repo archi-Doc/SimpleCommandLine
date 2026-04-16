@@ -28,7 +28,7 @@ namespace ConsoleApp1
     }
 
     [SimpleCommand("test")]
-    public class TestCommand : ISimpleCommandAsync<TestOptions>
+    public class TestCommand : ISimpleCommand<TestOptions>
     {
         public async Task Execute(TestOptions option, string[] args, CancellationToken cancellationToken)
         {
@@ -38,7 +38,7 @@ namespace ConsoleApp1
     }
 
     [SimpleCommand("test2")]
-    public class TestCommand2 : ISimpleCommandAsync
+    public class TestCommand2 : ISimpleCommand
     {
         public async Task Execute(string[] args, CancellationToken cancellationToken)
         {
@@ -65,7 +65,7 @@ namespace ConsoleApp1
     }
 
     [SimpleCommand("test3")]
-    public class TestCommand3 : ISimpleCommandAsync<TestOptions3>
+    public class TestCommand3 : ISimpleCommand<TestOptions3>
     {
         public async Task Execute(TestOptions3 option, string[] args, CancellationToken cancellationToken)
         {

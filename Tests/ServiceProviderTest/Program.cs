@@ -37,7 +37,7 @@ namespace ConsoleApp1
     }
 
     [SimpleCommand("test")]
-    public class TestCommand : ISimpleCommandAsync<TestOptions>
+    public class TestCommand : ISimpleCommand<TestOptions>
     {
         public TestCommand(ICommandService commandService)
         {
@@ -59,7 +59,7 @@ namespace ConsoleApp1
     }
 
     [SimpleCommand("test2")]
-    public class TestCommand2 : ISimpleCommandAsync
+    public class TestCommand2 : ISimpleCommand
     {
         public async Task Execute(string[] args, CancellationToken cancellationToken)
         {

@@ -9,7 +9,7 @@ using SimpleCommandLine;
 
 namespace CommandListTest;
 
-public class TestCommandBase : ISimpleCommandAsync
+public class TestCommandBase : ISimpleCommand
 {
     public async Task Execute(string[] args, CancellationToken cancellationToken)
     {
@@ -17,7 +17,7 @@ public class TestCommandBase : ISimpleCommandAsync
 }
 
 [SimpleCommand("test")]
-public class TestCommand : ISimpleCommandAsync
+public class TestCommand : ISimpleCommand
 {
     public async Task Execute(string[] args, CancellationToken cancellationToken)
     {

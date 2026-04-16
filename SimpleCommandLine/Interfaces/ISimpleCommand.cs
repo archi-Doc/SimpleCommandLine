@@ -6,10 +6,10 @@ using System.Threading.Tasks;
 namespace SimpleCommandLine;
 
 /// <summary>
-/// A simple command class with an options class requires an implementation of <seealso cref="ISimpleCommandAsync{T}"/>.
+/// A simple command class with an options class requires an implementation of <seealso cref="ISimpleCommand{T}"/>.
 /// </summary>
 /// <typeparam name="TOption">The type of options class.</typeparam>
-public interface ISimpleCommandAsync<TOption>
+public interface ISimpleCommand<TOption>
     where TOption : new()
 {
     /// <summary>
@@ -23,9 +23,9 @@ public interface ISimpleCommandAsync<TOption>
 }
 
 /// <summary>
-/// A simple command class without options requires an implementation of <seealso cref="ISimpleCommandAsync"/>.
+/// A simple command class without options requires an implementation of <seealso cref="ISimpleCommand"/>.
 /// </summary>
-public interface ISimpleCommandAsync
+public interface ISimpleCommand
 {
     /// <summary>
     /// The asynchronous method called when the command is executed.
