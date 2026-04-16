@@ -1,6 +1,7 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using SimpleCommandLine;
 
@@ -67,7 +68,7 @@ namespace ConsoleApp1
     [SimpleCommand("type")]
     public class TypeCommand : ISimpleCommandAsync<TypeOptions>
     {
-        public async Task RunAsync(TypeOptions option, string[] args)
+        public async Task RunAsync(TypeOptions option, string[] args, CancellationToken cancellationToken)
         {
             Console.WriteLine("Test command:");
             Console.WriteLine($"SByte: {option.SByte}");
@@ -109,7 +110,7 @@ namespace ConsoleApp1
             public string S4 { get; set; } = string.Empty;
         }
 
-        public async Task RunAsync(StringCommand.Options options, string[] args)
+        public async Task RunAsync(StringCommand.Options options, string[] args, CancellationToken cancellationToken)
         {
             Console.WriteLine("String command:");
 

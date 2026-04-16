@@ -1,6 +1,7 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using SimpleCommandLine;
 
@@ -18,7 +19,7 @@ public class TestOptions
 [SimpleCommand("test", Description = "Test command.")] // Annotate SimpleCommandAttribute and specify a command name and description.
 public class TestCommand : ISimpleCommandAsync<TestOptions> // Implementation of either ISimpleCommandAsync<T> or ISimpleCommand<T> is required.
 {// Command class handles the command function.
-    public async Task RunAsync(TestOptions option, string[] args)
+    public async Task RunAsync(TestOptions option, string[] args, CancellationToken cancellationToken)
     {// RunAsync() method will be called if you specify "test" command-line argument.
      // TestOption class is parsed from command-line arguments.
      // args is the remaining arguments.

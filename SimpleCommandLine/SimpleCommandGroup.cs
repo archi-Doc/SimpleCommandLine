@@ -1,6 +1,7 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Arc.Unit;
 using Microsoft.Extensions.DependencyInjection;
@@ -78,8 +79,9 @@ public abstract class SimpleCommandGroup<TCommand> : ISimpleCommandAsync
     /// The default argument will be used if the argument is empty.
     /// </summary>
     /// <param name="args">The arguments to specify commands and options.</param>
+    /// <param name="cancellationToken">A token used to cancel command execution.</param>
     /// <returns><see cref="Task"/>.</returns>
-    public async Task RunAsync(string[] args)
+    public async Task RunAsync(string[] args, CancellationToken cancellationToken)
     {
         if (args.Length == 0 && this.defaultArgument != null)
         {// Default argument

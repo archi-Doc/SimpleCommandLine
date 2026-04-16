@@ -1,6 +1,7 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using SimpleCommandLine;
 
@@ -18,7 +19,7 @@ public class TestCommandBase : ISimpleCommand
 [SimpleCommand("test")]
 public class TestCommand : ISimpleCommandAsync
 {
-    public async Task RunAsync(string[] args)
+    public async Task RunAsync(string[] args, CancellationToken cancellationToken)
     {
         Console.WriteLine("Test command:");
     }

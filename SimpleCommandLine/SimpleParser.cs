@@ -9,6 +9,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Arc;
 using Arc.Unit;
@@ -222,7 +223,7 @@ public class SimpleParser : ISimpleParser
             throw new InvalidOperationException($"{methodName}() or {methodName}(string[] args) method is required in Type {this.CommandType.ToString()}.");
         }*/
 
-        public async Task RunAsync()
+        public async Task RunAsync(CancellationToken cancellationToken)
         {
             var args = this.OptionClass.RemainingArguments ?? Array.Empty<string>();
 
@@ -236,7 +237,7 @@ public class SimpleParser : ISimpleParser
             }
             else if (this.CommandInterface == typeof(ISimpleCommandAsync))
             {// Task RunAsync(string[] args);
-                var task = (Task?)this.runMethod.Invoke(this.CommandInstance, [args]);
+                var task = (Task?)this.runMethod.Invoke(this.CommandInstance, [args, cancellationToken]);
                 if (task != null)
                 {
                     await task;
@@ -244,7 +245,7 @@ public class SimpleParser : ISimpleParser
             }
             else if (this.CommandInterface == typeof(ISimpleCommandAsync<>))
             {// Task RunAsync(Options option, string[] args);
-                var task = (Task?)this.runMethod.Invoke(this.CommandInstance, [this.OptionClass.OptionInstance, args]);
+                var task = (Task?)this.runMethod.Invoke(this.CommandInstance, [this.OptionClass.OptionInstance, args, cancellationToken]);
                 if (task != null)
                 {
                     await task;
@@ -374,8 +375,10 @@ public class SimpleParser : ISimpleParser
                     if (x.ReturnType == typeof(Task))
                     {
                         var parameters = x.GetParameters();
-                        if (parameters.Length == 1 && parameters[0].ParameterType == typeof(string[]))
-                        {// Task RunAsync(string[] args);
+                        if (parameters.Length == 2 &&
+                            parameters[0].ParameterType == typeof(string[]) &&
+                            parameters[1].ParameterType == typeof(CancellationToken))
+                        {// Task RunAsync(string[] args, CancellationToken cancellationToken);
                             return x;
                         }
                     }
@@ -388,8 +391,11 @@ public class SimpleParser : ISimpleParser
                     if (x.ReturnType == typeof(Task))
                     {
                         var parameters = x.GetParameters();
-                        if (parameters.Length == 2 && parameters[0].ParameterType == this.OptionType && parameters[1].ParameterType == typeof(string[]))
-                        {// Task RunAsync(Options option, string[] args);
+                        if (parameters.Length == 3 &&
+                            parameters[0].ParameterType == this.OptionType &&
+                            parameters[1].ParameterType == typeof(string[]) &&
+                            parameters[2].ParameterType == typeof(CancellationToken))
+                        {// Task RunAsync(Options option, string[] args, CancellationToken cancellationToken);
                             return x;
                         }
                     }
@@ -1363,8 +1369,9 @@ public class SimpleParser : ISimpleParser
     /// <summary>
     /// Executes the currently specified command asynchronously or help/version command if needed.
     /// </summary>
+    /// <param name="cancellationToken">A token used to cancel command execution.</param>
     /// <returns>A task that represents the command execution.</returns>
-    public async Task RunAsync()
+    public async Task RunAsync(CancellationToken cancellationToken = default)
     {
         if (this.HelpCommand != null)
         {
@@ -1378,7 +1385,7 @@ public class SimpleParser : ISimpleParser
         {
             if (this.CurrentCommand != null)
             {
-                await this.CurrentCommand.RunAsync();
+                await this.CurrentCommand.RunAsync(cancellationToken);
             }
         }
     }

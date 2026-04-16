@@ -1,6 +1,7 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using SimpleCommandLine;
 
@@ -29,7 +30,7 @@ namespace ConsoleApp1
     [SimpleCommand("test")]
     public class TestCommand : ISimpleCommandAsync<TestOptions>
     {
-        public async Task RunAsync(TestOptions option, string[] args)
+        public async Task RunAsync(TestOptions option, string[] args, CancellationToken cancellationToken)
         {
             Console.WriteLine("Test command:");
             Console.WriteLine($"{option.Name}, {option.Number}, {option.Options5}");

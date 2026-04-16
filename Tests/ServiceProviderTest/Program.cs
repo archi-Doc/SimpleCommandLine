@@ -1,6 +1,7 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using DryIoc;
 using SimpleCommandLine;
@@ -43,7 +44,7 @@ namespace ConsoleApp1
             this.CommandService = commandService;
         }
 
-        public async Task RunAsync(TestOptions options, string[] args)
+        public async Task RunAsync(TestOptions options, string[] args, CancellationToken cancellationToken)
         {
             this.CommandService.Enter(string.Empty);
 
@@ -60,7 +61,7 @@ namespace ConsoleApp1
     [SimpleCommand("test2")]
     public class TestCommand2 : ISimpleCommandAsync
     {
-        public async Task RunAsync(string[] args)
+        public async Task RunAsync(string[] args, CancellationToken cancellationToken)
         {
         }
     }

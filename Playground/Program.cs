@@ -1,6 +1,7 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Arc;
 using Arc.Unit;
@@ -139,7 +140,7 @@ public class TestCommand : ISimpleCommandAsync<TestOptions>
         this.CommandService = commandService;
     }
 
-    public async Task RunAsync(TestOptions options, string[] args)
+    public async Task RunAsync(TestOptions options, string[] args, CancellationToken cancellationToken)
     {
         Console.WriteLine("test command");
         Console.WriteLine();
@@ -170,7 +171,7 @@ public class DerivedCommand : TestCommand
     {
     }
 
-    public new async Task RunAsync(TestOptions options, string[] args)
+    public new async Task RunAsync(TestOptions options, string[] args, CancellationToken cancellationToken)
     {
         Console.WriteLine("derived command");
     }
@@ -188,7 +189,7 @@ public class SyncCommand : ISimpleCommand
 [SimpleCommand("test2")]
 public class TestCommand2 : ISimpleCommandAsync
 {
-    public async Task RunAsync(string[] args)
+    public async Task RunAsync(string[] args, CancellationToken cancellationToken)
     {
         Console.WriteLine("Test2");
     }
@@ -219,7 +220,7 @@ public class TestCommand3 : ISimpleCommandAsync<TestCommand3.Options>
         this.consoleService = consoleService;
     }
 
-    public async Task RunAsync(Options options, string[] args)
+    public async Task RunAsync(Options options, string[] args, CancellationToken cancellationToken)
     {
         this.consoleService.WriteLine($"Test3: {options}", ConsoleColor.Red);
     }
