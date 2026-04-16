@@ -9,9 +9,9 @@ using SimpleCommandLine;
 
 namespace CommandListTest;
 
-public class TestCommandBase : ISimpleCommand
+public class TestCommandBase : ISimpleCommandAsync
 {
-    public void Run(string[] args)
+    public async Task RunAsync(string[] args, CancellationToken cancellationToken)
     {
     }
 }

@@ -38,9 +38,9 @@ namespace ConsoleApp1
     }
 
     [SimpleCommand("test2")]
-    public class TestCommand2 : ISimpleCommand
+    public class TestCommand2 : ISimpleCommandAsync
     {
-        public void Run(string[] args)
+        public async Task RunAsync(string[] args, CancellationToken cancellationToken)
         {
             Console.WriteLine("Test command2:");
         }
@@ -65,9 +65,9 @@ namespace ConsoleApp1
     }
 
     [SimpleCommand("test3")]
-    public class TestCommand3 : ISimpleCommand<TestOptions3>
+    public class TestCommand3 : ISimpleCommandAsync<TestOptions3>
     {
-        public void Run(TestOptions3 option, string[] args)
+        public async Task RunAsync(TestOptions3 option, string[] args, CancellationToken cancellationToken)
         {
             Console.WriteLine("Test command3:");
             Console.WriteLine($"Test: {option.Text}");

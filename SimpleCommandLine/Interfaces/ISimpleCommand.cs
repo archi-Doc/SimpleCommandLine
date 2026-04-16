@@ -22,7 +22,7 @@ public interface ISimpleCommandAsync<T>
     Task RunAsync(T option, string[] args, CancellationToken cancellationToken);
 }
 
-/// <summary>
+/*/// <summary>
 /// A simple command class with options class requires an implementation of <seealso cref="ISimpleCommand{T}"/>.
 /// </summary>
 /// <typeparam name="T">The type of options class.</typeparam>
@@ -35,7 +35,7 @@ public interface ISimpleCommand<T>
     /// <param name="option">The command-line options class.</param>
     /// <param name="args">The remaining command-line arguments.</param>
     void Run(T option, string[] args);
-}
+}*/
 
 /// <summary>
 /// A simple command class without options requires an implementation of <seealso cref="ISimpleCommandAsync"/>.
@@ -51,7 +51,7 @@ public interface ISimpleCommandAsync
     Task RunAsync(string[] args, CancellationToken cancellationToken);
 }
 
-/// <summary>
+/*/// <summary>
 /// A simple command class without options requires an implementation of <seealso cref="ISimpleCommand"/>.
 /// </summary>
 public interface ISimpleCommand
@@ -61,4 +61,4 @@ public interface ISimpleCommand
     /// </summary>
     /// <param name="args"> The command-line arguments.</param>
     void Run(string[] args);
-}
+}*/

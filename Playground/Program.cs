@@ -178,9 +178,9 @@ public class DerivedCommand : TestCommand
 }
 
 [SimpleCommand("nested-command", IsSubcommand = true)]
-public class SyncCommand : ISimpleCommand
+public class SyncCommand : ISimpleCommandAsync
 {
-    public void Run(string[] args)
+    public async Task RunAsync(string[] args, CancellationToken cancellationToken)
     {
         SimpleParser.ParseAndRun(new[] { typeof(TestCommand2) }, args);
     }
