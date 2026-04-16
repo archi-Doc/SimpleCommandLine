@@ -44,7 +44,7 @@ namespace ConsoleApp1
             this.CommandService = commandService;
         }
 
-        public async Task RunAsync(TestOptions options, string[] args, CancellationToken cancellationToken)
+        public async Task Execute(TestOptions options, string[] args, CancellationToken cancellationToken)
         {
             this.CommandService.Enter(string.Empty);
 
@@ -61,7 +61,7 @@ namespace ConsoleApp1
     [SimpleCommand("test2")]
     public class TestCommand2 : ISimpleCommandAsync
     {
-        public async Task RunAsync(string[] args, CancellationToken cancellationToken)
+        public async Task Execute(string[] args, CancellationToken cancellationToken)
         {
         }
     }
@@ -92,7 +92,7 @@ namespace ConsoleApp1
                 RequireStrictOptionName = true,
             };
 
-            await SimpleParser.ParseAndRunAsync(commandTypes, args, parserOptions);
+            await SimpleParser.ParseAndExecute(commandTypes, args, parserOptions);
 
             container.Dispose();
         }

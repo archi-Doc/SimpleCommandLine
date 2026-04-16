@@ -11,7 +11,7 @@ namespace CommandListTest;
 
 public class TestCommandBase : ISimpleCommandAsync
 {
-    public async Task RunAsync(string[] args, CancellationToken cancellationToken)
+    public async Task Execute(string[] args, CancellationToken cancellationToken)
     {
     }
 }
@@ -19,7 +19,7 @@ public class TestCommandBase : ISimpleCommandAsync
 [SimpleCommand("test")]
 public class TestCommand : ISimpleCommandAsync
 {
-    public async Task RunAsync(string[] args, CancellationToken cancellationToken)
+    public async Task Execute(string[] args, CancellationToken cancellationToken)
     {
         Console.WriteLine("Test command:");
     }

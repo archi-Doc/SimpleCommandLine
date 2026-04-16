@@ -19,8 +19,8 @@ public class TestOptions
 [SimpleCommand("test", Description = "Test command.")] // Annotate SimpleCommandAttribute and specify a command name and description.
 public class TestCommand : ISimpleCommandAsync<TestOptions> // Implementation of either ISimpleCommand or ISimpleCommand<TOption> is required.
 {// Command class handles the command function.
-    public async Task RunAsync(TestOptions option, string[] args, CancellationToken cancellationToken)
-    {// RunAsync() method will be called if you specify "test" command-line argument.
+    public async Task Execute(TestOptions option, string[] args, CancellationToken cancellationToken)
+    {// Execute() method will be called if you specify "test" command-line argument.
      // TestOption class is parsed from command-line arguments.
      // args is the remaining arguments.
 
@@ -42,13 +42,13 @@ public class Program
         };
 
         // Parse arguments and call the appropriate command method.
-        await SimpleParser.ParseAndRunAsync(commandTypes, args); // If you do not specify a text option with a valid value, an error will occur.
+        await SimpleParser.ParseAndExecute(commandTypes, args); // If you do not specify a text option with a valid value, an error will occur.
         Console.WriteLine();
 
         // You can manually create a parser and parse an argument string.
         var p = new SimpleParser(commandTypes);
         p.Parse("-number 1 -text example");
-        await p.RunAsync();
+        await p.Execute();
         Console.WriteLine();
 
         p.ShowVersion("QuickStart"); // Show application version (1.0.0)

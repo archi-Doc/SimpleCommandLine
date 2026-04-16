@@ -19,7 +19,7 @@ public interface ISimpleCommandAsync<TOption>
     /// <param name="args">The remaining command-line arguments.</param>
     /// <param name="cancellationToken">A token used to cancel command execution.</param>
     /// <returns>A task that represents the command execution.</returns>
-    Task RunAsync(TOption option, string[] args, CancellationToken cancellationToken);
+    Task Execute(TOption option, string[] args, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -33,5 +33,5 @@ public interface ISimpleCommandAsync
     /// <param name="args">The remaining command-line arguments.</param>
     /// <param name="cancellationToken">A token used to cancel command execution.</param>
     /// <returns>A task that represents the command execution.</returns>
-    Task RunAsync(string[] args, CancellationToken cancellationToken);
+    Task Execute(string[] args, CancellationToken cancellationToken);
 }

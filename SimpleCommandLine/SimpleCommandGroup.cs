@@ -81,14 +81,14 @@ public abstract class SimpleCommandGroup<TCommand> : ISimpleCommandAsync
     /// <param name="args">The arguments to specify commands and options.</param>
     /// <param name="cancellationToken">A token used to cancel command execution.</param>
     /// <returns><see cref="Task"/>.</returns>
-    public Task RunAsync(string[] args, CancellationToken cancellationToken)
+    public Task Execute(string[] args, CancellationToken cancellationToken)
     {
         if (args.Length == 0 && this.defaultArgument != null)
         {// Default argument
             args = [this.defaultArgument,];
         }
 
-        return this.SimpleParser.ParseAndRunAsync(args);
+        return this.SimpleParser.ParseAndExecute(args);
     }
 
     /// <summary>
