@@ -179,39 +179,6 @@ public class SimpleParser : ISimpleParser
             this.OptionClass = new OptionClass(this.Parser, this.OptionType, null);
         }
 
-        /*public void Run()
-        {
-            if (this.Instance == null)
-            {
-                return;
-            }
-
-            var methods = this.CommandType.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
-            var methodName = RunMethodString;
-            foreach (var x in methods)
-            {
-                if (x.Name != methodName)
-                {
-                    continue;
-                }
-
-                var parameters = x.GetParameters();
-                if (parameters.Length == 0)
-                {// Command.Run()
-                    x.Invoke(this.Instance, null);
-                    return;
-                }
-                else if (parameters.Length == 1 && parameters[0].ParameterType == typeof(string[]))
-                {// Command.Run(args)
-                    x.Invoke(this.Instance, new object[] { this.RemainingArguments ?? Array.Empty<string>() });
-                    return;
-                }
-            }
-
-            // No Run method
-            throw new InvalidOperationException($"{methodName}() or {methodName}(string[] args) method is required in Type {this.CommandType.ToString()}.");
-        }*/
-
         public async Task RunAsync(CancellationToken cancellationToken)
         {
             var args = this.OptionClass.RemainingArguments ?? Array.Empty<string>();
@@ -231,22 +198,6 @@ public class SimpleParser : ISimpleParser
                 {
                     await task;
                 }
-            }
-        }
-
-        public void Run()
-        {
-            var args = this.OptionClass.RemainingArguments ?? Array.Empty<string>();
-
-            if (this.CommandInterface == typeof(ISimpleCommandAsync))
-            {// Task RunAsync(string[] args);
-                var task = (Task?)this.runMethod.Invoke(this.CommandInstance, [args]);
-                task?.Wait();
-            }
-            else if (this.CommandInterface == typeof(ISimpleCommandAsync<>))
-            {// Task RunAsync(Options option, string[] args);
-                var task = (Task?)this.runMethod.Invoke(this.CommandInstance, [this.OptionClass.OptionInstance, args]);
-                task?.Wait();
             }
         }
 
@@ -1125,11 +1076,11 @@ public class SimpleParser : ISimpleParser
     /// <param name="arg">The arguments for specifying commands and options.</param>
     /// <param name="parserOptions">The parser options. Use <c>null</c> to use default options.</param>
     /// <returns>A task that represents the command execution.</returns>
-    public static async Task ParseAndRunAsync(IEnumerable<Type> simpleCommands, string arg, SimpleParserOptions? parserOptions = null)
+    public static Task ParseAndRunAsync(IEnumerable<Type> simpleCommands, string arg, SimpleParserOptions? parserOptions = null)
     {
         var p = new SimpleParser(simpleCommands, parserOptions);
         p.Parse(arg);
-        await p.RunAsync();
+        return p.RunAsync();
     }
 
     /// <summary>
@@ -1139,37 +1090,11 @@ public class SimpleParser : ISimpleParser
     /// <param name="args">The arguments for specifying commands and options.</param>
     /// <param name="parserOptions">The parser options. Use <c>null</c> to use default options.</param>
     /// <returns>A task that represents the command execution.</returns>
-    public static async Task ParseAndRunAsync(IEnumerable<Type> simpleCommands, string[] args, SimpleParserOptions? parserOptions = null)
+    public static Task ParseAndRunAsync(IEnumerable<Type> simpleCommands, string[] args, SimpleParserOptions? parserOptions = null)
     {
         var p = new SimpleParser(simpleCommands, parserOptions);
         p.Parse(args);
-        await p.RunAsync();
-    }
-
-    /// <summary>
-    /// Parse the arguments and executes the specified command.
-    /// </summary>
-    /// <param name="simpleCommands">The <seealso cref="IEnumerable{T}"/> whose simple command types are used to parse arguments and execute the command.</param>
-    /// <param name="arg">The arguments for specifying commands and options.</param>
-    /// <param name="parserOptions">The parser options. Use <c>null</c> to use default options.</param>
-    public static void ParseAndRun(IEnumerable<Type> simpleCommands, string arg, SimpleParserOptions? parserOptions = null)
-    {
-        var p = new SimpleParser(simpleCommands, parserOptions);
-        p.Parse(arg);
-        p.Run();
-    }
-
-    /// <summary>
-    /// Parse the arguments and executes the specified command.
-    /// </summary>
-    /// <param name="simpleCommands">The <seealso cref="IEnumerable{T}"/> whose simple command types are used to parse arguments and execute the command.</param>
-    /// <param name="args">The arguments for specifying commands and options.</param>
-    /// <param name="parserOptions">The parser options. Use <c>null</c> to use default options.</param>
-    public static void ParseAndRun(IEnumerable<Type> simpleCommands, string[] args, SimpleParserOptions? parserOptions = null)
-    {
-        var p = new SimpleParser(simpleCommands, parserOptions);
-        p.Parse(args);
-        p.Run();
+        return p.RunAsync();
     }
 
     /// <summary>
@@ -1316,7 +1241,7 @@ public class SimpleParser : ISimpleParser
     /// </summary>
     /// <param name="cancellationToken">A token used to cancel command execution.</param>
     /// <returns>A task that represents the command execution.</returns>
-    public async Task RunAsync(CancellationToken cancellationToken = default)
+    public Task RunAsync(CancellationToken cancellationToken = default)
     {
         if (this.HelpCommand != null)
         {
@@ -1330,31 +1255,11 @@ public class SimpleParser : ISimpleParser
         {
             if (this.CurrentCommand != null)
             {
-                await this.CurrentCommand.RunAsync(cancellationToken);
+                return this.CurrentCommand.RunAsync(cancellationToken);
             }
         }
-    }
 
-    /// <summary>
-    /// Executes the currently specified command or help/version command if needed.
-    /// </summary>
-    public void Run()
-    {
-        if (this.HelpCommand != null)
-        {
-            this.ShowHelp(this.HelpCommand);
-        }
-        else if (this.VersionCommand)
-        {
-            this.ShowVersion();
-        }
-        else
-        {
-            if (this.CurrentCommand != null)
-            {
-                this.CurrentCommand.Run();
-            }
-        }
+        return Task.CompletedTask;
     }
 
     /// <summary>
@@ -1379,28 +1284,6 @@ public class SimpleParser : ISimpleParser
     {
         this.Parse(args);
         await this.RunAsync();
-    }
-
-    /// <summary>
-    /// Parse the arguments and executes the specified command.
-    /// </summary>
-    /// <param name="arg">The arguments for specifying commands and options.</param>
-    /// <param name="parserOptions">The parser options. Use <c>null</c> to use default options.</param>
-    public void ParseAndRun(string arg, SimpleParserOptions? parserOptions = null)
-    {
-        this.Parse(arg);
-        this.Run();
-    }
-
-    /// <summary>
-    /// Parse the arguments and executes the specified command.
-    /// </summary>
-    /// <param name="args">The arguments for specifying commands and options.</param>
-    /// <param name="parserOptions">The parser options. Use <c>null</c> to use default options.</param>
-    public void ParseAndRun(string[] args, SimpleParserOptions? parserOptions = null)
-    {
-        this.Parse(args);
-        this.Run();
     }
 
     /// <summary>

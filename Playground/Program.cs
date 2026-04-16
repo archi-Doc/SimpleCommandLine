@@ -182,7 +182,7 @@ public class SyncCommand : ISimpleCommandAsync
 {
     public async Task RunAsync(string[] args, CancellationToken cancellationToken)
     {
-        SimpleParser.ParseAndRun(new[] { typeof(TestCommand2) }, args);
+        await SimpleParser.ParseAndRunAsync(new[] { typeof(TestCommand2) }, args);
     }
 }
 
