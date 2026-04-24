@@ -520,9 +520,62 @@ Exit:
         }
     }
 
+    public static string[] FormatArguments2(this ReadOnlySpan<char> span, ReadOnlySpan<char> delimiter = default)
+    {
+        var list = new List<string>();
+        var separatorStack = new Stack<char>();
+        if (delimiter.IsEmpty)
+        {
+            delimiter = SimpleParser.DefaultDelimiter;
+        }
+
+        var currentPosition = 0;
+        while (currentPosition < span.Length)
+        {
+            while (currentPosition < span.Length && char.IsWhiteSpace(span[currentPosition]))
+            {// Skip spaces
+                currentPosition++;
+            }
+
+            if (currentPosition == span.Length)
+            {
+                break;
+            }
+
+            var start = currentPosition;
+            var currentChar = span[currentPosition];
+            if (currentChar == SimpleParser.SingleQuote ||
+                currentChar == SimpleParser.Quote)
+            {// 'A' or "B"
+                var lastChar = currentPosition > 0 ? span[currentPosition - 1] : (char)0;
+                if (lastChar != '\\')
+                {
+                    separatorStack.Push(currentChar);
+                }
+            }
+            else if (currentChar == SimpleParser.OpenBracket)
+            {// {C}
+                separatorStack.Push(currentChar);
+            }
+            else if (span.Slice(currentPosition).StartsWith(delimiter))
+            {// Delimiter """A B"""
+                separatorStack.Push(SimpleParser.DelimiterChar);
+            }
+            else
+            {// Text
+            }
+
+            currentPosition++;
+            while (currentPosition < span.Length)
+            {
+            }
+        }
+
+        return list.ToArray();
+    }
+
     public static string[] FormatArguments(this ReadOnlySpan<char> span, ReadOnlySpan<char> delimiter = default)
     {
-        const char DelimiterChar = 'd';
         var list = new List<string>();
 
         var start = 0;
@@ -545,14 +598,15 @@ Exit:
                     nextPosition = position + 1;
                     goto AddString;
                 }
-                else if (currentChar == SimpleParser.Separator)
+                else if (currentChar == SimpleParser.Separator ||
+                    currentChar == SimpleParser.Separator2)
                 {// A|B
                     nextPosition = position;
                     goto AddString;
                 }
                 else if (span.Slice(position).StartsWith(delimiter))
                 {// Delimiter """A B"""
-                    enclosed.Push(DelimiterChar);
+                    enclosed.Push(SimpleParser.DelimiterChar);
                     nextPosition = position + 3;
                     goto AddString;
                 }
@@ -576,7 +630,7 @@ Exit:
 
                 if (span.Slice(position).StartsWith(delimiter))
                 {// """
-                    if (peek == DelimiterChar)
+                    if (peek == SimpleParser.DelimiterChar)
                     {// """abc"""
                         enclosed.Pop();
                         if (enclosed.Count == 0)
@@ -602,7 +656,7 @@ Exit:
                             goto AddString;
                         }
                     }
-                    else if (peek == DelimiterChar)
+                    else if (peek == SimpleParser.DelimiterChar)
                     {
                     }
                     else
@@ -621,7 +675,7 @@ Exit:
                             goto AddString;
                         }
                     }
-                    else if (peek == DelimiterChar)
+                    else if (peek == SimpleParser.DelimiterChar)
                     {
                     }
                     else
@@ -666,6 +720,11 @@ AddString:
             if (currentChar == SimpleParser.Separator)
             {
                 list.Add(SimpleParser.SeparatorString);
+                position++;
+                nextPosition++;
+            }
+            else if (currentChar == SimpleParser.Separator2)
+            {
                 position++;
                 nextPosition++;
             }
