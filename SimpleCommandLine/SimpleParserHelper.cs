@@ -522,7 +522,6 @@ Exit:
 
     public static string[] FormatArguments(this ReadOnlySpan<char> span, ReadOnlySpan<char> delimiter = default)
     {
-        const char DelimiterChar = 'd';
         var list = new List<string>();
 
         var start = 0;
@@ -545,14 +544,15 @@ Exit:
                     nextPosition = position + 1;
                     goto AddString;
                 }
-                else if (currentChar == SimpleParser.Separator)
+                else if (currentChar == SimpleParser.Separator ||
+                    currentChar == SimpleParser.Separator2)
                 {// A|B
                     nextPosition = position;
                     goto AddString;
                 }
                 else if (span.Slice(position).StartsWith(delimiter))
                 {// Delimiter """A B"""
-                    enclosed.Push(DelimiterChar);
+                    enclosed.Push(SimpleParser.DelimiterChar);
                     nextPosition = position + 3;
                     goto AddString;
                 }
@@ -576,7 +576,7 @@ Exit:
 
                 if (span.Slice(position).StartsWith(delimiter))
                 {// """
-                    if (peek == DelimiterChar)
+                    if (peek == SimpleParser.DelimiterChar)
                     {// """abc"""
                         enclosed.Pop();
                         if (enclosed.Count == 0)
@@ -602,7 +602,7 @@ Exit:
                             goto AddString;
                         }
                     }
-                    else if (peek == DelimiterChar)
+                    else if (peek == SimpleParser.DelimiterChar)
                     {
                     }
                     else
@@ -621,7 +621,7 @@ Exit:
                             goto AddString;
                         }
                     }
-                    else if (peek == DelimiterChar)
+                    else if (peek == SimpleParser.DelimiterChar)
                     {
                     }
                     else
@@ -666,6 +666,11 @@ AddString:
             if (currentChar == SimpleParser.Separator)
             {
                 list.Add(SimpleParser.SeparatorString);
+                position++;
+                nextPosition++;
+            }
+            else if (currentChar == SimpleParser.Separator2)
+            {
                 position++;
                 nextPosition++;
             }

@@ -9,7 +9,8 @@ using SimpleCommandLine;
 var delimiter = "\"\"\"";
 Console.WriteLine("Arguments test");
 
-Test($"{{E, 'F', \"G\"}}");
+Test($"E, 'F', \"G\"");
+Test($"-Op1 V2 -Op2 {{E, 'F', \"G\"}}");
 
 // Test(string.Empty);
 Test("\\\"test\\\"");

@@ -27,6 +27,7 @@ public class SimpleParser : ISimpleParser
     public const string HelpAlias = "h";
     public const string VersionString = "version";
     public const char Separator = '|';
+    public const char Separator2 = ',';
     public const string SeparatorString = "|";
     public const string CommandString = "Command";
 
@@ -42,6 +43,7 @@ public class SimpleParser : ISimpleParser
     internal const string TripleQuotes = "\"\"\"";
     internal const char SingleQuote = '\'';
     internal const char OptionPrefix = '-';
+    internal const char DelimiterChar = (char)0x1E; // Record separator
 
     private static readonly TinyhandSerializerOptions SerializerOptions = TinyhandSerializerOptions.ConvertToStrictString;
 
