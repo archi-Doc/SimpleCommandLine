@@ -520,60 +520,6 @@ Exit:
         }
     }
 
-    public static string[] FormatArguments2(this ReadOnlySpan<char> span, ReadOnlySpan<char> delimiter = default)
-    {
-        var list = new List<string>();
-        var separatorStack = new Stack<char>();
-        if (delimiter.IsEmpty)
-        {
-            delimiter = SimpleParser.DefaultDelimiter;
-        }
-
-        var currentPosition = 0;
-        while (currentPosition < span.Length)
-        {
-            while (currentPosition < span.Length && char.IsWhiteSpace(span[currentPosition]))
-            {// Skip spaces
-                currentPosition++;
-            }
-
-            if (currentPosition == span.Length)
-            {
-                break;
-            }
-
-            var start = currentPosition;
-            var currentChar = span[currentPosition];
-            if (currentChar == SimpleParser.SingleQuote ||
-                currentChar == SimpleParser.Quote)
-            {// 'A' or "B"
-                var lastChar = currentPosition > 0 ? span[currentPosition - 1] : (char)0;
-                if (lastChar != '\\')
-                {
-                    separatorStack.Push(currentChar);
-                }
-            }
-            else if (currentChar == SimpleParser.OpenBracket)
-            {// {C}
-                separatorStack.Push(currentChar);
-            }
-            else if (span.Slice(currentPosition).StartsWith(delimiter))
-            {// Delimiter """A B"""
-                separatorStack.Push(SimpleParser.DelimiterChar);
-            }
-            else
-            {// Text
-            }
-
-            currentPosition++;
-            while (currentPosition < span.Length)
-            {
-            }
-        }
-
-        return list.ToArray();
-    }
-
     public static string[] FormatArguments(this ReadOnlySpan<char> span, ReadOnlySpan<char> delimiter = default)
     {
         var list = new List<string>();
