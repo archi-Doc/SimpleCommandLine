@@ -172,7 +172,7 @@ public class SimpleParser : ISimpleParser
             this.OptionClass = new OptionClass(this.Parser, this.OptionType, null);
         }
 
-        public async Task Execute(CancellationToken cancellationToken)
+        public Task Execute(CancellationToken cancellationToken)
         {
             var args = this.OptionClass.RemainingArguments ?? Array.Empty<string>();
 
@@ -181,7 +181,7 @@ public class SimpleParser : ISimpleParser
                 var task = (Task?)this.executeMethod.Invoke(this.CommandInstance, [args, cancellationToken]);
                 if (task != null)
                 {
-                    await task;
+                    return task;
                 }
             }
             else if (this.CommandInterface == typeof(ISimpleCommand<>))
@@ -189,9 +189,11 @@ public class SimpleParser : ISimpleParser
                 var task = (Task?)this.executeMethod.Invoke(this.CommandInstance, [this.OptionClass.OptionInstance, args, cancellationToken]);
                 if (task != null)
                 {
-                    await task;
+                    return task;
                 }
             }
+
+            return Task.CompletedTask;
         }
 
         public SimpleParser Parser { get; }
@@ -1252,24 +1254,24 @@ public class SimpleParser : ISimpleParser
     /// Parse the arguments and executes the specified command asynchronously.
     /// </summary>
     /// <param name="arg">The arguments for specifying commands and options.</param>
-    /// <param name="parserOptions">The parser options. Use <c>null</c> to use default options.</param>
+    /// <param name="cancellationToken">A token used to cancel command execution.</param>
     /// <returns>A task that represents the command execution.</returns>
-    public async Task ParseAndExecute(string arg, SimpleParserOptions? parserOptions = null)
+    public Task ParseAndExecute(string arg, CancellationToken cancellationToken = default)
     {
         this.Parse(arg);
-        await this.Execute();
+        return this.Execute(cancellationToken);
     }
 
     /// <summary>
     /// Parse the arguments and executes the specified command asynchronously.
     /// </summary>
     /// <param name="args">The arguments for specifying commands and options.</param>
-    /// <param name="parserOptions">The parser options. Use <c>null</c> to use default options.</param>
+    /// <param name="cancellationToken">A token used to cancel command execution.</param>
     /// <returns>A task that represents the command execution.</returns>
-    public async Task ParseAndExecute(string[] args, SimpleParserOptions? parserOptions = null)
+    public Task ParseAndExecute(string[] args, CancellationToken cancellationToken = default)
     {
         this.Parse(args);
-        await this.Execute();
+        return this.Execute(cancellationToken);
     }
 
     /// <summary>
