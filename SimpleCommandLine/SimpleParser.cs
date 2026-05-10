@@ -1063,12 +1063,13 @@ public class SimpleParser : ISimpleParser
     /// <param name="simpleCommands">The <seealso cref="IEnumerable{T}"/> whose simple command types are used to parse arguments and execute the command.</param>
     /// <param name="arg">The arguments for specifying commands and options.</param>
     /// <param name="parserOptions">The parser options. Use <c>null</c> to use default options.</param>
+    /// <param name="cancellationToken">A token used to cancel command execution.</param>
     /// <returns>A task that represents the command execution.</returns>
-    public static Task ParseAndExecute(IEnumerable<Type> simpleCommands, string arg, SimpleParserOptions? parserOptions = null)
+    public static Task ParseAndExecute(IEnumerable<Type> simpleCommands, string arg, SimpleParserOptions? parserOptions = null, CancellationToken cancellationToken = default)
     {
         var p = new SimpleParser(simpleCommands, parserOptions);
         p.Parse(arg);
-        return p.Execute();
+        return p.Execute(cancellationToken);
     }
 
     /// <summary>
@@ -1077,12 +1078,13 @@ public class SimpleParser : ISimpleParser
     /// <param name="simpleCommands">The <seealso cref="IEnumerable{T}"/> whose simple command types are used to parse arguments and execute the command.</param>
     /// <param name="args">The arguments for specifying commands and options.</param>
     /// <param name="parserOptions">The parser options. Use <c>null</c> to use default options.</param>
+    /// <param name="cancellationToken">A token used to cancel command execution.</param>
     /// <returns>A task that represents the command execution.</returns>
-    public static Task ParseAndExecute(IEnumerable<Type> simpleCommands, string[] args, SimpleParserOptions? parserOptions = null)
+    public static Task ParseAndExecute(IEnumerable<Type> simpleCommands, string[] args, SimpleParserOptions? parserOptions = null, CancellationToken cancellationToken = default)
     {
         var p = new SimpleParser(simpleCommands, parserOptions);
         p.Parse(args);
-        return p.Execute();
+        return p.Execute(cancellationToken);
     }
 
     /// <summary>
