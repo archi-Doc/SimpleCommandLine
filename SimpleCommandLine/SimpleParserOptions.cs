@@ -80,5 +80,10 @@ public record SimpleParserOptions
     /// </summary>
     public string ArgumentDelimiter { get; init; } = SimpleParser.TripleQuotes;
 
+    /// <summary>
+    /// Gets a value indicating whether messages should not be written to the console.
+    /// </summary>
+    public bool SuppressConsoleOutput { get; init; } = false;
+
     internal int TwoDelimitersLength { get; }
 }

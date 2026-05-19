@@ -1599,6 +1599,11 @@ public class SimpleParser : ISimpleParser
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void WriteLine(ReadOnlySpan<char> message)
     {
+        if (this.ParserOptions.SuppressConsoleOutput)
+        {
+            return;
+        }
+
         if (this.consoleService is null)
         {
             Console.Out.WriteLine(message);
@@ -1612,6 +1617,11 @@ public class SimpleParser : ISimpleParser
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void WriteLine(string? message = default)
     {
+        if (this.ParserOptions.SuppressConsoleOutput)
+        {
+            return;
+        }
+
         if (this.consoleService is null)
         {
             Console.Out.WriteLine(message);
