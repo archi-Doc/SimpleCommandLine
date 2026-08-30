@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -54,7 +54,7 @@ public class DelimiterCommand : ISimpleCommand<DelimiterOptions>
 
 public class UnitTest1
 {
-    private const string Separator = SimpleParser.SeparatorString;
+    private const string CommandSeparator = SimpleParser.CommandSeparatorString;
 
     [Theory]
     [InlineData("abc", "abc")]
@@ -84,9 +84,9 @@ public class UnitTest1
     public void SeparatorTest()
     {
         Test(string.Empty, []);
-        Test("a | b", ["a", Separator, "b"]);
-        Test("|a|b|", [Separator, "a", Separator, "b", Separator]);
-        Test("ab | \"cd|ef\"|{gh|ij}||", ["ab", Separator, "\"cd|ef\"", Separator, "{gh|ij}", Separator, Separator]);
+        Test("a | b", ["a", CommandSeparator, "b"]);
+        Test("|a|b|", [CommandSeparator, "a", CommandSeparator, "b", CommandSeparator]);
+        Test("ab | \"cd|ef\"|{gh|ij}||", ["ab", CommandSeparator, "\"cd|ef\"", CommandSeparator, "{gh|ij}", CommandSeparator, CommandSeparator]);
 
         TestOptions options;
         SimpleParser.TryParseOptions("", out options!).IsTrue();
@@ -99,9 +99,9 @@ public class UnitTest1
         options.A.Is(1);
         options.B.Is(0);
 
-        "".SeparateArguments().SequenceEqual([]).IsTrue();
-        "| ".SeparateArguments().SequenceEqual([string.Empty]).IsTrue();
-        "-A 1 | -B 2".SeparateArguments().SequenceEqual(["-A 1", "-B 2"]).IsTrue();
+        "".SplitCommandLines().SequenceEqual([]).IsTrue();
+        "| ".SplitCommandLines().SequenceEqual([string.Empty]).IsTrue();
+        "-A 1 | -B 2".SplitCommandLines().SequenceEqual(["-A 1", "-B 2"]).IsTrue();
     }
 
     [Fact]
@@ -191,20 +191,20 @@ public class UnitTest1
         Test("""""""-text """a""" """""" """Triple quotes{}""" """"""", ["-text", "\"\"\"a\"\"\"", "\"\"\"\"\"\"", "\"\"\"Triple quotes{}\"\"\"",]);
         // Test(""""-text """Triple quotes""" -options {} """");
 
-        SimpleParserHelper.ParseArguments("").Is("");
-        SimpleParserHelper.ParseArguments("A").Is("");
-        SimpleParserHelper.ParseArguments("\"").Is("");
-        SimpleParserHelper.ParseArguments("A\"").Is("");
-        SimpleParserHelper.ParseArguments("\"AB").Is("");
-        SimpleParserHelper.ParseArguments("\"AB\"").Is("");
-        SimpleParserHelper.ParseArguments("\"AB\"c").Is("c");
-        SimpleParserHelper.ParseArguments("\"AB\" c").Is("c");
-        SimpleParserHelper.ParseArguments("AB c").Is("c");
+        SimpleParserHelper.ExtractArguments("").Is("");
+        SimpleParserHelper.ExtractArguments("A").Is("");
+        SimpleParserHelper.ExtractArguments("\"").Is("");
+        SimpleParserHelper.ExtractArguments("A\"").Is("");
+        SimpleParserHelper.ExtractArguments("\"AB").Is("");
+        SimpleParserHelper.ExtractArguments("\"AB\"").Is("");
+        SimpleParserHelper.ExtractArguments("\"AB\"c").Is("c");
+        SimpleParserHelper.ExtractArguments("\"AB\" c").Is("c");
+        SimpleParserHelper.ExtractArguments("AB c").Is("c");
     }
 
     private void Test(string args, string[] test)
     {
-        var result = SimpleParserHelper.FormatArguments(args);
+        var result = SimpleParserHelper.SplitArguments(args);
         result.IsStructuralEqual(test);
     }
 }

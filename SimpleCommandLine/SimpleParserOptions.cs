@@ -49,9 +49,9 @@ public record SimpleParserOptions
     public bool RequireStrictOptionName { get; init; } = false;
 
     /// <summary>
-    /// Gets a value indicating whether the usage text is omitted from a help message [the default is <see langword="false"/>].
+    /// Gets a value indicating whether the usage text is displayed in a help message [the default is <see langword="true"/>].
     /// </summary>
-    public bool DoNotDisplayUsage { get; init; } = false;
+    public bool DisplayUsage { get; init; } = true;
 
     /// <summary>
     /// Gets a value indicating whether help displays a single-line list of command names
@@ -73,7 +73,7 @@ public record SimpleParserOptions
 
     /// <summary>
     /// Gets a value indicating whether the command name is read from the environment variable
-    /// <see cref="SimpleParser.CommandString"/> when it is not specified in the arguments [the default is <see langword="true"/>].
+    /// <see cref="SimpleParser.CommandEnvironmentVariable"/> when it is not specified in the arguments [the default is <see langword="true"/>].
     /// </summary>
     public bool ReadCommandFromEnvironment { get; init; } = true;
 

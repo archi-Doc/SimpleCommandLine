@@ -18,7 +18,7 @@ internal interface ISimpleParser
     /// Registers a nested options class so that its options are described once at the end of a help message.
     /// </summary>
     /// <param name="optionClass">The nested options class.</param>
-    void TryAddOptionClassUsage(SimpleParser.OptionClass optionClass);
+    void AddOptionClassUsage(SimpleParser.OptionClass optionClass);
 
     /// <summary>
     /// Gets the parser options.

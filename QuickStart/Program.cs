@@ -17,16 +17,16 @@ public class TestOptions
 }
 
 [SimpleCommand("test", Description = "Test command.")] // Annotate SimpleCommandAttribute and specify a command name and description.
-public class TestCommand : ISimpleCommand<TestOptions> // Implementation of either ISimpleCommand or ISimpleCommand<TOption> is required.
+public class TestCommand : ISimpleCommand<TestOptions> // Implementation of either ISimpleCommand or ISimpleCommand<TOptions> is required.
 {// Command class handles the command function.
-    public async Task Execute(TestOptions option, string[] args, CancellationToken cancellationToken)
+    public async Task Execute(TestOptions options, string[] args, CancellationToken cancellationToken)
     {// Execute() method will be called if you specify "test" command-line argument.
      // TestOption class is parsed from command-line arguments.
      // args is the remaining arguments.
 
         Console.WriteLine("Test command:");
-        Console.WriteLine($"Number is {option.Number}");
-        Console.WriteLine($"Text is {option.Text}");
+        Console.WriteLine($"Number is {options.Number}");
+        Console.WriteLine($"Text is {options.Text}");
     }
 }
 
@@ -35,7 +35,7 @@ public class Program
     public static async Task Main(string[] args)
     {
         // An array of command types.
-        // Command type must have SimpleCommandAttribute and implement ISimpleCommand or ISimpleCommand<TOption>.
+        // Command type must have SimpleCommandAttribute and implement ISimpleCommand or ISimpleCommand<TOptions>.
         var commandTypes = new Type[]
         {
             typeof(TestCommand),

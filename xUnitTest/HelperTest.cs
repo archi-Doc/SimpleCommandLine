@@ -1,4 +1,4 @@
-// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
+﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System;
 using System.Linq;
@@ -18,7 +18,7 @@ public class HelperTest
     [InlineData("{}", "")]
     [InlineData("{", "{")]
     public void TrimQuotesAndBracketTest(string input, string expected)
-        => SimpleParserHelper.TrimQuotesAndBracket(input).Is(expected);
+        => SimpleParserHelper.TrimQuotesAndBraces(input).Is(expected);
 
     [Theory]
     [InlineData("abc", "abc")]
@@ -28,7 +28,7 @@ public class HelperTest
     [InlineData("abc}", "abc}")]
     [InlineData("", "")]
     public void UnwrapBracketTest(string input, string expected)
-        => input.UnwrapBracket().Is(expected);
+        => input.UnwrapBraces().Is(expected);
 
     [Theory]
     [InlineData("\"abc\"", "abc")]
@@ -36,11 +36,11 @@ public class HelperTest
     [InlineData("\"abc", "\"abc")]
     [InlineData("\"", "\"")]
     public void TryUnwrapDoubleQuoteTest(string input, string expected)
-        => SimpleParserHelper.TryUnwrapDoubleQuote(input).Is(expected);
+        => SimpleParserHelper.UnwrapDoubleQuote(input).Is(expected);
 
     [Fact]
     public void TryUnwrapDoubleQuoteNullTest()
-        => SimpleParserHelper.TryUnwrapDoubleQuote(null).IsNull();
+        => SimpleParserHelper.UnwrapDoubleQuote(null).IsNull();
 
     [Fact]
     public void SplitAndJoinTest()
@@ -89,11 +89,11 @@ public class HelperTest
         try
         {
             string[] args = ["-a"];
-            SimpleParserHelper.AddEnvironmentVariable(ref args, Name).Is("value");
+            SimpleParserHelper.AppendEnvironmentVariable(ref args, Name).Is("value");
             args.SequenceEqual(["-a", "value"]).IsTrue();
 
             var arg = "-a";
-            SimpleParserHelper.AddEnvironmentVariable(ref arg, Name).Is("value");
+            SimpleParserHelper.AppendEnvironmentVariable(ref arg, Name).Is("value");
             arg.Is("-a value");
         }
         finally
@@ -103,7 +103,7 @@ public class HelperTest
 
         // A missing environment variable leaves the arguments unchanged.
         string[] args2 = ["-a"];
-        SimpleParserHelper.AddEnvironmentVariable(ref args2, Name).Is(string.Empty);
+        SimpleParserHelper.AppendEnvironmentVariable(ref args2, Name).Is(string.Empty);
         args2.SequenceEqual(["-a"]).IsTrue();
     }
 
@@ -133,26 +133,26 @@ public class HelperTest
     [Fact]
     public void SeparateArgumentsTest()
     {
-        "a b".SeparateArguments().SequenceEqual(["a b"]).IsTrue();
-        "a | b | c".SeparateArguments().SequenceEqual(["a", "b", "c"]).IsTrue();
-        "|a".SeparateArguments().SequenceEqual([string.Empty, "a"]).IsTrue();
+        "a b".SplitCommandLines().SequenceEqual(["a b"]).IsTrue();
+        "a | b | c".SplitCommandLines().SequenceEqual(["a", "b", "c"]).IsTrue();
+        "|a".SplitCommandLines().SequenceEqual([string.Empty, "a"]).IsTrue();
     }
 
     [Fact]
     public void FormatArgumentsIsAllocationFriendlyTest()
     {
         // An empty command line returns an empty array (no allocation).
-        SimpleParserHelper.FormatArguments(string.Empty).Length.Is(0);
-        SimpleParserHelper.FormatArguments("   ").Length.Is(0);
+        SimpleParserHelper.SplitArguments(string.Empty).Length.Is(0);
+        SimpleParserHelper.SplitArguments("   ").Length.Is(0);
 
         // Deeply nested brackets do not overflow the internal stack buffer.
         var nested = new string('{', 100) + "a" + new string('}', 100);
-        var result = SimpleParserHelper.FormatArguments(nested);
+        var result = SimpleParserHelper.SplitArguments(nested);
         result.Length.Is(1);
         result[0].Is(nested);
 
         // Many arguments exceed the initial capacity of the internal range buffer.
         var many = string.Join(' ', Enumerable.Range(0, 100).Select(x => x.ToString()));
-        SimpleParserHelper.FormatArguments(many).Length.Is(100);
+        SimpleParserHelper.SplitArguments(many).Length.Is(100);
     }
 }

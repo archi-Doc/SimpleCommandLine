@@ -20,18 +20,18 @@ public abstract class SimpleCommandGroup<TCommand> : ISimpleCommand
     /// to which the subcommands are then added.
     /// </summary>
     /// <param name="context">The unit configuration context.</param>
-    /// <param name="parentCommand">The type of the parent command. Use <see langword="null"/> to register at the top level.</param>
+    /// <param name="parentCommandType">The type of the parent command. Use <see langword="null"/> to register at the top level.</param>
     /// <param name="lifetime">The service lifetime of the command.</param>
     /// <returns>The command group of <typeparamref name="TCommand"/>.</returns>
-    public static CommandGroup ConfigureGroup(IUnitConfigurationContext context, Type? parentCommand = null, ServiceLifetime lifetime = ServiceLifetime.Scoped)
+    public static CommandGroup ConfigureGroup(IUnitConfigurationContext context, Type? parentCommandType = null, ServiceLifetime lifetime = ServiceLifetime.Scoped)
     {
         var commandType = typeof(TCommand);
 
         // Add a command type to the parent.
         CommandGroup group;
-        if (parentCommand != null)
+        if (parentCommandType != null)
         {
-            group = context.GetCommandGroup(parentCommand);
+            group = context.GetCommandGroup(parentCommandType);
         }
         else
         {
@@ -60,16 +60,16 @@ public abstract class SimpleCommandGroup<TCommand> : ISimpleCommand
 
         if (parserOptions != null)
         {
-            this.SimpleParserOptions = parserOptions with { ServiceProvider = context.ServiceProvider, };
+            this.ParserOptions = parserOptions with { ServiceProvider = context.ServiceProvider, };
         }
         else
         {
-            this.SimpleParserOptions = SimpleParserOptions.Standard with
+            this.ParserOptions = SimpleParserOptions.Standard with
             {
                 ServiceProvider = context.ServiceProvider,
                 RequireStrictCommandName = true,
                 RequireStrictOptionName = true,
-                DoNotDisplayUsage = true,
+                DisplayUsage = false,
                 DisplayCommandListAsHelp = true,
             };
         }
@@ -91,27 +91,27 @@ public abstract class SimpleCommandGroup<TCommand> : ISimpleCommand
             args = [this.defaultArgument,];
         }
 
-        return this.SimpleParser.ParseAndExecute(args);
+        return this.Parser.ParseAndExecute(args);
     }
 
     /// <summary>
     /// Gets the options of the inner parser.
     /// </summary>
-    public SimpleParserOptions SimpleParserOptions { get; }
+    public SimpleParserOptions ParserOptions { get; }
 
     /// <summary>
     /// Gets the parser for the subcommands, creating it on the first access.
     /// </summary>
-    public SimpleParser SimpleParser
+    public SimpleParser Parser
     {
         get
         {
-            this.simpleParser ??= new(this.commandTypes, this.SimpleParserOptions);
-            return this.simpleParser;
+            this.parser ??= new(this.commandTypes, this.ParserOptions);
+            return this.parser;
         }
     }
 
-    private Type[] commandTypes;
-    private SimpleParser? simpleParser;
-    private string? defaultArgument;
+    private readonly Type[] commandTypes;
+    private readonly string? defaultArgument;
+    private SimpleParser? parser;
 }

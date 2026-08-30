@@ -1,4 +1,4 @@
-// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
+﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System;
 using System.Linq;
@@ -99,28 +99,28 @@ public class EnvironmentTest
         try
         {
             // The command name comes from the environment variable.
-            Environment.SetEnvironmentVariable(SimpleParser.CommandString, "env-command");
+            Environment.SetEnvironmentVariable(SimpleParser.CommandEnvironmentVariable, "env-command");
             parser.Parse(string.Empty).IsTrue();
             parser.CurrentCommand!.CommandName.Is("env-command");
 
             // An alias in the environment variable (empty arguments must not throw).
-            Environment.SetEnvironmentVariable(SimpleParser.CommandString, "ea");
+            Environment.SetEnvironmentVariable(SimpleParser.CommandEnvironmentVariable, "ea");
             parser.Parse(string.Empty).IsTrue();
             parser.CurrentCommand!.CommandName.Is("env-alias");
 
             // An unknown value falls back to the default command.
-            Environment.SetEnvironmentVariable(SimpleParser.CommandString, "no-such-command");
+            Environment.SetEnvironmentVariable(SimpleParser.CommandEnvironmentVariable, "no-such-command");
             parser.Parse(string.Empty).IsTrue();
             parser.CurrentCommand!.CommandName.Is("env-plain");
 
             // A command name on the command line wins over the environment.
-            Environment.SetEnvironmentVariable(SimpleParser.CommandString, "env-command");
+            Environment.SetEnvironmentVariable(SimpleParser.CommandEnvironmentVariable, "env-command");
             parser.Parse("env-alias").IsTrue();
             parser.CurrentCommand!.CommandName.Is("env-alias");
         }
         finally
         {
-            Environment.SetEnvironmentVariable(SimpleParser.CommandString, null);
+            Environment.SetEnvironmentVariable(SimpleParser.CommandEnvironmentVariable, null);
         }
     }
 }
@@ -182,7 +182,7 @@ public class IntegrationTest
 
         // 'help' is not intercepted for a subcommand (it is forwarded instead).
         parser.Parse("sub help").IsTrue();
-        parser.HelpCommand.IsNull();
+        parser.HelpCommandName.IsNull();
     }
 
     [Fact]

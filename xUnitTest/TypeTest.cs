@@ -1,4 +1,4 @@
-// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
+﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System;
 using System.Threading;
@@ -115,13 +115,13 @@ public class TypeConversionTest
         o.String.Is("abc");
 
         // '-' and '--' are still option names.
-        SimpleParserHelper.IsOptionString("-int").IsTrue();
-        SimpleParserHelper.IsOptionString("--int").IsTrue();
-        SimpleParserHelper.IsOptionString("-").IsTrue();
-        SimpleParserHelper.IsOptionString("-1").IsFalse();
-        SimpleParserHelper.IsOptionString("-.5").IsFalse();
-        SimpleParserHelper.IsOptionString("abc").IsFalse();
-        SimpleParserHelper.IsOptionString(string.Empty).IsFalse();
+        SimpleParserHelper.IsOptionName("-int").IsTrue();
+        SimpleParserHelper.IsOptionName("--int").IsTrue();
+        SimpleParserHelper.IsOptionName("-").IsTrue();
+        SimpleParserHelper.IsOptionName("-1").IsFalse();
+        SimpleParserHelper.IsOptionName("-.5").IsFalse();
+        SimpleParserHelper.IsOptionName("abc").IsFalse();
+        SimpleParserHelper.IsOptionName(string.Empty).IsFalse();
     }
 
     [Theory]

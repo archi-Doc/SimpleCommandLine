@@ -27,50 +27,50 @@ public class SimpleParser : ISimpleParser
     /// <summary>
     /// The command/option name which displays a help message.
     /// </summary>
-    public const string HelpString = "help";
+    public const string HelpName = "help";
 
     /// <summary>
-    /// The alias of <see cref="HelpString"/>, available when <see cref="SimpleParserOptions.AutoAlias"/> is enabled.
+    /// The alias of <see cref="HelpName"/>, available when <see cref="SimpleParserOptions.AutoAlias"/> is enabled.
     /// </summary>
     public const string HelpAlias = "h";
 
     /// <summary>
     /// The command/option name which displays the version.
     /// </summary>
-    public const string VersionString = "version";
+    public const string VersionName = "version";
 
     /// <summary>
     /// The character which separates a command line into multiple command lines.
     /// </summary>
-    public const char Separator = '|';
+    public const char CommandSeparator = '|';
 
     /// <summary>
     /// The character which separates arguments (like whitespace, but it does not produce a separator token).
     /// </summary>
-    public const char Separator2 = ',';
+    public const char ArgumentSeparator = ',';
 
     /// <summary>
-    /// The string representation of <see cref="Separator"/>.
+    /// The string representation of <see cref="CommandSeparator"/>.
     /// </summary>
-    public const string SeparatorString = "|";
+    public const string CommandSeparatorString = "|";
 
     /// <summary>
     /// The name of the environment variable which holds the command name (see <see cref="SimpleParserOptions.ReadCommandFromEnvironment"/>).
     /// </summary>
-    public const string CommandString = "Command";
+    public const string CommandEnvironmentVariable = "Command";
 
     /// <summary>
     /// Gets the default argument delimiter (a triple quote).
     /// </summary>
-    public static ReadOnlySpan<char> DefaultDelimiter => "\"\"\"";
+    public static ReadOnlySpan<char> DefaultArgumentDelimiter => "\"\"\"";
 
     internal const string ExecuteMethodString = "Execute";
     internal const string IndentString = "  ";
     internal const string IndentString2 = "    ";
     internal const int DefaultWindowWidth = 80;
     internal const int MaxWindowWidth = 1024;
-    internal const char OpenBracket = '{'; // '['
-    internal const char CloseBracket = '}'; // ']'
+    internal const char OpenBrace = '{'; // '['
+    internal const char CloseBrace = '}'; // ']'
     internal const char Quote = '\"';
     internal const string TripleQuotes = "\"\"\"";
     internal const char SingleQuote = '\'';
@@ -92,7 +92,7 @@ public class SimpleParser : ISimpleParser
         {
         }
 
-        public void TryAddOptionClassUsage(OptionClass optionClass)
+        public void AddOptionClassUsage(OptionClass optionClass)
         {
         }
     }
@@ -104,33 +104,33 @@ public class SimpleParser : ISimpleParser
     /// <typeparam name="TOptions">The type of the options class.</typeparam>
     /// <param name="args">The arguments.</param>
     /// <param name="options">When this method returns, contains the parsed options.</param>
-    /// <param name="original">The instance to update. Use <see langword="null"/> to create a new instance.</param>
+    /// <param name="instanceToUpdate">The instance to set the values on. Use <see langword="null"/> to create a new instance.</param>
     /// <returns><see langword="true"/> if the options are created (unknown option names are ignored).</returns>
-    public static bool TryParseOptions<TOptions>(string[] args, [MaybeNullWhen(false)] out TOptions options, TOptions? original = default)
-        => TryParseOptions(string.Join(' ', args), out options, original);
+    public static bool TryParseOptions<TOptions>(string[] args, [MaybeNullWhen(false)] out TOptions options, TOptions? instanceToUpdate = default)
+        => TryParseOptions(string.Join(' ', args), out options, instanceToUpdate);
 
     /// <summary>
-    /// Parses the arguments into an options class, without registering any command.
+    /// Parses the command line into an options class, without registering any command.
     /// </summary>
     /// <typeparam name="TOptions">The type of the options class.</typeparam>
-    /// <param name="args">The arguments.</param>
+    /// <param name="commandLine">The command line.</param>
     /// <param name="options">When this method returns, contains the parsed options.</param>
-    /// <param name="original">The instance to update. Use <see langword="null"/> to create a new instance.</param>
+    /// <param name="instanceToUpdate">The instance to set the values on. Use <see langword="null"/> to create a new instance.</param>
     /// <returns>
     /// <see langword="true"/> if the options are created. Unknown option names and values that cannot be converted
     /// are ignored; only a missing required value results in <see langword="false"/>.
     /// </returns>
-    public static bool TryParseOptions<TOptions>(string args, [MaybeNullWhen(false)] out TOptions options, TOptions? original = default)
+    public static bool TryParseOptions<TOptions>(string commandLine, [MaybeNullWhen(false)] out TOptions options, TOptions? instanceToUpdate = default)
     {
         var parser = new HollowParser(SimpleParserOptions.Standard);
 
         var optionClass = new OptionClass(parser, typeof(TOptions), null);
-        if (original != null)
+        if (instanceToUpdate != null)
         {
-            optionClass.optionInstance = original;
+            optionClass.optionInstance = instanceToUpdate;
         }
 
-        optionClass.Parse(args.FormatArguments(parser.ParserOptions.ArgumentDelimiter), 0, true);
+        optionClass.Parse(commandLine.SplitArguments(parser.ParserOptions.ArgumentDelimiter), 0, true);
         if (optionClass.FatalError)
         {
             options = default;
@@ -150,7 +150,7 @@ public class SimpleParser : ISimpleParser
         /// Initializes a new instance of the <see cref="Command"/> class.
         /// </summary>
         /// <param name="parser">The parser which owns this command.</param>
-        /// <param name="commandType">The command type. It must implement <see cref="ISimpleCommand"/> or <see cref="ISimpleCommand{TOption}"/>.</param>
+        /// <param name="commandType">The command type. It must implement <see cref="ISimpleCommand"/> or <see cref="ISimpleCommand{TOptions}"/>.</param>
         /// <param name="attribute">The <see cref="SimpleCommandAttribute"/> of the command type.</param>
         /// <exception cref="InvalidOperationException">The command type is not a valid command.</exception>
         public Command(SimpleParser parser, Type commandType, SimpleCommandAttribute attribute)
@@ -161,13 +161,13 @@ public class SimpleParser : ISimpleParser
             this.CommandType = commandType;
             this.CommandName = attribute.CommandName;
             this.Alias = attribute.Alias;
-            this.Default = attribute.Default;
+            this.IsDefault = attribute.IsDefault;
             this.Description = attribute.Description;
             this.IsSubcommand = attribute.IsSubcommand;
 
             if (this.CommandName == string.Empty)
             {
-                this.Default = true;
+                this.IsDefault = true;
             }
 
             foreach (var y in commandType.GetInterfaces())
@@ -251,7 +251,7 @@ public class SimpleParser : ISimpleParser
         public Type CommandType { get; }
 
         /// <summary>
-        /// Gets the implemented interface: <see cref="ISimpleCommand"/> or the generic definition of <see cref="ISimpleCommand{TOption}"/>.
+        /// Gets the implemented interface: <see cref="ISimpleCommand"/> or the generic definition of <see cref="ISimpleCommand{TOptions}"/>.
         /// </summary>
         public Type CommandInterface { get; }
 
@@ -273,7 +273,7 @@ public class SimpleParser : ISimpleParser
         /// <summary>
         /// Gets a value indicating whether this command is executed when the command name is not specified.
         /// </summary>
-        public bool Default { get; internal set; }
+        public bool IsDefault { get; internal set; }
 
         /// <summary>
         /// Gets or sets the description shown in a help message.
@@ -446,12 +446,12 @@ public class SimpleParser : ISimpleParser
         /// Arguments which are not consumed as an option are stored in <see cref="RemainingArguments"/>.
         /// </summary>
         /// <param name="args">The arguments.</param>
-        /// <param name="start">The index at which parsing starts.</param>
+        /// <param name="startIndex">The index at which parsing starts.</param>
         /// <param name="acceptUnknownOptionName">
         /// <see langword="true"/> to ignore an unknown option name even when <see cref="SimpleParserOptions.RequireStrictOptionName"/> is enabled.
         /// </param>
         /// <returns><see langword="true"/> if the arguments are successfully parsed.</returns>
-        public bool Parse(string[] args, int start, bool acceptUnknownOptionName)
+        public bool Parse(string[] args, int startIndex, bool acceptUnknownOptionName)
         {
             var errorFlag = false;
             List<string>? remaining = null;
@@ -464,9 +464,9 @@ public class SimpleParser : ISimpleParser
                 x.Reset();
             }
 
-            for (var n = start; n < args.Length; n++)
+            for (var n = startIndex; n < args.Length; n++)
             {
-                if (args[n].IsOptionString())
+                if (args[n].IsOptionName())
                 {// -option
                     var name = args[n].AsSpan().Trim(SimpleParser.OptionPrefix);
                     if (!longLookup.TryGetValue(name, out var option))
@@ -478,7 +478,7 @@ public class SimpleParser : ISimpleParser
                     {// Option found
                         if (n + 1 < args.Length)
                         {
-                            if (!args[n + 1].IsOptionString())
+                            if (!args[n + 1].IsOptionName())
                             {
                                 n++;
                                 if (option.Parse(args[n], this.OptionInstance, acceptUnknownOptionName))
@@ -522,8 +522,8 @@ public class SimpleParser : ISimpleParser
                         }
                     }
                 }
-                else if (args[n].Length == 1 && args[n][0] == SimpleParser.Separator)
-                {// '|' Separator
+                else if (args[n].Length == 1 && args[n][0] == SimpleParser.CommandSeparator)
+                {// '|' CommandSeparator
                     break;
                 }
                 else
@@ -754,7 +754,7 @@ public class SimpleParser : ISimpleParser
 
                 if (x.OptionClass != null)
                 {
-                    this.Parser.TryAddOptionClassUsage(x.OptionClass);
+                    this.Parser.AddOptionClassUsage(x.OptionClass);
                 }
             }
 
@@ -952,13 +952,13 @@ public class SimpleParser : ISimpleParser
         /// <summary>
         /// Converts the argument to the type of this option and sets it on the specified instance.
         /// </summary>
-        /// <param name="arg">The value of the option.</param>
+        /// <param name="argument">The value of the option.</param>
         /// <param name="instance">The instance of the options class to set the value on.</param>
         /// <param name="acceptUnknownOptionName">
         /// <see langword="true"/> to ignore an unknown option name while parsing a nested options class.
         /// </param>
         /// <returns><see langword="true"/> if the value is converted and set.</returns>
-        public bool Parse(string arg, object? instance, bool acceptUnknownOptionName)
+        public bool Parse(string argument, object? instance, bool acceptUnknownOptionName)
         {
             if (instance == null)
             {
@@ -968,11 +968,11 @@ public class SimpleParser : ISimpleParser
             object value;
             if (this.OptionClass is not null)
             {
-                arg = SimpleParserHelper.ProcessArgument(arg, this.Parser.ParserOptions, this.ArgumentProcessing);
+                argument = SimpleParserHelper.ProcessArgument(argument, this.Parser.ParserOptions, this.ArgumentProcessing);
                 var typeIdentifier = this.OptionClass.OptionTypeIdentifier;
                 if (typeIdentifier != 0 && TinyhandTypeIdentifier.IsRegistered(typeIdentifier))
                 {
-                    var obj = TinyhandTypeIdentifier.TryParseOrDeserializeFromString(typeIdentifier, arg, SerializerOptions);
+                    var obj = TinyhandTypeIdentifier.TryParseOrDeserializeFromString(typeIdentifier, argument, SerializerOptions);
                     if (obj is not null)
                     {
                         this.OptionClass.optionInstance = obj;
@@ -981,12 +981,12 @@ public class SimpleParser : ISimpleParser
 
                 if (this.OptionClass.optionInstance is null)
                 {
-                    if (arg.Length >= 2 && arg.StartsWith(SimpleParser.OpenBracket) && arg.EndsWith(SimpleParser.CloseBracket))
+                    if (argument.Length >= 2 && argument.StartsWith(SimpleParser.OpenBrace) && argument.EndsWith(SimpleParser.CloseBrace))
                     {
-                        arg = arg.Substring(1, arg.Length - 2);
+                        argument = argument.Substring(1, argument.Length - 2);
                     }
 
-                    var ret = this.OptionClass.Parse(arg.FormatArguments(this.Parser.ParserOptions.ArgumentDelimiter), 0, acceptUnknownOptionName);
+                    var ret = this.OptionClass.Parse(argument.SplitArguments(this.Parser.ParserOptions.ArgumentDelimiter), 0, acceptUnknownOptionName);
                     if (!ret || this.OptionClass.OptionInstance == null)
                     {
                         return false;
@@ -997,7 +997,7 @@ public class SimpleParser : ISimpleParser
             }
             else if (this.enumType is not null)
             {// Enum
-                if (!Enum.TryParse(this.enumType, arg, true, out var result) || result is null)
+                if (!Enum.TryParse(this.enumType, argument, true, out var result) || result is null)
                 {
                     return false;
                 }
@@ -1006,7 +1006,7 @@ public class SimpleParser : ISimpleParser
             }
             else if (this.converter is not null)
             {// Primitive types
-                if (this.converter(arg) is not { } converted)
+                if (this.converter(argument) is not { } converted)
                 {
                     return false;
                 }
@@ -1015,7 +1015,7 @@ public class SimpleParser : ISimpleParser
             }
             else
             {// String
-                value = SimpleParserHelper.ProcessArgument(arg, this.Parser.ParserOptions, this.ArgumentProcessing);
+                value = SimpleParserHelper.ProcessArgument(argument, this.Parser.ParserOptions, this.ArgumentProcessing);
             }
 
             return this.SetValue(instance, value);
@@ -1162,12 +1162,12 @@ public class SimpleParser : ISimpleParser
     /// <summary>
     /// Initializes a new instance of the <see cref="SimpleParser"/> class.<br/>
     /// Unless <see cref="SimpleParserOptions.RequireStrictCommandName"/> is enabled, the first command type
-    /// (or the first one whose <see cref="SimpleCommandAttribute.Default"/> is <see langword="true"/>) becomes the default command.
+    /// (or the first one whose <see cref="SimpleCommandAttribute.IsDefault"/> is <see langword="true"/>) becomes the default command.
     /// </summary>
-    /// <param name="simpleCommands">The command types. Each must have a <see cref="SimpleCommandAttribute"/>.</param>
+    /// <param name="commandTypes">The command types. Each must have a <see cref="SimpleCommandAttribute"/>.</param>
     /// <param name="parserOptions">The parser options. Use <see langword="null"/> for <see cref="SimpleParserOptions.Standard"/>.</param>
     /// <exception cref="InvalidOperationException">A command type is not valid, or a command name or alias is duplicated.</exception>
-    public SimpleParser(IEnumerable<Type> simpleCommands, SimpleParserOptions? parserOptions = null)
+    public SimpleParser(IEnumerable<Type> commandTypes, SimpleParserOptions? parserOptions = null)
     {
         this.ParserOptions = parserOptions ?? SimpleParserOptions.Standard;
         this.consoleService = this.ParserOptions.ServiceProvider?.GetService<IConsoleService>();
@@ -1177,7 +1177,7 @@ public class SimpleParser : ISimpleParser
         this.AliasToCommand = new(StringComparer.OrdinalIgnoreCase);
         this.ErrorMessage = new();
         this.OptionClassUsage = new();
-        foreach (var x in simpleCommands)
+        foreach (var x in commandTypes)
         {
             // Get SimpleCommandAttribute
             var attribute = x.GetCustomAttribute<SimpleCommandAttribute>(true);
@@ -1206,7 +1206,7 @@ public class SimpleParser : ISimpleParser
                 {
                     firstOrDefault = command;
                 }
-                else if (!firstOrDefault.Default && command.Default)
+                else if (!firstOrDefault.IsDefault && command.IsDefault)
                 {
                     firstOrDefault = command;
                 }
@@ -1237,7 +1237,7 @@ public class SimpleParser : ISimpleParser
 
         if (firstOrDefault != null)
         {
-            firstOrDefault.Default = true;
+            firstOrDefault.IsDefault = true;
             this.DefaultCommandName = firstOrDefault.CommandName;
         }
 
@@ -1251,15 +1251,15 @@ public class SimpleParser : ISimpleParser
     /// Parses the arguments and executes the specified command asynchronously.<br/>
     /// A help or version message is displayed instead when it is requested or the arguments are invalid.
     /// </summary>
-    /// <param name="simpleCommands">The command types. Each must have a <see cref="SimpleCommandAttribute"/>.</param>
-    /// <param name="arg">The arguments specifying the command and its options.</param>
+    /// <param name="commandTypes">The command types. Each must have a <see cref="SimpleCommandAttribute"/>.</param>
+    /// <param name="commandLine">The command line specifying the command and its options.</param>
     /// <param name="parserOptions">The parser options. Use <see langword="null"/> for <see cref="SimpleParserOptions.Standard"/>.</param>
     /// <param name="cancellationToken">A token used to cancel the command execution.</param>
     /// <returns>A task that represents the command execution.</returns>
-    public static Task ParseAndExecute(IEnumerable<Type> simpleCommands, string arg, SimpleParserOptions? parserOptions = null, CancellationToken cancellationToken = default)
+    public static Task ParseAndExecute(IEnumerable<Type> commandTypes, string commandLine, SimpleParserOptions? parserOptions = null, CancellationToken cancellationToken = default)
     {
-        var p = new SimpleParser(simpleCommands, parserOptions);
-        p.Parse(arg);
+        var p = new SimpleParser(commandTypes, parserOptions);
+        p.Parse(commandLine);
         return p.Execute(cancellationToken);
     }
 
@@ -1267,14 +1267,14 @@ public class SimpleParser : ISimpleParser
     /// Parses the arguments and executes the specified command asynchronously.<br/>
     /// The arguments are joined with a space, so quoting is lost; use the <see cref="string"/> overload to preserve it.
     /// </summary>
-    /// <param name="simpleCommands">The command types. Each must have a <see cref="SimpleCommandAttribute"/>.</param>
+    /// <param name="commandTypes">The command types. Each must have a <see cref="SimpleCommandAttribute"/>.</param>
     /// <param name="args">The arguments specifying the command and its options.</param>
     /// <param name="parserOptions">The parser options. Use <see langword="null"/> for <see cref="SimpleParserOptions.Standard"/>.</param>
     /// <param name="cancellationToken">A token used to cancel the command execution.</param>
     /// <returns>A task that represents the command execution.</returns>
-    public static Task ParseAndExecute(IEnumerable<Type> simpleCommands, string[] args, SimpleParserOptions? parserOptions = null, CancellationToken cancellationToken = default)
+    public static Task ParseAndExecute(IEnumerable<Type> commandTypes, string[] args, SimpleParserOptions? parserOptions = null, CancellationToken cancellationToken = default)
     {
-        var p = new SimpleParser(simpleCommands, parserOptions);
+        var p = new SimpleParser(commandTypes, parserOptions);
         p.Parse(args);
         return p.Execute(cancellationToken);
     }
@@ -1289,24 +1289,24 @@ public class SimpleParser : ISimpleParser
 
     /// <summary>
     /// Parses the arguments and stores the result in <see cref="CurrentCommand"/>.<br/>
-    /// When help or version is requested, <see cref="HelpCommand"/> or <see cref="VersionCommand"/> is set instead.
+    /// When help or version is requested, <see cref="HelpCommandName"/> or <see cref="VersionRequested"/> is set instead.
     /// </summary>
-    /// <param name="arg">The arguments specifying the command and its options.</param>
+    /// <param name="commandLine">The command line specifying the command and its options.</param>
     /// <returns><see langword="true"/> if the arguments are successfully parsed.</returns>
-    public bool Parse(string arg)
+    public bool Parse(string commandLine)
     {
         var ret = true;
-        var arguments = arg.FormatArguments(this.ParserOptions.ArgumentDelimiter);
-        this.OriginalArguments = arg;
-        this.HelpCommand = null;
-        this.VersionCommand = false;
+        var arguments = commandLine.SplitArguments(this.ParserOptions.ArgumentDelimiter);
+        this.OriginalCommandLine = commandLine;
+        this.HelpCommandName = null;
+        this.VersionRequested = false;
         this.CurrentCommand = null;
         this.ErrorMessage.Clear();
 
         var commandName = this.DefaultCommandName;
         var commandSpecified = false;
         var start = 0;
-        if (arguments.Length >= 1 && !arguments[0].IsOptionString())
+        if (arguments.Length >= 1 && !arguments[0].IsOptionName())
         {// Command
             if (this.NameToCommand.ContainsKey(arguments[0]))
             {// CommandName Found
@@ -1325,7 +1325,7 @@ public class SimpleParser : ISimpleParser
         // Not found. Try to load the command from environment variables.
         if (start == 0 &&
             this.ParserOptions.ReadCommandFromEnvironment &&
-            Environment.GetEnvironmentVariable(SimpleParser.CommandString) is { } env)
+            Environment.GetEnvironmentVariable(SimpleParser.CommandEnvironmentVariable) is { } env)
         {
             if (this.NameToCommand.ContainsKey(env))
             {// CommandName Found
@@ -1344,7 +1344,7 @@ public class SimpleParser : ISimpleParser
             TryProcessHelpAndVersion(); // "app.exe help", "app.exe version"
         }
 
-        if (this.HelpCommand != null || this.VersionCommand)
+        if (this.HelpCommandName != null || this.VersionRequested)
         {
             return ret;
         }
@@ -1352,22 +1352,22 @@ public class SimpleParser : ISimpleParser
         if (commandName == null)
         {
             this.AddErrorMessage("Specify the command name");
-            this.HelpCommand = string.Empty;
+            this.HelpCommandName = string.Empty;
             return false;
         }
 
         if (this.NameToCommand.TryGetValue(commandName, out var command))
         {
             if (commandSpecified && !command.IsSubcommand &&
-                arguments.Length > start && OptionEquals(arguments[start], HelpString))
+                arguments.Length > start && OptionEquals(arguments[start], HelpName))
             {
-                if (arguments[start].IsOptionString() &&
-                    (command.OptionClass.LongNameToOption.ContainsKey(HelpString) || command.OptionClass.ShortNameToOption.ContainsKey(HelpString)))
+                if (arguments[start].IsOptionName() &&
+                    (command.OptionClass.LongNameToOption.ContainsKey(HelpName) || command.OptionClass.ShortNameToOption.ContainsKey(HelpName)))
                 {// "app.exe command -help"
                 }
                 else
                 {// "app.exe command help"
-                    this.HelpCommand = commandName;
+                    this.HelpCommandName = commandName;
                     return true;
                 }
             }
@@ -1380,13 +1380,13 @@ public class SimpleParser : ISimpleParser
             else
             {
                 ret = false;
-                this.HelpCommand = commandSpecified ? commandName : string.Empty;
+                this.HelpCommandName = commandSpecified ? commandName : string.Empty;
             }
         }
         else
         {// Command not found.
             this.AddErrorMessage($"Command '{commandName}' is not found");
-            this.HelpCommand = string.Empty;
+            this.HelpCommandName = string.Empty;
             ret = false;
         }
 
@@ -1399,21 +1399,21 @@ public class SimpleParser : ISimpleParser
                 return;
             }
 
-            if (OptionEquals(arguments[0], HelpString) ||
+            if (OptionEquals(arguments[0], HelpName) ||
                 (this.ParserOptions.AutoAlias && OptionEquals(arguments[0], HelpAlias)))
             {// Help
-                if (arguments.Length >= 2 && !arguments[1].IsOptionString() && this.NameToCommand.ContainsKey(arguments[1]))
+                if (arguments.Length >= 2 && !arguments[1].IsOptionName() && this.NameToCommand.ContainsKey(arguments[1]))
                 {// help command
-                    this.HelpCommand = arguments[1];
+                    this.HelpCommandName = arguments[1];
                 }
                 else
                 {
-                    this.HelpCommand = string.Empty;
+                    this.HelpCommandName = string.Empty;
                 }
             }
-            else if (OptionEquals(arguments[0], VersionString))
+            else if (OptionEquals(arguments[0], VersionName))
             {// Version
-                this.VersionCommand = true;
+                this.VersionRequested = true;
             }
         }
     }
@@ -1426,11 +1426,11 @@ public class SimpleParser : ISimpleParser
     /// <returns>A task that represents the command execution.</returns>
     public Task Execute(CancellationToken cancellationToken = default)
     {
-        if (this.HelpCommand != null)
+        if (this.HelpCommandName != null)
         {
-            this.ShowHelp(this.HelpCommand);
+            this.ShowHelp(this.HelpCommandName);
         }
-        else if (this.VersionCommand)
+        else if (this.VersionRequested)
         {
             this.ShowVersion();
         }
@@ -1448,12 +1448,12 @@ public class SimpleParser : ISimpleParser
     /// <summary>
     /// Parses the arguments and executes the specified command asynchronously.
     /// </summary>
-    /// <param name="arg">The arguments specifying the command and its options.</param>
+    /// <param name="commandLine">The command line specifying the command and its options.</param>
     /// <param name="cancellationToken">A token used to cancel the command execution.</param>
     /// <returns>A task that represents the command execution.</returns>
-    public Task ParseAndExecute(string arg, CancellationToken cancellationToken = default)
+    public Task ParseAndExecute(string commandLine, CancellationToken cancellationToken = default)
     {
-        this.Parse(arg);
+        this.Parse(commandLine);
         return this.Execute(cancellationToken);
     }
 
@@ -1483,7 +1483,7 @@ public class SimpleParser : ISimpleParser
     /// Attempts to retrieve the option associated with the specified command and option name.
     /// </summary>
     /// <param name="commandName">The name of the command to search for (case insensitive).</param>
-    /// <param name="optionName">The long name of the option to search for within the command (case sensitive).</param>
+    /// <param name="optionName">The long name of the option to search for within the command (case insensitive).</param>
     /// <param name="option">
     /// When this method returns, contains the <see cref="Option"/> associated with the specified option name,
     /// if the option is found; otherwise, <see langword="null"/>.
@@ -1493,19 +1493,9 @@ public class SimpleParser : ISimpleParser
     /// </returns>
     public bool TryGetOption(string commandName, string optionName, [MaybeNullWhen(false)] out Option option)
     {
-        if (!this.NameToCommand.TryGetValue(commandName, out var command))
+        if (this.NameToCommand.TryGetValue(commandName, out var command))
         {
-            option = default;
-            return false;
-        }
-
-        foreach (var x in command.OptionClass.Options)
-        {
-            if (x.LongName == optionName)
-            {
-                option = x;
-                return true;
-            }
+            return command.OptionClass.LongNameToOption.TryGetValue(optionName, out option);
         }
 
         option = default;
@@ -1515,18 +1505,18 @@ public class SimpleParser : ISimpleParser
     /// <summary>
     /// Writes a help message, preceded by the error messages of the last parse if there are any.
     /// </summary>
-    /// <param name="command">
+    /// <param name="commandName">
     /// The name of the command to describe. Use <see cref="string.Empty"/> to target all commands,
-    /// or <see langword="null"/> to use <see cref="HelpCommand"/>.
+    /// or <see langword="null"/> to use <see cref="HelpCommandName"/>.
     /// </param>
-    public void ShowHelp(string? command = null)
+    public void ShowHelp(string? commandName = null)
     {
         var sb = new StringBuilder();
         this.OptionClassUsage.Clear();
         if (this.ErrorMessage.Count > 0)
         {
             sb.Append("Error: ");
-            sb.AppendLine(this.OriginalArguments);
+            sb.AppendLine(this.OriginalCommandLine);
             foreach (var x in this.ErrorMessage)
             {
                 sb.Append(IndentString);
@@ -1534,18 +1524,15 @@ public class SimpleParser : ISimpleParser
             }
 
             sb.AppendLine();
-            if (command == null)
-            {
-                command = this.HelpCommand;
-            }
+            commandName ??= this.HelpCommandName;
         }
 
-        if (!this.ParserOptions.DoNotDisplayUsage)
+        if (this.ParserOptions.DisplayUsage)
         {
-            this.AppendUsage(sb, command);
+            this.AppendUsage(sb, commandName);
         }
 
-        if (string.IsNullOrEmpty(command) && this.ParserOptions.DisplayCommandListAsHelp)
+        if (string.IsNullOrEmpty(commandName) && this.ParserOptions.DisplayCommandListAsHelp)
         {
             this.AppendList(sb);
             this.WriteLine(sb.ToString());
@@ -1553,9 +1540,9 @@ public class SimpleParser : ISimpleParser
         }
 
         Command? c = null;
-        if (command != null)
+        if (commandName != null)
         {
-            this.NameToCommand.TryGetValue(command, out c);
+            this.NameToCommand.TryGetValue(commandName, out c);
         }
 
         if (c == null)
@@ -1596,8 +1583,8 @@ public class SimpleParser : ISimpleParser
     /// Writes the command names in columns sized to the console width.<br/>
     /// Because the width calculation counts characters, only single-width (alphabetic) command names are supported.
     /// </summary>
-    /// <param name="maxLength">The maximum width of a column. A longer command name is truncated.</param>
-    public void ShowCommandList(int maxLength = 19)
+    /// <param name="maxColumnWidth">The maximum width of a column. A longer command name is truncated.</param>
+    public void ShowCommandList(int maxColumnWidth = 19)
     {
         var array = this.NameToCommand.Keys.ToArray();
         if (array.Length == 0)
@@ -1628,7 +1615,7 @@ public class SimpleParser : ISimpleParser
             }
         }
 
-        var columnWidth = Math.Min(Math.Min(max, maxLength), windowWidth);
+        var columnWidth = Math.Min(Math.Min(max, maxColumnWidth), windowWidth);
         if (columnWidth == 0)
         {
             this.WriteLine();
@@ -1700,7 +1687,7 @@ public class SimpleParser : ISimpleParser
     /// <summary>
     /// Gets the arguments passed to the last <see cref="Parse(string)"/> call.
     /// </summary>
-    public string OriginalArguments { get; private set; } = string.Empty;
+    public string OriginalCommandLine { get; private set; } = string.Empty;
 
     /// <summary>
     /// Gets the name of the command executed when the command name is not specified,
@@ -1717,12 +1704,12 @@ public class SimpleParser : ISimpleParser
     /// Gets the name of the command for which a help message will be displayed
     /// (<see cref="string.Empty"/> targets all commands, <see langword="null"/> means no help was requested).
     /// </summary>
-    public string? HelpCommand { get; private set; }
+    public string? HelpCommandName { get; private set; }
 
     /// <summary>
     /// Gets a value indicating whether the version command is specified.
     /// </summary>
-    public bool VersionCommand { get; private set; }
+    public bool VersionRequested { get; private set; }
 
     /// <summary>
     /// Gets the registered commands keyed by their command name (case insensitive).
@@ -1750,7 +1737,7 @@ public class SimpleParser : ISimpleParser
     /// The options class is ignored if another one of the same type is already registered.
     /// </summary>
     /// <param name="optionClass">The nested options class.</param>
-    public void TryAddOptionClassUsage(OptionClass optionClass)
+    public void AddOptionClassUsage(OptionClass optionClass)
     {
         foreach (var x in CollectionsMarshal.AsSpan(this.OptionClassUsage))
         {
@@ -1815,7 +1802,7 @@ public class SimpleParser : ISimpleParser
         {
             sb.Append(IndentString);
             sb.Append(x.Key);
-            if (x.Value.Default)
+            if (x.Value.IsDefault)
             {
                 sb.AppendLine(" (default)");
             }

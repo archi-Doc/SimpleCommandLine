@@ -1,4 +1,4 @@
-// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
+﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System;
 using System.Linq;
@@ -265,21 +265,21 @@ public class ParserTest
         var parser = new SimpleParser(CommandTypes, StandardOptions);
 
         parser.Parse("help").IsTrue();
-        parser.HelpCommand.Is(string.Empty);
+        parser.HelpCommandName.Is(string.Empty);
 
         parser.Parse("help plain-command").IsTrue();
-        parser.HelpCommand.Is("plain-command");
+        parser.HelpCommandName.Is("plain-command");
 
         parser.Parse("parser-command help").IsTrue();
-        parser.HelpCommand.Is("parser-command");
+        parser.HelpCommandName.Is("parser-command");
 
         parser.Parse("version").IsTrue();
-        parser.VersionCommand.IsTrue();
+        parser.VersionRequested.IsTrue();
 
         // The state is reset for every Parse() call.
         parser.Parse("parser-command").IsTrue();
-        parser.HelpCommand.IsNull();
-        parser.VersionCommand.IsFalse();
+        parser.HelpCommandName.IsNull();
+        parser.VersionRequested.IsFalse();
 
         // ShowHelp()/ShowVersion() do not throw (the output is suppressed).
         parser.ShowHelp();
@@ -303,6 +303,10 @@ public class ParserTest
         option.ShortName.Is("b");
         parser.TryGetOption("parser-command", "no-such-option", out _).IsFalse();
         parser.TryGetOption("no-such-command", "base", out _).IsFalse();
+
+        // The option name is case insensitive, like the option resolution of the parser.
+        parser.TryGetOption("PARSER-COMMAND", "BASE", out option).IsTrue();
+        option!.LongName.Is("base");
     }
 
     [Fact]
