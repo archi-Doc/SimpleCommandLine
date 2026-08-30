@@ -6,32 +6,34 @@ using System.Threading.Tasks;
 namespace SimpleCommandLine;
 
 /// <summary>
-/// A simple command class with an options class requires an implementation of <seealso cref="ISimpleCommand{T}"/>.
+/// Implemented by a command class which takes an options class.<br/>
+/// The class must also have a <see cref="SimpleCommandAttribute"/>.
 /// </summary>
-/// <typeparam name="TOption">The type of options class.</typeparam>
-public interface ISimpleCommand<TOption>
-    where TOption : new()
+/// <typeparam name="TOptions">The type of the options class.</typeparam>
+public interface ISimpleCommand<TOptions>
+    where TOptions : new()
 {
     /// <summary>
-    /// The asynchronous method called when the command is executed.
+    /// Called when the command is executed.
     /// </summary>
-    /// <param name="option">The command-line options class.</param>
-    /// <param name="args">The remaining command-line arguments.</param>
-    /// <param name="cancellationToken">A token used to cancel command execution.</param>
+    /// <param name="options">The options parsed from the command line.</param>
+    /// <param name="args">The arguments which were not consumed as an option.</param>
+    /// <param name="cancellationToken">A token used to cancel the command execution.</param>
     /// <returns>A task that represents the command execution.</returns>
-    Task Execute(TOption option, string[] args, CancellationToken cancellationToken);
+    Task Execute(TOptions options, string[] args, CancellationToken cancellationToken);
 }
 
 /// <summary>
-/// A simple command class without options requires an implementation of <seealso cref="ISimpleCommand"/>.
+/// Implemented by a command class which takes no options.<br/>
+/// The class must also have a <see cref="SimpleCommandAttribute"/>.
 /// </summary>
 public interface ISimpleCommand
 {
     /// <summary>
-    /// The asynchronous method called when the command is executed.
+    /// Called when the command is executed.
     /// </summary>
-    /// <param name="args">The remaining command-line arguments.</param>
-    /// <param name="cancellationToken">A token used to cancel command execution.</param>
+    /// <param name="args">The arguments which were not consumed as an option.</param>
+    /// <param name="cancellationToken">A token used to cancel the command execution.</param>
     /// <returns>A task that represents the command execution.</returns>
     Task Execute(string[] args, CancellationToken cancellationToken);
 }

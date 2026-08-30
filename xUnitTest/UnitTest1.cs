@@ -1,5 +1,7 @@
-using System;
+﻿using System;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using SimpleCommandLine;
 using Xunit;
 
@@ -14,9 +16,45 @@ public class TestOptions
     public int B { get; set; }
 }
 
+public class NameOptions
+{
+    /// <summary>
+    /// Gets or sets the number. Its long name collides with the short name of <see cref="Value"/>.
+    /// </summary>
+    [SimpleOption("n", ShortName = "x")]
+    public int N { get; set; }
+
+    [SimpleOption("value", ShortName = "n")]
+    public int Value { get; set; }
+
+    [SimpleOption("nullable", ShortName = "u")]
+    public int? Nullable { get; set; }
+
+    [SimpleOption("day", ShortName = "d")]
+    public DayOfWeek? Day { get; set; }
+}
+
+public class DelimiterOptions
+{
+    [SimpleOption("text")]
+    public string Text { get; set; } = string.Empty;
+}
+
+[SimpleCommand("delimiter")]
+public class DelimiterCommand : ISimpleCommand<DelimiterOptions>
+{
+    public static DelimiterOptions? Result { get; set; }
+
+    public Task Execute(DelimiterOptions option, string[] args, CancellationToken cancellationToken)
+    {
+        Result = option;
+        return Task.CompletedTask;
+    }
+}
+
 public class UnitTest1
 {
-    private const string Separator = SimpleParser.SeparatorString;
+    private const string CommandSeparator = SimpleParser.CommandSeparatorString;
 
     [Theory]
     [InlineData("abc", "abc")]
@@ -46,9 +84,9 @@ public class UnitTest1
     public void SeparatorTest()
     {
         Test(string.Empty, []);
-        Test("a | b", ["a", Separator, "b"]);
-        Test("|a|b|", [Separator, "a", Separator, "b", Separator]);
-        Test("ab | \"cd|ef\"|{gh|ij}||", ["ab", Separator, "\"cd|ef\"", Separator, "{gh|ij}", Separator, Separator]);
+        Test("a | b", ["a", CommandSeparator, "b"]);
+        Test("|a|b|", [CommandSeparator, "a", CommandSeparator, "b", CommandSeparator]);
+        Test("ab | \"cd|ef\"|{gh|ij}||", ["ab", CommandSeparator, "\"cd|ef\"", CommandSeparator, "{gh|ij}", CommandSeparator, CommandSeparator]);
 
         TestOptions options;
         SimpleParser.TryParseOptions("", out options!).IsTrue();
@@ -61,10 +99,54 @@ public class UnitTest1
         options.A.Is(1);
         options.B.Is(0);
 
-        "".SeparateArguments().SequenceEqual([]).IsTrue();
-        "| ".SeparateArguments().SequenceEqual([string.Empty]).IsTrue();
-        "-A 1 | -B 2".SeparateArguments().SequenceEqual(["-A 1", "-B 2"]).IsTrue();
+        "".SplitCommandLines().SequenceEqual([]).IsTrue();
+        "| ".SplitCommandLines().SequenceEqual([string.Empty]).IsTrue();
+        "-A 1 | -B 2".SplitCommandLines().SequenceEqual(["-A 1", "-B 2"]).IsTrue();
     }
+
+    [Fact]
+    public void OptionNameTest()
+    {
+        // A short name may collide with the long name of another option (the long name takes precedence).
+        NameOptions options;
+        SimpleParser.TryParseOptions("-n 1 -x 2 -value 3", out options!).IsTrue();
+        options.N.Is(2); // -x (short) and -n (long) both point to N.
+        options.Value.Is(3);
+
+        // Nullable value types.
+        options.Nullable.IsNull();
+        options.Day.IsNull();
+        SimpleParser.TryParseOptions("-nullable 7 -d friday", out options!).IsTrue();
+        options.Nullable.Is((int?)7);
+        options.Day.Is((DayOfWeek?)DayOfWeek.Friday);
+
+        // An invalid value leaves the default value (and does not throw).
+        SimpleParser.TryParseOptions("-n abc", out options!).IsTrue();
+        options.N.Is(0);
+    }
+
+    [Fact]
+    public async Task ArgumentDelimiterTest()
+    {
+        var parserOptions = SimpleParserOptions.Standard with
+        {
+            ArgumentDelimiter = "#",
+            SuppressConsoleOutput = true,
+        };
+
+        // The delimiter length is honored even when it differs from the default (""").
+        await SimpleParser.ParseAndExecute([typeof(DelimiterCommand)], "delimiter -text #a b#", parserOptions, TestContext.Current.CancellationToken);
+        DelimiterCommand.Result!.Text.Is("a b");
+    }
+
+    [Theory]
+    [InlineData("", "")]
+    [InlineData("test", "t")]
+    [InlineData("remove-file", "rf")]
+    [InlineData("-remove--file-", "rf")]
+    [InlineData("a-b-c-d", "abcd")]
+    public void CreateAliasTest(string command, string expected)
+        => SimpleParserHelper.CreateAliasFromCommand(command).Is(expected);
 
     [Fact]
     public void PeekCommandTest()
@@ -109,20 +191,20 @@ public class UnitTest1
         Test("""""""-text """a""" """""" """Triple quotes{}""" """"""", ["-text", "\"\"\"a\"\"\"", "\"\"\"\"\"\"", "\"\"\"Triple quotes{}\"\"\"",]);
         // Test(""""-text """Triple quotes""" -options {} """");
 
-        SimpleParserHelper.ParseArguments("").Is("");
-        SimpleParserHelper.ParseArguments("A").Is("");
-        SimpleParserHelper.ParseArguments("\"").Is("");
-        SimpleParserHelper.ParseArguments("A\"").Is("");
-        SimpleParserHelper.ParseArguments("\"AB").Is("");
-        SimpleParserHelper.ParseArguments("\"AB\"").Is("");
-        SimpleParserHelper.ParseArguments("\"AB\"c").Is("c");
-        SimpleParserHelper.ParseArguments("\"AB\" c").Is("c");
-        SimpleParserHelper.ParseArguments("AB c").Is("c");
+        SimpleParserHelper.ExtractArguments("").Is("");
+        SimpleParserHelper.ExtractArguments("A").Is("");
+        SimpleParserHelper.ExtractArguments("\"").Is("");
+        SimpleParserHelper.ExtractArguments("A\"").Is("");
+        SimpleParserHelper.ExtractArguments("\"AB").Is("");
+        SimpleParserHelper.ExtractArguments("\"AB\"").Is("");
+        SimpleParserHelper.ExtractArguments("\"AB\"c").Is("c");
+        SimpleParserHelper.ExtractArguments("\"AB\" c").Is("c");
+        SimpleParserHelper.ExtractArguments("AB c").Is("c");
     }
 
     private void Test(string args, string[] test)
     {
-        var result = SimpleParserHelper.FormatArguments(args);
+        var result = SimpleParserHelper.SplitArguments(args);
         result.IsStructuralEqual(test);
     }
 }

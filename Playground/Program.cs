@@ -260,7 +260,7 @@ public class Program
             ServiceProvider = unit.Context.ServiceProvider,
             RequireStrictCommandName = true,
             RequireStrictOptionName = true,
-            DoNotDisplayUsage = true,
+            DisplayUsage = false,
             AutoAlias = true,
         };
 

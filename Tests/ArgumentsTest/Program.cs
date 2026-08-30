@@ -53,14 +53,14 @@ static void Test(string arg, ReadOnlySpan<char> delimiter = default)
 
 static void Test2(StringBuilder sb, string arg, string[]? formatted, ReadOnlySpan<char> delimiter = default)
 {
-    var result = formatted ?? arg.FormatArguments(delimiter);
+    var result = formatted ?? arg.SplitArguments(delimiter);
     var prefix = formatted is null ? string.Empty : "  /  ";
     sb.Append($"{prefix}{arg}  ->  {string.Join(',', result)}");
     foreach (var x in result)
     {
         if (x.Length >= 2 && x.StartsWith('{') && arg.EndsWith('}'))
         {
-            var result2 = x.Substring(1, x.Length - 2).FormatArguments(delimiter);
+            var result2 = x.Substring(1, x.Length - 2).SplitArguments(delimiter);
             if (result2.Length > 1)
             {
                 Test2(sb, x, result2, delimiter);

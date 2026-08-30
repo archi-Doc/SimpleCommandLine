@@ -3,43 +3,23 @@
 namespace SimpleCommandLine;
 
 /// <summary>
-/// Specifies how to normalize a string argument.
+/// Specifies how newlines and escape sequences in a string argument are handled.<br/>
+/// The surrounding delimiter or quotes are always removed, whichever value is used.
 /// </summary>
 public enum ArgumentProcessing
 {
     /// <summary>
-    /// Replace newline characters with spaces.
+    /// Remove '\r', replace '\n' with a space, and unescape <c>\'</c> and <c>\"</c>.
     /// </summary>
     ReplaceNewlinesWithSpace = 0,
 
     /// <summary>
-    /// Leave the input as-is (no newline handling).
+    /// Keep newlines and escape sequences as they are.
     /// </summary>
     AsIs = 1,
 
     /// <summary>
-    /// Remove newline characters from the result.
+    /// Remove '\r' and '\n', and unescape <c>\'</c> and <c>\"</c>.
     /// </summary>
     RemoveNewlines = 3,
-
-    /*/// <summary>
-    /// Unwrap, then replace newline characters with spaces.
-    /// </summary>
-    UnwrapAndReplaceNewlinesWithSpace = 0,
-
-    /// <summary>
-    /// Leave the input as-is (no unwrapping and no newline handling).
-    /// </summary>
-    AsIs = 1,
-
-    /// <summary>
-    /// Unwrap only: if the string starts and ends with the argument delimiters, <br/>
-    /// remove those delimiters; otherwise leave the input unchanged.
-    /// </summary>
-    UnwrapOnly = 2,
-
-    /// <summary>
-    /// Unwrap, then remove newline characters from the result.
-    /// </summary>
-    UnwrapAndRemoveNewlines = 3,*/
 }
