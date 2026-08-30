@@ -1,5 +1,7 @@
 using System;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using SimpleCommandLine;
 using Xunit;
 
@@ -12,6 +14,42 @@ public class TestOptions
 
     [SimpleOption("B")]
     public int B { get; set; }
+}
+
+public class NameOptions
+{
+    /// <summary>
+    /// Gets or sets the number. Its long name collides with the short name of <see cref="Value"/>.
+    /// </summary>
+    [SimpleOption("n", ShortName = "x")]
+    public int N { get; set; }
+
+    [SimpleOption("value", ShortName = "n")]
+    public int Value { get; set; }
+
+    [SimpleOption("nullable", ShortName = "u")]
+    public int? Nullable { get; set; }
+
+    [SimpleOption("day", ShortName = "d")]
+    public DayOfWeek? Day { get; set; }
+}
+
+public class DelimiterOptions
+{
+    [SimpleOption("text")]
+    public string Text { get; set; } = string.Empty;
+}
+
+[SimpleCommand("delimiter")]
+public class DelimiterCommand : ISimpleCommand<DelimiterOptions>
+{
+    public static DelimiterOptions? Result { get; set; }
+
+    public Task Execute(DelimiterOptions option, string[] args, CancellationToken cancellationToken)
+    {
+        Result = option;
+        return Task.CompletedTask;
+    }
 }
 
 public class UnitTest1
@@ -65,6 +103,50 @@ public class UnitTest1
         "| ".SeparateArguments().SequenceEqual([string.Empty]).IsTrue();
         "-A 1 | -B 2".SeparateArguments().SequenceEqual(["-A 1", "-B 2"]).IsTrue();
     }
+
+    [Fact]
+    public void OptionNameTest()
+    {
+        // A short name may collide with the long name of another option (the long name takes precedence).
+        NameOptions options;
+        SimpleParser.TryParseOptions("-n 1 -x 2 -value 3", out options!).IsTrue();
+        options.N.Is(2); // -x (short) and -n (long) both point to N.
+        options.Value.Is(3);
+
+        // Nullable value types.
+        options.Nullable.IsNull();
+        options.Day.IsNull();
+        SimpleParser.TryParseOptions("-nullable 7 -d friday", out options!).IsTrue();
+        options.Nullable.Is((int?)7);
+        options.Day.Is((DayOfWeek?)DayOfWeek.Friday);
+
+        // An invalid value leaves the default value (and does not throw).
+        SimpleParser.TryParseOptions("-n abc", out options!).IsTrue();
+        options.N.Is(0);
+    }
+
+    [Fact]
+    public async Task ArgumentDelimiterTest()
+    {
+        var parserOptions = SimpleParserOptions.Standard with
+        {
+            ArgumentDelimiter = "#",
+            SuppressConsoleOutput = true,
+        };
+
+        // The delimiter length is honored even when it differs from the default (""").
+        await SimpleParser.ParseAndExecute([typeof(DelimiterCommand)], "delimiter -text #a b#", parserOptions, TestContext.Current.CancellationToken);
+        DelimiterCommand.Result!.Text.Is("a b");
+    }
+
+    [Theory]
+    [InlineData("", "")]
+    [InlineData("test", "t")]
+    [InlineData("remove-file", "rf")]
+    [InlineData("-remove--file-", "rf")]
+    [InlineData("a-b-c-d", "abcd")]
+    public void CreateAliasTest(string command, string expected)
+        => SimpleParserHelper.CreateAliasFromCommand(command).Is(expected);
 
     [Fact]
     public void PeekCommandTest()

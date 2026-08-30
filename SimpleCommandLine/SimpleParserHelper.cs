@@ -1,6 +1,7 @@
-﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
+// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
@@ -14,29 +15,38 @@ public static class SimpleParserHelper
 {
     #region FieldAndProperty
 
+    private const int InitialStackSize = 32;
+    private const int NestingStackSize = 16;
+    private const int DefaultArgumentCapacity = 16;
+    private const int SeparatorMark = -1; // Marks a range as the separator string.
+
     private static readonly IFormatProvider DefautFormatProvider = CultureInfo.InvariantCulture;
+    private static readonly object BoxedTrue = true;
+    private static readonly object BoxedFalse = false;
     private static string? commandlineArguments;
 
-    internal static Dictionary<Type, Func<ReadOnlySpan<char>, object?>> TypeConverters { get; } = new();
+    /// <summary>
+    /// Gets the converters used to parse an argument into a primitive type.<br/>
+    /// A converter returns <see langword="null"/> when the argument cannot be converted (no exception is thrown).
+    /// </summary>
+    internal static Dictionary<Type, Func<ReadOnlySpan<char>, object?>> TypeConverters { get; } = new(16)
+    {
+        { typeof(bool), static x => bool.TryParse(x, out var v) ? (v ? BoxedTrue : BoxedFalse) : null },
+        { typeof(sbyte), static x => sbyte.TryParse(x, DefautFormatProvider, out var v) ? v : null },
+        { typeof(byte), static x => byte.TryParse(x, DefautFormatProvider, out var v) ? v : null },
+        { typeof(short), static x => short.TryParse(x, DefautFormatProvider, out var v) ? v : null },
+        { typeof(ushort), static x => ushort.TryParse(x, DefautFormatProvider, out var v) ? v : null },
+        { typeof(int), static x => int.TryParse(x, DefautFormatProvider, out var v) ? v : null },
+        { typeof(uint), static x => uint.TryParse(x, DefautFormatProvider, out var v) ? v : null },
+        { typeof(long), static x => long.TryParse(x, DefautFormatProvider, out var v) ? v : null },
+        { typeof(ulong), static x => ulong.TryParse(x, DefautFormatProvider, out var v) ? v : null },
+        { typeof(float), static x => float.TryParse(x, DefautFormatProvider, out var v) ? v : null },
+        { typeof(double), static x => double.TryParse(x, DefautFormatProvider, out var v) ? v : null },
+        { typeof(decimal), static x => decimal.TryParse(x, DefautFormatProvider, out var v) ? v : null },
+        { typeof(char), static x => x.Length > 0 ? x[0] : null },
+    };
 
     #endregion
-
-    static SimpleParserHelper()
-    {
-        TypeConverters.Add(typeof(bool), static x => bool.Parse(x));
-        TypeConverters.Add(typeof(sbyte), static x => sbyte.Parse(x, DefautFormatProvider));
-        TypeConverters.Add(typeof(byte), static x => byte.Parse(x, DefautFormatProvider));
-        TypeConverters.Add(typeof(short), static x => short.Parse(x, DefautFormatProvider));
-        TypeConverters.Add(typeof(ushort), static x => ushort.Parse(x, DefautFormatProvider));
-        TypeConverters.Add(typeof(int), static x => int.Parse(x, DefautFormatProvider));
-        TypeConverters.Add(typeof(uint), static x => uint.Parse(x, DefautFormatProvider));
-        TypeConverters.Add(typeof(long), static x => long.Parse(x, DefautFormatProvider));
-        TypeConverters.Add(typeof(ulong), static x => ulong.Parse(x, DefautFormatProvider));
-        TypeConverters.Add(typeof(float), static x => float.Parse(x, DefautFormatProvider));
-        TypeConverters.Add(typeof(double), static x => double.Parse(x, DefautFormatProvider));
-        TypeConverters.Add(typeof(decimal), static x => decimal.Parse(x, DefautFormatProvider));
-        TypeConverters.Add(typeof(char), static x => x[0]);
-    }
 
     /// <summary>
     /// Joins a collection of strings with space separators.
@@ -136,7 +146,7 @@ public static class SimpleParserHelper
             return span.Slice(1, span.Length - 2).Trim(); // Removes spaces again to avoid misdetection as indentation.
         }
 
-        return input;
+        return span;
     }
 
     /// <summary>
@@ -228,16 +238,52 @@ public static class SimpleParserHelper
         return commandLine.Substring(quotePosition + 1).Trim();
     }
 
+    /// <summary>
+    /// Creates an alias from a command name by concatenating the initials of the hyphen-separated words<br/>
+    /// (for example, 'remove-file' becomes 'rf').
+    /// </summary>
+    /// <param name="command">The command name.</param>
+    /// <returns>The alias.</returns>
     public static string CreateAliasFromCommand(string command)
     {
-        var words = command.Split('-', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        var alias = string.Empty;
-        foreach (var x in words)
+        var span = command.AsSpan();
+        if (span.IsEmpty)
         {
-            if (x.Length > 0)
+            return string.Empty;
+        }
+
+        char[]? rented = null;
+        var destination = span.Length <= InitialStackSize ?
+            stackalloc char[InitialStackSize] :
+            (rented = ArrayPool<char>.Shared.Rent(span.Length)).AsSpan();
+
+        var count = 0;
+        while (!span.IsEmpty)
+        {// Split by '-', trim and pick the first character of each word.
+            ReadOnlySpan<char> word;
+            var index = span.IndexOf('-');
+            if (index < 0)
             {
-                alias += x[0];
+                word = span;
+                span = default;
             }
+            else
+            {
+                word = span.Slice(0, index);
+                span = span.Slice(index + 1);
+            }
+
+            word = word.Trim();
+            if (!word.IsEmpty)
+            {
+                destination[count++] = word[0];
+            }
+        }
+
+        var alias = count == 0 ? string.Empty : new string(destination.Slice(0, count));
+        if (rented is not null)
+        {
+            ArrayPool<char>.Shared.Return(rented);
         }
 
         return alias;
@@ -354,7 +400,27 @@ public static class SimpleParserHelper
 
     public static string[] SplitAtSpace(this string text) => text.Split((char[])null!, StringSplitOptions.RemoveEmptyEntries);
 
-    public static bool IsOptionString(this ReadOnlySpan<char> text) => text.StartsWith(SimpleParser.OptionPrefix);
+    /// <summary>
+    /// Determines whether the text is an option name (starts with '-').<br/>
+    /// A negative number such as "-1" or "-.5" is a value, not an option name.
+    /// </summary>
+    /// <param name="text">The text to examine.</param>
+    /// <returns><see langword="true"/> if the text is an option name.</returns>
+    public static bool IsOptionString(this ReadOnlySpan<char> text)
+    {
+        if (text.IsEmpty || text[0] != SimpleParser.OptionPrefix)
+        {
+            return false;
+        }
+
+        if (text.Length == 1)
+        {// "-"
+            return true;
+        }
+
+        var c = text[1];
+        return !char.IsAsciiDigit(c) && c != '.';
+    }
 
     public static string[] SeparateArguments(this string arg, ReadOnlySpan<char> delimiter = default)
     {
@@ -462,11 +528,16 @@ public static class SimpleParserHelper
         else if (argumentProcessing == ArgumentProcessing.ReplaceNewlinesWithSpace)
         {
             var subtraction = 0;
+            var replacement = false;
             for (var i = 0; i < span.Length; i++)
             {
                 if (span[i] == '\r')
                 {// Remove \r
                     subtraction++;
+                }
+                else if (span[i] == '\n')
+                {// \n -> Space (the length does not change)
+                    replacement = true;
                 }
                 else if (span[i] == '\\' && i + 1 < span.Length &&
                     (span[i + 1] == '\'' || span[i + 1] == '\"'))
@@ -476,7 +547,7 @@ public static class SimpleParserHelper
                 }
             }
 
-            if (subtraction == 0)
+            if (subtraction == 0 && !replacement)
             {
                 goto Exit;
             }
@@ -520,18 +591,29 @@ Exit:
         }
     }
 
+    /// <summary>
+    /// Splits a command line into arguments, honoring quotes ('), double quotes ("), the argument delimiter (""") and brackets ({}).
+    /// </summary>
+    /// <param name="span">The command line.</param>
+    /// <param name="delimiter">The argument delimiter (<see cref="SimpleParser.DefaultDelimiter"/> if empty).</param>
+    /// <returns>An array of arguments.</returns>
     public static string[] FormatArguments(this ReadOnlySpan<char> span, ReadOnlySpan<char> delimiter = default)
     {
-        var list = new List<string>();
+        if (span.IsEmpty)
+        {
+            return [];
+        }
 
-        var start = 0;
-        var position = 0;
-        var nextPosition = 0;
-        var enclosed = new Stack<char>();
         if (delimiter.IsEmpty)
         {
             delimiter = SimpleParser.DefaultDelimiter;
         }
+
+        var ranges = new RangeList(stackalloc int[DefaultArgumentCapacity * 2]);
+        var start = 0;
+        var position = 0;
+        var nextPosition = 0;
+        var enclosed = new CharStack(stackalloc char[NestingStackSize]);
 
         while (position < span.Length)
         {
@@ -553,13 +635,13 @@ Exit:
                 else if (span.Slice(position).StartsWith(delimiter))
                 {// Delimiter """A B"""
                     enclosed.Push(SimpleParser.DelimiterChar);
-                    nextPosition = position + 3;
+                    nextPosition = position + delimiter.Length;
                     goto AddString;
                 }
                 else if (currentChar == SimpleParser.OpenBracket ||
                     (currentChar == SimpleParser.Quote && lastChar != '\\') ||
                     (currentChar == SimpleParser.SingleQuote && lastChar != '\\'))
-                {// { or " (not \") or '" (not \')
+                {// { or " (not \") or ' (not \')
                     enclosed.Push(currentChar);
                     nextPosition = position + 1;
                     goto AddString;
@@ -602,10 +684,7 @@ Exit:
                             goto AddString;
                         }
                     }
-                    else if (peek == SimpleParser.DelimiterChar)
-                    {
-                    }
-                    else
+                    else if (peek != SimpleParser.DelimiterChar)
                     {
                         enclosed.Push(currentChar);
                     }
@@ -621,10 +700,7 @@ Exit:
                             goto AddString;
                         }
                     }
-                    else if (peek == SimpleParser.DelimiterChar)
-                    {
-                    }
-                    else
+                    else if (peek != SimpleParser.DelimiterChar)
                     {
                         enclosed.Push(currentChar);
                     }
@@ -655,17 +731,13 @@ Exit:
 
 AddString:
             if (start < position)
-            { // Add string
-                var s = span[start..position].ToString().Trim();
-                if (s.Length > 0)
-                {
-                    list.Add(s);
-                }
+            {
+                AddTrimmed(ref ranges, span, start, position);
             }
 
             if (currentChar == SimpleParser.Separator)
             {
-                list.Add(SimpleParser.SeparatorString);
+                ranges.Add(0, SeparatorMark);
                 position++;
                 nextPosition++;
             }
@@ -680,145 +752,121 @@ AddString:
         }
 
         if (start < position && position <= span.Length)
-        { // Add string
-            var s = span[start..position].ToString().Trim();
-            if (s.Length > 0)
-            {
-                list.Add(s);
-            }
+        {
+            AddTrimmed(ref ranges, span, start, position);
         }
 
-        return list.ToArray();
+        // Materialize the arguments (the exact size is known, so no intermediate list is needed).
+        if (ranges.Count == 0)
+        {
+            return [];
+        }
+
+        var result = new string[ranges.Count];
+        for (var i = 0; i < result.Length; i++)
+        {
+            var (rangeStart, rangeLength) = ranges.Get(i);
+            result[i] = rangeLength == SeparatorMark ?
+                SimpleParser.SeparatorString :
+                span.Slice(rangeStart, rangeLength).ToString();
+        }
+
+        return result;
+
+        static void AddTrimmed(ref RangeList ranges, ReadOnlySpan<char> span, int start, int end)
+        {
+            while (start < end && char.IsWhiteSpace(span[start]))
+            {
+                start++;
+            }
+
+            while (end > start && char.IsWhiteSpace(span[end - 1]))
+            {
+                end--;
+            }
+
+            if (start < end)
+            {
+                ranges.Add(start, end - start);
+            }
+        }
     }
 
-    /*internal static void InitializeTypeConverter(ISimpleParser parser)
+    /// <summary>
+    /// A list of (start, length) ranges backed by a stack-allocated buffer.<br/>
+    /// It grows on the heap when the number of arguments exceeds the initial capacity.
+    /// </summary>
+    private ref struct RangeList
     {
-        parser.TypeConverters.Add(typeof(string), x =>
+        public RangeList(Span<int> initialBuffer)
         {
-            var span = x;
-            if (span.Length >= parser.ParserOptions.TwoDelimitersLength && span.StartsWith(parser.ParserOptions.ArgumentDelimiter) && span.EndsWith(parser.ParserOptions.ArgumentDelimiter))
-            {
-                var length = parser.ParserOptions.ArgumentDelimiter.Length;
-                return x.Slice(length, span.Length - length - length).ToArray();
-            }
-            else if (span.Length >= 2 && span[0] == SimpleParser.Quote && span[^1] == SimpleParser.Quote)
-            {
-                return x.Slice(1, span.Length - 2).ToArray();
-            }
-            else if (span.Length >= 2 && span[0] == SimpleParser.SingleQuote && span[^1] == SimpleParser.SingleQuote)
-            {
-                return x.Slice(1, span.Length - 2).ToArray();
-            }
-
-            return span.ToArray();
-        });
-
-        parser.TypeConverters.Add(typeof(sbyte), static x => Convert.ToSByte(x, DefautFormatProvider));
-        parser.TypeConverters.Add(typeof(byte), static x => Convert.ToByte(x, DefautFormatProvider));
-        parser.TypeConverters.Add(typeof(short), static x => Convert.ToInt16(x, DefautFormatProvider));
-        parser.TypeConverters.Add(typeof(ushort), static x => Convert.ToUInt16(x, DefautFormatProvider));
-        parser.TypeConverters.Add(typeof(int), static x => Convert.ToInt32(x, DefautFormatProvider));
-        parser.TypeConverters.Add(typeof(uint), static x => Convert.ToUInt32(x, DefautFormatProvider));
-        parser.TypeConverters.Add(typeof(long), static x => Convert.ToInt64(x, DefautFormatProvider));
-        parser.TypeConverters.Add(typeof(ulong), static x => Convert.ToUInt64(x, DefautFormatProvider));
-        parser.TypeConverters.Add(typeof(float), static x => Convert.ToSingle(x, DefautFormatProvider));
-        parser.TypeConverters.Add(typeof(double), static x => Convert.ToDouble(x, DefautFormatProvider));
-        parser.TypeConverters.Add(typeof(decimal), static x => Convert.ToDecimal(x, DefautFormatProvider));
-        parser.TypeConverters.Add(typeof(char), static x => Convert.ToChar(x, DefautFormatProvider));
-    }*/
-
-    /*public static string[] FormatArguments(this string arg)
-    {
-        var span = arg.AsSpan();
-        var list = new List<string>();
-
-        var start = 0;
-        var end = 0;
-        var enclosed = new Stack<char>();
-        var addStringIncrement = true;
-        while (end < span.Length)
-        {
-            var c = span[end];
-            var b = end > 0 ? span[end - 1] : (char)0;
-            if (enclosed.Count == 0)
-            {
-                if (char.IsWhiteSpace(c))
-                {
-                    goto AddString;
-                }
-                else if ((c == '\"' && b != '\\') || c == SimpleParser.OpenBracket)
-                {
-                    enclosed.Push(c);
-                    addStringIncrement = false;
-                    goto AddString;
-                }
-                else if (c == SimpleParser.CloseBracket)
-                {
-                    goto AddString;
-                }
-            }
-            else
-            {
-                if (c == '\"' && b != '\\')
-                {
-                    if (enclosed.Peek() == '\"')
-                    {// "-arg {-test "A"} "
-                        enclosed.Pop();
-                        if (enclosed.Count == 0)
-                        {
-                            end++;
-                            goto AddString;
-                        }
-                    }
-                    else
-                    {
-                        enclosed.Push(c);
-                    }
-                }
-                else if (c == SimpleParser.CloseBracket)
-                {
-                    if (enclosed.Peek() == SimpleParser.OpenBracket)
-                    {// [-test "A"]
-                        enclosed.Pop();
-                        if (enclosed.Count == 0)
-                        {
-                            end++;
-                            goto AddString;
-                        }
-                    }
-                }
-                else if (c == SimpleParser.OpenBracket)
-                {
-                    enclosed.Push(c);
-                }
-            }
-
-            end++;
-            continue;
-
-AddString:
-            if (start < end)
-            { // Add string
-                var s = span[start..end].ToString().Trim();
-                if (s.Length > 0)
-                {
-                    list.Add(s);
-                }
-            }
-
-            start = end + (addStringIncrement ? 1 : 0);
-            end++;
+            this.buffer = initialBuffer;
         }
 
-        if (start < end && end <= span.Length)
-        { // Add string
-            var s = span[start..end].ToString().Trim();
-            if (s.Length > 0)
+        /// <summary>
+        /// Gets the number of ranges.
+        /// </summary>
+        public readonly int Count => this.count >> 1;
+
+        public readonly (int Start, int Length) Get(int index) => (this.buffer[index << 1], this.buffer[(index << 1) + 1]);
+
+        public void Add(int start, int length)
+        {
+            if (this.count == this.buffer.Length)
             {
-                list.Add(s);
+                this.Grow();
             }
+
+            this.buffer[this.count++] = start;
+            this.buffer[this.count++] = length;
         }
 
-        return list.ToArray();
-    }*/
+        private void Grow()
+        {
+            var array = new int[this.buffer.Length * 2];
+            this.buffer.CopyTo(array);
+            this.buffer = array;
+        }
+
+        private Span<int> buffer;
+        private int count;
+    }
+
+    /// <summary>
+    /// A stack of characters backed by a stack-allocated buffer.<br/>
+    /// It grows on the heap in the (pathological) case where the nesting is deeper than the initial buffer.
+    /// </summary>
+    private ref struct CharStack
+    {
+        public CharStack(Span<char> initialBuffer)
+        {
+            this.buffer = initialBuffer;
+        }
+
+        public readonly int Count => this.count;
+
+        public readonly char Peek() => this.buffer[this.count - 1];
+
+        public void Push(char c)
+        {
+            if (this.count == this.buffer.Length)
+            {
+                this.Grow();
+            }
+
+            this.buffer[this.count++] = c;
+        }
+
+        public void Pop() => this.count--;
+
+        private void Grow()
+        {
+            var array = new char[this.buffer.Length * 2];
+            this.buffer.CopyTo(array);
+            this.buffer = array;
+        }
+
+        private Span<char> buffer;
+        private int count;
+    }
 }

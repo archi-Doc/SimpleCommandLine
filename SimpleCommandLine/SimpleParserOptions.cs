@@ -23,14 +23,6 @@ public record SimpleParserOptions
     /// </summary>
     protected internal SimpleParserOptions()
     {
-        if (this.ArgumentDelimiter is null)
-        {
-            this.TwoDelimitersLength = int.MaxValue;
-        }
-        else
-        {
-            this.TwoDelimitersLength = this.ArgumentDelimiter.Length * 2;
-        }
     }
 
     /// <summary>
@@ -78,12 +70,28 @@ public record SimpleParserOptions
     /// Gets the argument delimiter string used to separate arguments.<br/>
     /// The default value is <see cref="SimpleParser.TripleQuotes"/>.
     /// </summary>
-    public string ArgumentDelimiter { get; init; } = SimpleParser.TripleQuotes;
+    public string ArgumentDelimiter
+    {
+        get => this.argumentDelimiter;
+        init
+        {
+            this.argumentDelimiter = value ?? string.Empty;
+
+            // int.MaxValue disables the delimiter check (the length comparison never succeeds).
+            this.twoDelimitersLength = this.argumentDelimiter.Length == 0 ? int.MaxValue : this.argumentDelimiter.Length * 2;
+        }
+    }
 
     /// <summary>
     /// Gets a value indicating whether messages should not be written to the console.
     /// </summary>
     public bool SuppressConsoleOutput { get; init; } = false;
 
-    internal int TwoDelimitersLength { get; }
+    /// <summary>
+    /// Gets twice the length of <see cref="ArgumentDelimiter"/> (the minimum length of an enclosed argument).
+    /// </summary>
+    internal int TwoDelimitersLength => this.twoDelimitersLength;
+
+    private string argumentDelimiter = SimpleParser.TripleQuotes;
+    private int twoDelimitersLength = SimpleParser.TripleQuotes.Length * 2;
 }

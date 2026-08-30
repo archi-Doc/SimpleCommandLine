@@ -1,13 +1,14 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System;
-using System.Buffers;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -36,7 +37,8 @@ public class SimpleParser : ISimpleParser
     internal const string ExecuteMethodString = "Execute";
     internal const string IndentString = "  ";
     internal const string IndentString2 = "    ";
-    internal const string BackingField = "<{0}>k__BackingField";
+    internal const int DefaultWindowWidth = 80;
+    internal const int MaxWindowWidth = 1024;
     internal const char OpenBracket = '{'; // '['
     internal const char CloseBracket = '}'; // ']'
     internal const char Quote = '\"';
@@ -154,46 +156,33 @@ public class SimpleParser : ISimpleParser
                 throw new InvalidOperationException($"Type \"{commandType.ToString()}\" must implement ISimpleCommand or ISimpleCommand<TOption>.");
             }
 
-            if (this.Parser.ParserOptions.ServiceProvider == null && this.CommandType.GetConstructor(Type.EmptyTypes) == null)
+            var constructor = this.CommandType.GetConstructor(Type.EmptyTypes);
+            if (this.Parser.ParserOptions.ServiceProvider == null && constructor == null)
             {
                 throw new InvalidOperationException($"Default constructor (parameterless constructor) is required for type '{commandType.ToString()}'.");
             }
+
+            this.constructorInvoker = constructor is null ? null : ConstructorInvoker.Create(constructor);
 
             var mi = this.FindMethod();
             if (mi == null)
             {// No Execute method
                 throw new InvalidOperationException($"{ExecuteMethodString}() method is required in Type {this.CommandType.ToString()}.");
             }
-            else
-            {
-                this.executeMethod = mi;
-            }
 
+            this.executeInvoker = MethodInvoker.Create(mi);
+            this.hasOptionType = this.CommandInterface == typeof(ISimpleCommand<>);
             this.OptionClass = new OptionClass(this.Parser, this.OptionType, null);
         }
 
         public Task Execute(CancellationToken cancellationToken)
         {
             var args = this.OptionClass.RemainingArguments ?? Array.Empty<string>();
+            var task = this.hasOptionType ?
+                this.executeInvoker.Invoke(this.CommandInstance, this.OptionClass.OptionInstance, args, cancellationToken) : // Task Execute(Options option, string[] args, CancellationToken cancellationToken);
+                this.executeInvoker.Invoke(this.CommandInstance, args, cancellationToken); // Task Execute(string[] args, CancellationToken cancellationToken);
 
-            if (this.CommandInterface == typeof(ISimpleCommand))
-            {// Task Execute(string[] args, CancellationToken cancellationToken);
-                var task = (Task?)this.executeMethod.Invoke(this.CommandInstance, [args, cancellationToken]);
-                if (task != null)
-                {
-                    return task;
-                }
-            }
-            else if (this.CommandInterface == typeof(ISimpleCommand<>))
-            {// Task Execute(Options option, string[] args, CancellationToken cancellationToken);
-                var task = (Task?)this.executeMethod.Invoke(this.CommandInstance, [this.OptionClass.OptionInstance, args, cancellationToken]);
-                if (task != null)
-                {
-                    return task;
-                }
-            }
-
-            return Task.CompletedTask;
+            return (Task?)task ?? Task.CompletedTask;
         }
 
         public SimpleParser Parser { get; }
@@ -216,22 +205,16 @@ public class SimpleParser : ISimpleParser
 
         public OptionClass OptionClass { get; }
 
-        // public object CommandInstance => this.commandInstance != null ? this.commandInstance : (this.commandInstance = Activator.CreateInstance(this.CommandType)!);
         public object CommandInstance
         {
             get
             {
-                if (this.commandInstance == null)
+                if (this.commandInstance is null)
                 {
-                    if (this.Parser.ParserOptions.ServiceProvider != null)
-                    {
-                        this.commandInstance = this.Parser.ParserOptions.ServiceProvider.GetService(this.CommandType);
-                    }
-
-                    if (this.commandInstance == null)
-                    {
-                        this.commandInstance = Activator.CreateInstance(this.CommandType)!;
-                    }
+                    this.commandInstance = this.Parser.ParserOptions.ServiceProvider?.GetService(this.CommandType);
+                    this.commandInstance ??= this.constructorInvoker is not null ?
+                        this.constructorInvoker.Invoke() :
+                        Activator.CreateInstance(this.CommandType)!;
                 }
 
                 return this.commandInstance;
@@ -245,43 +228,39 @@ public class SimpleParser : ISimpleParser
             this.OptionClass.AppendOption(sb, false);
         }
 
+        private readonly ConstructorInvoker? constructorInvoker;
+        private readonly MethodInvoker executeInvoker;
+        private readonly bool hasOptionType;
         private object? commandInstance;
-        private MethodInfo executeMethod;
 
         private MethodInfo? FindMethod()
         {
-            var methods = this.CommandType.GetMethods(BindingFlags.Public | BindingFlags.Instance).Where(x => x.Name == ExecuteMethodString);
-
-            if (this.CommandInterface == typeof(ISimpleCommand))
+            var withOptions = this.CommandInterface == typeof(ISimpleCommand<>);
+            foreach (var x in this.CommandType.GetMethods(BindingFlags.Public | BindingFlags.Instance))
             {
-                foreach (var x in methods)
+                if (x.Name != ExecuteMethodString || x.ReturnType != typeof(Task))
                 {
-                    if (x.ReturnType == typeof(Task))
+                    continue;
+                }
+
+                var parameters = x.GetParameters();
+                if (withOptions)
+                {// Task Execute(Options option, string[] args, CancellationToken cancellationToken);
+                    if (parameters.Length == 3 &&
+                        parameters[0].ParameterType == this.OptionType &&
+                        parameters[1].ParameterType == typeof(string[]) &&
+                        parameters[2].ParameterType == typeof(CancellationToken))
                     {
-                        var parameters = x.GetParameters();
-                        if (parameters.Length == 2 &&
-                            parameters[0].ParameterType == typeof(string[]) &&
-                            parameters[1].ParameterType == typeof(CancellationToken))
-                        {// Task Execute(string[] args, CancellationToken cancellationToken);
-                            return x;
-                        }
+                        return x;
                     }
                 }
-            }
-            else if (this.CommandInterface == typeof(ISimpleCommand<>))
-            {
-                foreach (var x in methods)
-                {
-                    if (x.ReturnType == typeof(Task))
+                else
+                {// Task Execute(string[] args, CancellationToken cancellationToken);
+                    if (parameters.Length == 2 &&
+                        parameters[0].ParameterType == typeof(string[]) &&
+                        parameters[1].ParameterType == typeof(CancellationToken))
                     {
-                        var parameters = x.GetParameters();
-                        if (parameters.Length == 3 &&
-                            parameters[0].ParameterType == this.OptionType &&
-                            parameters[1].ParameterType == typeof(string[]) &&
-                            parameters[2].ParameterType == typeof(CancellationToken))
-                        {// Task Execute(Options option, string[] args, CancellationToken cancellationToken);
-                            return x;
-                        }
+                        return x;
                     }
                 }
             }
@@ -315,47 +294,41 @@ public class SimpleParser : ISimpleParser
                 this.OptionTypeIdentifier = TinyhandTypeIdentifier.GetTypeIdentifier(optionType);
             }
 
-            if (this.OptionType is not null &&
-                !TinyhandTypeIdentifier.IsRegistered(this.OptionTypeIdentifier) &&
-                this.OptionType.GetConstructor(Type.EmptyTypes) == null)
+            this.LongNameToOption = new(StringComparer.OrdinalIgnoreCase);
+            this.ShortNameToOption = new(StringComparer.OrdinalIgnoreCase);
+            if (this.OptionType is null)
             {
-                throw new InvalidOperationException($"Default constructor (parameterless constructor) is required for type '{this.OptionType.ToString()}'.");
+                this.Options = new(0);
             }
-
-            this.Options = new();
-            this.LongNameToOption = new(StringComparer.InvariantCultureIgnoreCase);
-            this.ShortNameToOption = new(StringComparer.InvariantCultureIgnoreCase);
-            if (this.OptionType != null)
+            else
             {
-                var typeList = GetBaseTypesAndThis(this.OptionType).Reverse(); // base type -> derived type
-                foreach (var y in typeList)
+                var constructor = this.OptionType.GetConstructor(Type.EmptyTypes);
+                if (constructor is null && !TinyhandTypeIdentifier.IsRegistered(this.OptionTypeIdentifier))
                 {
-                    foreach (var x in y.GetMembers(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly))
+                    throw new InvalidOperationException($"Default constructor (parameterless constructor) is required for type '{this.OptionType.ToString()}'.");
+                }
+
+                this.constructorInvoker = constructor is null || this.OptionType.IsAbstract ? null : ConstructorInvoker.Create(constructor);
+
+                var members = GetOptionMembers(this.OptionType);
+                this.Options = new(members.Length);
+                foreach (var (memberInfo, optionAttribute) in members)
+                {
+                    var option = new Option(this.Parser, this.OptionType, memberInfo, optionAttribute, optionStack);
+                    this.Options.Add(option);
+
+                    if (!this.LongNameToOption.TryAdd(option.LongName, option))
                     {
-                        if (x.MemberType != MemberTypes.Field && x.MemberType != MemberTypes.Property)
-                        {
-                            continue;
-                        }
-
-                        var optionAttribute = x.GetCustomAttributes<SimpleOptionAttribute>(true).FirstOrDefault();
-                        if (optionAttribute == null)
-                        {
-                            continue;
-                        }
-
-                        var option = new Option(this.Parser, this.OptionType, x, optionAttribute, optionStack);
-                        this.Options.Add(option);
-
-                        if (!this.LongNameToOption.TryAdd(option.LongName, option))
-                        {
-                            throw new InvalidOperationException($"Long option name '{option.LongName}' ({this.OptionType.ToString()}) already exists.");
-                        }
-
-                        if (option.ShortName != null && !this.LongNameToOption.TryAdd(option.ShortName, option))
-                        {
-                            throw new InvalidOperationException($"Short option name '{option.ShortName}' ({this.OptionType.ToString()}) already exists.");
-                        }
+                        throw new InvalidOperationException($"Long option name '{option.LongName}' ({this.OptionType.ToString()}) already exists.");
                     }
+
+                    if (option.ShortName != null && !this.ShortNameToOption.TryAdd(option.ShortName, option))
+                    {
+                        throw new InvalidOperationException($"Short option name '{option.ShortName}' ({this.OptionType.ToString()}) already exists.");
+                    }
+
+                    this.hasRequiredOption |= option.Required;
+                    this.hasEnvironmentOption |= option.ReadFromEnvironment;
                 }
             }
 
@@ -363,24 +336,17 @@ public class SimpleParser : ISimpleParser
             {
                 optionStack.Pop();
             }
-
-            static IEnumerable<Type> GetBaseTypesAndThis(Type symbol)
-            {
-                var current = symbol;
-                while (current != null && current != typeof(object))
-                {
-                    yield return current;
-                    current = current.BaseType;
-                }
-            }
         }
 
         public bool Parse(string[] args, int start, bool acceptUnknownOptionName)
         {
             var errorFlag = false;
-            List<string> remaining = new();
+            List<string>? remaining = null;
+            var options = CollectionsMarshal.AsSpan(this.Options);
+            var longLookup = this.LongNameToOption.GetAlternateLookup<ReadOnlySpan<char>>();
+            var shortLookup = this.ShortNameToOption.GetAlternateLookup<ReadOnlySpan<char>>();
 
-            foreach (var x in this.Options)
+            foreach (var x in options)
             {
                 x.Reset();
             }
@@ -389,11 +355,10 @@ public class SimpleParser : ISimpleParser
             {
                 if (args[n].IsOptionString())
                 {// -option
-                    var name = args[n].Trim(SimpleParser.OptionPrefix);
-                    Option? option;
-                    if (!this.LongNameToOption.TryGetValue(name, out option))
+                    var name = args[n].AsSpan().Trim(SimpleParser.OptionPrefix);
+                    if (!longLookup.TryGetValue(name, out var option))
                     {
-                        this.ShortNameToOption.TryGetValue(name, out option);
+                        shortLookup.TryGetValue(name, out option);
                     }
 
                     if (option != null)
@@ -427,8 +392,7 @@ public class SimpleParser : ISimpleParser
                     }
                     else
                     {// Option not found
-                     // if (!string.Equals(args[n], "inputFormat", StringComparison.OrdinalIgnoreCase) && !string.Equals(args[n], "outputFormat", StringComparison.OrdinalIgnoreCase))
-                        remaining.Add(args[n]);
+                        (remaining ??= new()).Add(args[n]);
 
                         if (this.Parser.ParserOptions.RequireStrictOptionName && !acceptUnknownOptionName)
                         {
@@ -445,84 +409,99 @@ public class SimpleParser : ISimpleParser
                         }
                     }
                 }
-                else if (args[n] == SimpleParser.SeparatorString)
+                else if (args[n].Length == 1 && args[n][0] == SimpleParser.Separator)
                 {// '|' Separator
                     break;
                 }
                 else
                 {
-                    if (this.Parser.ParserOptions.OmitOptionNamesForRequiredOptions)
+                    if (this.hasRequiredOption &&
+                        this.Parser.ParserOptions.OmitOptionNamesForRequiredOptions &&
+                        FindUnsetRequiredOption(options) is { } option)
                     {
-                        if (this.Options.FirstOrDefault(x => x.Required && !x.ValueIsSet) is { } option)
+                        if (option.Parse(args[n], this.OptionInstance, acceptUnknownOptionName))
                         {
-                            if (option.Parse(args[n], this.OptionInstance, acceptUnknownOptionName))
-                            {
-                                option.ValueIsSet = true;
-                            }
-                            else
-                            {// Parse error
-                                if (n > 0)
-                                {
-                                    this.Parser.AddErrorMessage($"Could not convert '{args[n]}' to Type '{option.OptionType.Name}' ({args[n - 1]} {args[n]})");
-                                    errorFlag = true;
-                                }
-                            }
-
-                            continue;
+                            option.ValueIsSet = true;
                         }
+                        else if (n > 0)
+                        {// Parse error
+                            this.Parser.AddErrorMessage($"Could not convert '{args[n]}' to Type '{option.OptionType.Name}' ({args[n - 1]} {args[n]})");
+                            errorFlag = true;
+                        }
+
+                        continue;
                     }
 
-                    remaining.Add(args[n]);
+                    (remaining ??= new()).Add(args[n]);
                 }
             }
 
-            this.ReadFromEnvironment(acceptUnknownOptionName);
-
-            foreach (var x in this.Options)
+            if (this.hasEnvironmentOption)
             {
-                if (x.Required && !x.ValueIsSet)
+                this.ReadFromEnvironment(options, acceptUnknownOptionName);
+            }
+
+            foreach (var x in options)
+            {
+                if (x.ValueIsSet)
+                {
+                    continue;
+                }
+
+                if (x.Required)
                 {// Value required.
                     this.Parser.AddErrorMessage($"Value is required for option '{x.LongName}' <{this.OptionType?.Name}>");
                     errorFlag = true;
                     this.FatalError = true;
                 }
 
-                if (x.OptionClass != null && !x.ValueIsSet)
+                if (x.OptionClass != null && this.OptionInstance is { } instance)
                 {// Set instance.
-                    if (this.OptionInstance != null)
+                    x.OptionClass.optionInstance ??= x.GetValue(instance);
+                    if (x.OptionClass.optionInstance != null)
                     {
-                        if (x.OptionClass.optionInstance == null)
-                        {
-                            x.OptionClass.optionInstance = x.GetValue(this.OptionInstance);
-                        }
-
-                        if (x.OptionClass.optionInstance != null)
-                        {
-                            x.ValueIsSet = true;
-                        }
-                        else if (x.OptionClass.OptionInstance != null)
-                        {
-                            if (x.SetValue(this.OptionInstance, x.OptionClass.OptionInstance))
-                            {
-                                x.ValueIsSet = true;
-                            }
-                        }
+                        x.ValueIsSet = true;
+                    }
+                    else if (x.OptionClass.OptionInstance is { } nested &&
+                        x.SetValue(instance, nested))
+                    {
+                        x.ValueIsSet = true;
                     }
                 }
             }
 
             if (errorFlag)
             {
-                return !errorFlag;
+                return false;
             }
 
-            for (var i = 0; i < remaining.Count; i++)
+            if (remaining is null)
             {
-                remaining[i] = SimpleParserHelper.ProcessArgument(remaining[i], this.Parser.ParserOptions, ArgumentProcessing.ReplaceNewlinesWithSpace);
+                this.RemainingArguments = Array.Empty<string>();
+                return true;
             }
 
-            this.RemainingArguments = remaining.ToArray();
+            var remainingArguments = new string[remaining.Count];
+            for (var i = 0; i < remainingArguments.Length; i++)
+            {
+                remainingArguments[i] = SimpleParserHelper.ProcessArgument(remaining[i], this.Parser.ParserOptions, ArgumentProcessing.ReplaceNewlinesWithSpace);
+            }
+
+            this.RemainingArguments = remainingArguments;
             return true;
+
+            static Option? FindUnsetRequiredOption(ReadOnlySpan<Option> options)
+            {
+                foreach (var x in options)
+                {
+                    if (x.Required && !x.ValueIsSet)
+                    {
+                        return x;
+                    }
+                }
+
+                return null;
+            }
         }
 
         public Type? OptionType { get; }
@@ -535,27 +514,9 @@ public class SimpleParser : ISimpleParser
 
         public Dictionary<string, Option> ShortNameToOption { get; }
 
-        public object? OptionInstance
-        {// public object? OptionInstance => this.optionInstance != null ? this.optionInstance : (this.optionInstance = this.OptionType == null ? null : Activator.CreateInstance(this.OptionType)!);
-            get
-            {
-                if (this.optionInstance is null && this.OptionType is not null)
-                {
-                    try
-                    {
-                        this.optionInstance = Activator.CreateInstance(this.OptionType);
-                    }
-                    catch
-                    {
-                        this.optionInstance = TinyhandTypeIdentifier.TryReconstruct(this.OptionTypeIdentifier);
-                    }
-                }
+        public object? OptionInstance => this.optionInstance ??= this.CreateInstance();
 
-                return this.optionInstance;
-            }
-        }
-
-        public object? DefaultInstance => this.defaultInstance ??= this.OptionType is null ? null : Activator.CreateInstance(this.OptionType);
+        public object? DefaultInstance => this.defaultInstance ??= this.CreateInstance();
 
         public string[]? RemainingArguments { get; private set; }
 
@@ -570,14 +531,23 @@ public class SimpleParser : ISimpleParser
                 sb.AppendLine($"{{{this.OptionType?.Name}}}");
             }
 
-            if (this.Options.Count == 0)
+            var options = CollectionsMarshal.AsSpan(this.Options);
+            if (options.Length == 0)
             {
                 sb.AppendLine();
                 return;
             }
 
-            var maxWidth = this.Options.Max(x => x.OptionText.Length);
-            foreach (var x in this.Options)
+            var maxWidth = 0;
+            foreach (var x in options)
+            {
+                if (x.OptionText.Length > maxWidth)
+                {
+                    maxWidth = x.OptionText.Length;
+                }
+            }
+
+            foreach (var x in options)
             {
                 var padding = maxWidth - x.OptionText.Length;
                 sb.Append(SimpleParser.IndentString);
@@ -598,7 +568,7 @@ public class SimpleParser : ISimpleParser
                     }
                     else
                     {
-                        sb.Append($" (Required)");
+                        sb.Append(" (Required)");
                     }
                 }
                 else if (x.DefaultValueText is not null)
@@ -617,42 +587,20 @@ public class SimpleParser : ISimpleParser
                     var value = x.GetValue(this.DefaultInstance);
                     if (value == null)
                     {
-                        sb.Append($" (Optional)");
+                        sb.Append(" (Optional)");
                     }
                     else if (x.OptionClass != null)
                     {
                     }
-                    else if (value is string st)
+                    else if (value is string)
                     {
-                        sb.Append($" (Default: \"{value.ToString()}\")");
+                        sb.Append($" (Default: \"{value}\")");
                     }
                     else
                     {
-                        sb.Append($" (Default: {value.ToString()})");
+                        sb.Append($" (Default: {value})");
                     }
                 }
-
-                /*if (x.OptionType.IsEnum)
-                {
-                    sb.AppendLine();
-                    sb.Append(SimpleParser.IndentString);
-                    for (var i = 0; i < maxWidth; i++)
-                    {
-                        sb.Append(' ');
-                    }
-
-                    sb.Append(SimpleParser.IndentString2);
-
-                    var names = Enum.GetNames(x.OptionType);
-                    for (var i = 0; i < names.Length; i++)
-                    {
-                        sb.Append(names[i]);
-                        if (i != names.Length - 1)
-                        {
-                            sb.Append(", ");
-                        }
-                    }
-                }*/
 
                 sb.AppendLine();
 
@@ -665,82 +613,82 @@ public class SimpleParser : ISimpleParser
             sb.AppendLine();
         }
 
-        internal void ResetOptionInstance()
+        internal void ResetOptionInstance() => this.optionInstance = this.CreateInstance();
+
+        /// <summary>
+        /// Gets the members annotated with <see cref="SimpleOptionAttribute"/> (base type -> derived type).<br/>
+        /// The result is cached since reflection is relatively expensive.
+        /// </summary>
+        /// <param name="optionType">The option type.</param>
+        /// <returns>An array of members and their attributes.</returns>
+        private static (MemberInfo MemberInfo, SimpleOptionAttribute Attribute)[] GetOptionMembers(Type optionType)
+            => OptionMembersCache.GetOrAdd(optionType, static type =>
+            {
+                var types = new List<Type>();
+                for (var current = type; current is not null && current != typeof(object); current = current.BaseType)
+                {
+                    types.Add(current);
+                }
+
+                var list = new List<(MemberInfo, SimpleOptionAttribute)>();
+                for (var i = types.Count - 1; i >= 0; i--)
+                {// Base type -> derived type
+                    foreach (var x in types[i].GetMembers(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly))
+                    {
+                        if (x.MemberType != MemberTypes.Field && x.MemberType != MemberTypes.Property)
+                        {
+                            continue;
+                        }
+
+                        if (x.GetCustomAttribute<SimpleOptionAttribute>(true) is { } attribute)
+                        {
+                            list.Add((x, attribute));
+                        }
+                    }
+                }
+
+                return list.ToArray();
+            });
+
+        /// <summary>
+        /// Creates an instance of the option type (falls back to Tinyhand reconstruction when there is no parameterless constructor).
+        /// </summary>
+        /// <returns>A new instance, or <see langword="null"/> if the instance could not be created.</returns>
+        private object? CreateInstance()
         {
-            if (this.OptionType != null)
+            if (this.OptionType is null)
+            {
+                return null;
+            }
+
+            if (this.constructorInvoker is not null)
             {
                 try
                 {
-                    this.optionInstance = Activator.CreateInstance(this.OptionType);
+                    return this.constructorInvoker.Invoke();
                 }
                 catch
                 {
-                    this.optionInstance = TinyhandTypeIdentifier.TryReconstruct(this.OptionTypeIdentifier);
                 }
             }
+
+            return TinyhandTypeIdentifier.TryReconstruct(this.OptionTypeIdentifier);
         }
 
-        /*private bool TryParseObject(ReadOnlySpan<char> arg, uint typeIdentifier)
+        private void ReadFromEnvironment(ReadOnlySpan<Option> options, bool acceptUnknownOptionName)
         {
-            char[]? rent = default;
-
-            if (arg.Length < 2 || arg[0] != TinyhandConstants.OpenBraceChar || arg[^1] != TinyhandConstants.CloseBraceChar)
+            foreach (var x in options)
             {
-                rent = ArrayPool<char>.Shared.Rent(arg.Length + 2);
-                var span = rent.AsSpan();
-                span[0] = TinyhandConstants.OpenBraceChar;
-                span = span.Slice(1);
-                arg.CopyTo(span);
-                span = span.Slice(arg.Length);
-                span[0] = TinyhandConstants.CloseBraceChar;
-
-                arg = rent.AsSpan(0, arg.Length + 2);
-            }
-
-            try
-            {
-                var obj = TinyhandTypeIdentifier.TryDeserializeFromString(this.OptionTypeIdentifier, arg, SerializerOptions);
-                if (obj is null)
-                {// Deserialization failed.
-                    return false;
-                }
-            }
-            catch
-            {
-            }
-            finally
-            {
-                if (rent is not null)
+                if (x.ValueIsSet || !x.ReadFromEnvironment)
                 {
-                    ArrayPool<char>.Shared.Return(rent);
-                }
-            }
-
-            return true;
-        }*/
-
-        private void ReadFromEnvironment(bool acceptUnknownOptionName)
-        {
-            foreach (var x in this.Options.Where(x => !x.ValueIsSet && x.ReadFromEnvironment))
-            {
-                string? env = null;
-
-                if (x.ShortName is not null)
-                {
-                    env ??= Environment.GetEnvironmentVariable(x.ShortName);
+                    continue;
                 }
 
-                if (x.LongName is not null)
+                var env = x.ShortName is null ? null : Environment.GetEnvironmentVariable(x.ShortName);
+                env ??= Environment.GetEnvironmentVariable(x.LongName);
+                if (env is not null && x.Parse(env, this.OptionInstance, acceptUnknownOptionName))
                 {
-                    env ??= Environment.GetEnvironmentVariable(x.LongName);
-                }
-
-                if (env is not null)
-                {
-                    if (x.Parse(env, this.OptionInstance, acceptUnknownOptionName))
-                    {
-                        x.ValueIsSet = true;
-                    }
+                    x.ValueIsSet = true;
                 }
             }
         }
@@ -748,9 +696,15 @@ public class SimpleParser : ISimpleParser
 #pragma warning disable SA1307 // Accessible fields should begin with upper-case letter
 #pragma warning disable SA1401
         internal object? optionInstance;
-        private object? defaultInstance;
 #pragma warning restore SA1401
 #pragma warning restore SA1307 // Accessible fields should begin with upper-case letter
+
+        private static readonly ConcurrentDictionary<Type, (MemberInfo MemberInfo, SimpleOptionAttribute Attribute)[]> OptionMembersCache = new();
+
+        private readonly ConstructorInvoker? constructorInvoker;
+        private readonly bool hasRequiredOption;
+        private readonly bool hasEnvironmentOption;
+        private object? defaultInstance;
     }
 
     public class Option
@@ -761,40 +715,60 @@ public class SimpleParser : ISimpleParser
             this.LongName = attribute.LongName.Trim();
             this.PropertyInfo = memberInfo as PropertyInfo;
             this.FieldInfo = memberInfo as FieldInfo;
-            if (this.PropertyInfo != null && this.FieldInfo == null && optionType != null)
+            if (this.PropertyInfo is { } propertyInfo)
             {
-                this.FieldInfo = optionType.GetField(string.Format(BackingField, this.PropertyInfo.Name), BindingFlags.Instance | BindingFlags.NonPublic);
-                if (!this.PropertyInfo.CanWrite && this.FieldInfo == null)
+                this.optionType = propertyInfo.PropertyType;
+                this.FieldInfo = optionType.GetField($"<{propertyInfo.Name}>k__BackingField", BindingFlags.Instance | BindingFlags.NonPublic);
+                if (propertyInfo.GetSetMethod() is { } setMethod)
                 {
-                    throw new InvalidOperationException($"{optionType?.Name}.{this.PropertyInfo.Name} is a getter-only property and inaccessible.");
+                    this.setInvoker = MethodInvoker.Create(setMethod);
+                }
+                else if (this.FieldInfo is null && propertyInfo.GetSetMethod(true) is { } nonPublicSetMethod)
+                {// Neither a public setter nor a backing field: fall back to the non-public setter.
+                    this.setInvoker = MethodInvoker.Create(nonPublicSetMethod);
+                }
+
+                if (propertyInfo.GetGetMethod() is { } getMethod)
+                {
+                    this.getInvoker = MethodInvoker.Create(getMethod);
+                }
+
+                if (this.setInvoker is null && this.FieldInfo is null)
+                {
+                    throw new InvalidOperationException($"{optionType.Name}.{propertyInfo.Name} is a getter-only property and inaccessible.");
                 }
             }
-
-            if (this.PropertyInfo == null && this.FieldInfo == null)
+            else if (this.FieldInfo is { } fieldInfo)
             {
-                throw new InvalidOperationException();
+                this.optionType = fieldInfo.FieldType;
+            }
+            else
+            {
+                throw new InvalidOperationException($"'{memberInfo.Name}' ({optionType.Name}) must be a field or a property.");
             }
 
-            if (this.OptionType.IsEnum || this.OptionType == typeof(string))
-            {// Enum, string
+            // Nullable value types (int?, TestEnum?, ...) are handled as their underlying type.
+            var underlyingType = Nullable.GetUnderlyingType(this.optionType) ?? this.optionType;
+            if (underlyingType.IsEnum)
+            {// Enum
+                this.enumType = underlyingType;
             }
-            else if (!SimpleParserHelper.TypeConverters.ContainsKey(this.OptionType))
-            {
-                this.OptionClass = new OptionClass(this.Parser, this.OptionType, optionStack);
-                /*if (optionClass.Options.Count > 0)
-                {
-                    this.OptionClass = optionClass;
-                }
-                else
-                {
-                    throw new InvalidOperationException($"Type: '{this.OptionType.Name}' is not supported for SimpleOption.");
-                }*/
+            else if (underlyingType == typeof(string))
+            {// String
+            }
+            else if (SimpleParserHelper.TypeConverters.TryGetValue(underlyingType, out var converter))
+            {// Primitive types
+                this.converter = converter;
+            }
+            else
+            {// Option class
+                this.OptionClass = new OptionClass(this.Parser, this.optionType, optionStack);
             }
 
             if (attribute.ShortName != null)
             {
                 this.ShortName = attribute.ShortName.Trim();
-                if (string.IsNullOrWhiteSpace(this.ShortName))
+                if (this.ShortName.Length == 0)
                 {
                     this.ShortName = null;
                 }
@@ -805,15 +779,11 @@ public class SimpleParser : ISimpleParser
             this.ReadFromEnvironment = attribute.ReadFromEnvironment;
             this.DefaultValueText = attribute.DefaultValueText;
             this.ArgumentProcessing = attribute.ArgumentProcessing;
-            var s = "-" + this.LongName + (this.ShortName == null ? string.Empty : ", -" + this.ShortName);
-            if (this.OptionClass != null)
-            {
-                this.OptionText = s + " {" + this.OptionType.Name + "}";
-            }
-            else
-            {
-                this.OptionText = s + " <" + this.OptionType.Name + ">";
-            }
+
+            var typeName = underlyingType == this.optionType ? underlyingType.Name : underlyingType.Name + "?";
+            this.OptionText = this.OptionClass is null ?
+                $"-{this.LongName}{(this.ShortName is null ? string.Empty : ", -" + this.ShortName)} <{typeName}>" :
+                $"-{this.LongName}{(this.ShortName is null ? string.Empty : ", -" + this.ShortName)} {{{typeName}}}";
         }
 
         public bool Parse(string arg, object? instance, bool acceptUnknownOptionName)
@@ -853,39 +823,27 @@ public class SimpleParser : ISimpleParser
 
                 value = this.OptionClass.OptionInstance!;
             }
-            else if (this.OptionType.IsEnum)
+            else if (this.enumType is not null)
             {// Enum
-                if (!Enum.TryParse(this.OptionType, arg, true, out var result))
+                if (!Enum.TryParse(this.enumType, arg, true, out var result) || result is null)
                 {
                     return false;
                 }
 
-                if (result == null)
+                value = result;
+            }
+            else if (this.converter is not null)
+            {// Primitive types
+                if (this.converter(arg) is not { } converted)
                 {
                     return false;
                 }
-                else
-                {
-                    value = result;
-                }
+
+                value = converted;
             }
             else
-            {
-                try
-                {
-                    if (this.OptionType == typeof(string))
-                    {
-                        value = SimpleParserHelper.ProcessArgument(arg, this.Parser.ParserOptions, this.ArgumentProcessing);
-                    }
-                    else
-                    {
-                        value = SimpleParserHelper.TypeConverters[this.OptionType](arg)!;
-                    }
-                }
-                catch
-                {
-                    return false;
-                }
+            {// String
+                value = SimpleParserHelper.ProcessArgument(arg, this.Parser.ParserOptions, this.ArgumentProcessing);
             }
 
             return this.SetValue(instance, value);
@@ -893,11 +851,11 @@ public class SimpleParser : ISimpleParser
 
         internal bool SetValue(object instance, object value)
         {
-            if (this.PropertyInfo?.GetSetMethod() is { } mi)
+            if (this.setInvoker is not null)
             {// Set property
-                mi.Invoke(instance, [value]);
+                this.setInvoker.Invoke(instance, value);
             }
-            else if (this.FieldInfo != null)
+            else if (this.FieldInfo is not null)
             {// Set field
                 this.FieldInfo.SetValue(instance, value);
             }
@@ -931,7 +889,7 @@ public class SimpleParser : ISimpleParser
 
         public bool ValueIsSet { get; internal set; }
 
-        public Type OptionType => this.PropertyInfo != null ? this.PropertyInfo.PropertyType : this.FieldInfo!.FieldType;
+        public Type OptionType => this.optionType;
 
         public OptionClass? OptionClass { get; }
 
@@ -943,12 +901,12 @@ public class SimpleParser : ISimpleParser
             {
                 return null;
             }
-            else if (this.PropertyInfo?.GetGetMethod() is { } mi)
+            else if (this.getInvoker is not null)
             {// Get property
-                return mi.Invoke(instance, Array.Empty<object>());
+                return this.getInvoker.Invoke(instance);
             }
             else if (this.FieldInfo != null)
-            {// Set field
+            {// Get field
                 return this.FieldInfo.GetValue(instance);
             }
             else
@@ -962,6 +920,12 @@ public class SimpleParser : ISimpleParser
             this.ValueIsSet = false;
             this.OptionClass?.optionInstance = default;
         }
+
+        private readonly Type optionType;
+        private readonly Type? enumType;
+        private readonly Func<ReadOnlySpan<char>, object?>? converter;
+        private readonly MethodInvoker? setInvoker;
+        private readonly MethodInvoker? getInvoker;
     }
 
     /// <summary>
@@ -975,15 +939,14 @@ public class SimpleParser : ISimpleParser
         this.consoleService = this.ParserOptions.ServiceProvider?.GetService<IConsoleService>();
 
         Command? firstOrDefault = null;
-        this.NameToCommand = new(StringComparer.InvariantCultureIgnoreCase);
-        this.AliasToCommand = new(StringComparer.InvariantCultureIgnoreCase);
-        // this.TypeToCommand = new();
+        this.NameToCommand = new(StringComparer.OrdinalIgnoreCase);
+        this.AliasToCommand = new(StringComparer.OrdinalIgnoreCase);
         this.ErrorMessage = new();
         this.OptionClassUsage = new();
         foreach (var x in simpleCommands)
         {
             // Get SimpleCommandAttribute
-            var attribute = x.GetCustomAttributes<SimpleCommandAttribute>(true).FirstOrDefault();
+            var attribute = x.GetCustomAttribute<SimpleCommandAttribute>(true);
             if (attribute == null)
             {
                 throw new InvalidOperationException($"Type '{x.ToString()}' must have SimpleCommandAttribute.");
@@ -1003,15 +966,8 @@ public class SimpleParser : ISimpleParser
             {
                 command = new(this, x, attribute);
                 this.NameToCommand.Add(name, command);
-                // this.TypeToCommand.TryAdd(x, command);
 
-                /* // Option 2: The first default command is the default command.
-                if (command.Default && this.DefaultCommandName == null)
-                {
-                    this.DefaultCommandName = command.CommandName;
-                }*/
-
-                // Option 1: Regards the first command as the default command.
+                // Regards the first command as the default command.
                 if (firstOrDefault == null)
                 {
                     firstOrDefault = command;
@@ -1106,27 +1062,25 @@ public class SimpleParser : ISimpleParser
         this.OriginalArguments = arg;
         this.HelpCommand = null;
         this.VersionCommand = false;
+        this.CurrentCommand = null;
         this.ErrorMessage.Clear();
 
         var commandName = this.DefaultCommandName;
         var commandSpecified = false;
         var start = 0;
-        if (arguments.Length >= 1)
-        {
-            if (!arguments[0].IsOptionString())
-            {// Command
-                if (this.NameToCommand.ContainsKey(arguments[0]))
-                {// CommandName Found
-                    commandName = arguments[0];
-                    commandSpecified = true;
-                    start = 1;
-                }
-                else if (this.AliasToCommand.TryGetValue(arguments[0], out var cmd))
-                {// Alias Found
-                    commandName = cmd.CommandName;
-                    commandSpecified = true;
-                    start = 1;
-                }
+        if (arguments.Length >= 1 && !arguments[0].IsOptionString())
+        {// Command
+            if (this.NameToCommand.ContainsKey(arguments[0]))
+            {// CommandName Found
+                commandName = arguments[0];
+                commandSpecified = true;
+                start = 1;
+            }
+            else if (this.AliasToCommand.TryGetValue(arguments[0], out var cmd))
+            {// Alias Found
+                commandName = cmd.CommandName;
+                commandSpecified = true;
+                start = 1;
             }
         }
 
@@ -1139,13 +1093,11 @@ public class SimpleParser : ISimpleParser
             {// CommandName Found
                 commandName = env;
                 commandSpecified = true;
-                start = 0;
             }
-            else if (this.AliasToCommand.TryGetValue(arguments[0], out var cmd2))
+            else if (this.AliasToCommand.TryGetValue(env, out var cmd2))
             {// Alias Found
                 commandName = cmd2.CommandName;
                 commandSpecified = true;
-                start = 0;
             }
         }
 
@@ -1191,11 +1143,13 @@ public class SimpleParser : ISimpleParser
             {
                 ret = false;
                 this.HelpCommand = commandSpecified ? commandName : string.Empty;
-                /*if (args.Any(x => x.IsOptionString() && OptionEquals(x, HelpString)))
-                {// -help option. Clear error messages.
-                    this.ErrorMessage.Clear();
-                }*/
             }
+        }
+        else
+        {// Command not found.
+            this.AddErrorMessage($"Command '{commandName}' is not found");
+            this.HelpCommand = string.Empty;
+            ret = false;
         }
 
         return ret;
@@ -1325,6 +1279,7 @@ public class SimpleParser : ISimpleParser
     public void ShowHelp(string? command = null)
     {
         var sb = new StringBuilder();
+        this.OptionClassUsage.Clear();
         if (this.ErrorMessage.Count > 0)
         {
             sb.Append("Error: ");
@@ -1375,10 +1330,10 @@ public class SimpleParser : ISimpleParser
             c.AppendCommand(sb);
         }
 
-        var array = this.OptionClassUsage.ToArray();
-        foreach (var x in array)
+        // AppendOption() may add a nested option class to the list, so the count is evaluated on each iteration.
+        for (var i = 0; i < this.OptionClassUsage.Count; i++)
         {
-            x.AppendOption(sb, true);
+            this.OptionClassUsage[i].AppendOption(sb, true);
         }
 
         this.WriteLine(sb.ToString());
@@ -1391,30 +1346,7 @@ public class SimpleParser : ISimpleParser
     public void ShowVersion(string? prefix = default)
     {
         var st = VersionHelper.VersionString;
-        if (!string.IsNullOrEmpty(prefix))
-        {
-            st = $"{prefix} {st}";
-        }
-
-        this.WriteLine($"{st}");
-
-        /*var asm = Assembly.GetEntryAssembly();
-        var version = "1.0.0";
-        var infoVersion = asm!.GetCustomAttribute<AssemblyInformationalVersionAttribute>();
-        if (infoVersion != null)
-        {
-            version = infoVersion.InformationalVersion;
-        }
-        else
-        {
-            var asmVersion = asm!.GetCustomAttribute<AssemblyVersionAttribute>();
-            if (asmVersion != null)
-            {
-                version = asmVersion.Version;
-            }
-        }
-
-        this.WriteLine(version);*/
+        this.WriteLine(string.IsNullOrEmpty(prefix) ? st : $"{prefix} {st}");
     }
 
     /// <summary>
@@ -1424,15 +1356,26 @@ public class SimpleParser : ISimpleParser
     /// <param name="maxLength">The maximum length of each command name in the displayed list.</param>
     public void ShowCommandList(int maxLength = 19)
     {
-        var array = this.NameToCommand.Keys.OrderBy(static x => x, StringComparer.OrdinalIgnoreCase).ToArray();
+        var array = this.NameToCommand.Keys.ToArray();
         if (array.Length == 0)
         {
             this.WriteLine();
             return;
         }
 
-        var windowWidth = Console.WindowWidth;
-        Span<char> buffer = stackalloc char[windowWidth];
+        Array.Sort(array, StringComparer.OrdinalIgnoreCase);
+
+        int windowWidth;
+        try
+        {
+            windowWidth = Console.WindowWidth;
+        }
+        catch
+        {// The console is redirected or unavailable.
+            windowWidth = DefaultWindowWidth;
+        }
+
+        windowWidth = Math.Clamp(windowWidth, 1, MaxWindowWidth);
         var max = 0;
         foreach (var x in array)
         {
@@ -1449,7 +1392,8 @@ public class SimpleParser : ISimpleParser
             return;
         }
 
-        var numberOfColumns = windowWidth / (columnWidth + 1);
+        Span<char> buffer = stackalloc char[windowWidth];
+        var numberOfColumns = Math.Max(windowWidth / (columnWidth + 1), 1);
         var numberOfRows = array.Length / numberOfColumns;
         var r = array.Length % numberOfColumns;
         if (r == 0)
@@ -1493,10 +1437,15 @@ public class SimpleParser : ISimpleParser
                     index += numberOfRows - 1;
                 }
 
+                if (span.Length <= columnWidth)
+                {
+                    break;
+                }
+
                 span = span.Slice(columnWidth + 1);
             }
 
-            this.WriteLine(buffer);
+            this.WriteLine(((ReadOnlySpan<char>)buffer).TrimEnd());
         }
     }
 
@@ -1540,10 +1489,15 @@ public class SimpleParser : ISimpleParser
 
     public void TryAddOptionClassUsage(OptionClass optionClass)
     {
-        if (!this.OptionClassUsage.Any(a => a.OptionType == optionClass.OptionType))
+        foreach (var x in CollectionsMarshal.AsSpan(this.OptionClassUsage))
         {
-            this.OptionClassUsage.Add(optionClass);
+            if (x.OptionType == optionClass.OptionType)
+            {
+                return;
+            }
         }
+
+        this.OptionClassUsage.Add(optionClass);
     }
 
     private readonly IConsoleService? consoleService;
@@ -1557,7 +1511,9 @@ public class SimpleParser : ISimpleParser
 
     private void AppendList(StringBuilder sb)
     {
-        foreach (var x in this.NameToCommand.Keys.OrderBy(a => a))
+        var array = this.NameToCommand.Keys.ToArray();
+        Array.Sort(array);
+        foreach (var x in array)
         {
             sb.Append(x);
             sb.Append(' ');
@@ -1566,14 +1522,21 @@ public class SimpleParser : ISimpleParser
 
     private void AppendUsage(StringBuilder sb, string? commandName)
     {
-        if (commandName == null)
-        {
-            commandName = "<Command>";
-        }
-
-        var name = Path.GetFileNameWithoutExtension(Assembly.GetEntryAssembly()!.Location);
-        sb.AppendLine($"Usage: {name} {commandName} -option value...");
+        commandName ??= "<Command>";
+        sb.AppendLine($"Usage: {GetEntryName()} {commandName} -option value...");
         sb.AppendLine();
+
+        static string GetEntryName()
+        {
+            // Assembly.Location is empty for a single-file application.
+            var location = Assembly.GetEntryAssembly()?.Location;
+            if (string.IsNullOrEmpty(location))
+            {
+                location = Environment.ProcessPath;
+            }
+
+            return string.IsNullOrEmpty(location) ? string.Empty : Path.GetFileNameWithoutExtension(location);
+        }
     }
 
     private void AppendCommandList(StringBuilder sb)
