@@ -11,6 +11,9 @@ using Arc;
 
 namespace SimpleCommandLine;
 
+/// <summary>
+/// Helper methods for handling command lines and arguments.
+/// </summary>
 public static class SimpleParserHelper
 {
     #region FieldAndProperty
@@ -59,22 +62,18 @@ public static class SimpleParserHelper
     }
 
     /// <summary>
-    /// Removes surrounding quotes or brackets from the input string.
+    /// Trims whitespace and removes the surrounding braces or quotes from the input string.
     /// </summary>
-    /// <param name="input">The input string to trim quotes or brackets from.</param>
-    /// <returns>
-    /// The input string without surrounding quotes or brackets, or the original string if no unescaped surrounding quotes or brackets are found.
-    /// </returns>
+    /// <param name="input">The input string.</param>
+    /// <returns>The trimmed string, unwrapped if it is enclosed in braces or in unescaped quotes.</returns>
     public static string TrimQuotesAndBracket(this string input)
         => TrimQuotesAndBracket(input.AsSpan()).ToString();
 
     /// <summary>
-    /// Removes surrounding quotes or brackets from the input <see cref="ReadOnlySpan{Char}"/>.
+    /// Trims whitespace and removes the surrounding braces or quotes from the input span.
     /// </summary>
-    /// <param name="input">The input span to trim quotes or brackets from.</param>
-    /// <returns>
-    /// The input span without surrounding quotes or brackets, or the original span if no unescaped surrounding quotes or brackets are found.
-    /// </returns>
+    /// <param name="input">The input span.</param>
+    /// <returns>The trimmed span, unwrapped if it is enclosed in braces or in unescaped quotes.</returns>
     public static ReadOnlySpan<char> TrimQuotesAndBracket(this ReadOnlySpan<char> input)
     {
         var span = input.Trim();
@@ -92,22 +91,20 @@ public static class SimpleParserHelper
     }
 
     /// <summary>
-    /// Removes surrounding double or single quotes from the input string.
+    /// Trims whitespace and removes the surrounding triple quotes, double quotes or single quotes from the input string.<br/>
+    /// The quotes are kept if the text contains an unescaped quote of the same kind.
     /// </summary>
-    /// <param name="input">The input string to trim quotes from.</param>
-    /// <returns>
-    /// The input string without surrounding quotes, or the original string if no unescaped surrounding quotes are found.
-    /// </returns>
+    /// <param name="input">The input string.</param>
+    /// <returns>The trimmed and unquoted string.</returns>
     public static string TrimQuotes(this string input)
         => TrimQuotes(input.AsSpan()).ToString();
 
     /// <summary>
-    /// Removes surrounding double or single quotes from the input <see cref="ReadOnlySpan{Char}"/>.
+    /// Trims whitespace and removes the surrounding triple quotes, double quotes or single quotes from the input span.<br/>
+    /// The quotes are kept if the text contains an unescaped quote of the same kind.
     /// </summary>
-    /// <param name="input">The input span to trim quotes from.</param>
-    /// <returns>
-    /// The input span without surrounding quotes, or the original span if no unescaped surrounding quotes are found.
-    /// </returns>
+    /// <param name="input">The input span.</param>
+    /// <returns>The trimmed and unquoted span.</returns>
     public static ReadOnlySpan<char> TrimQuotes(this ReadOnlySpan<char> input)
     {
         var span = input.Trim();
@@ -150,10 +147,10 @@ public static class SimpleParserHelper
     }
 
     /// <summary>
-    /// Tries to unwrap a double-quoted text by removing the surrounding quotes.
+    /// Removes the surrounding double quotes from the text (whitespace is not trimmed).
     /// </summary>
     /// <param name="text">The text to unwrap.</param>
-    /// <returns>The unwrapped text, or null if the input text is null.</returns>
+    /// <returns>The unwrapped text, the original text if it is not double-quoted, or <see langword="null"/> if the input is <see langword="null"/>.</returns>
     public static string? TryUnwrapDoubleQuote(string? text)
     {
         if (text is null)
@@ -171,6 +168,11 @@ public static class SimpleParserHelper
         }
     }
 
+    /// <summary>
+    /// Gets the leading command name of a command line without parsing it.
+    /// </summary>
+    /// <param name="commandline">The command line.</param>
+    /// <returns>The first word of the command line, or <see cref="string.Empty"/> if it is blank or starts with an option.</returns>
     public static string PeekCommand(ReadOnlySpan<char> commandline)
     {
         if (commandline.Length == 0)
@@ -202,6 +204,11 @@ public static class SimpleParserHelper
         return span[start..end].ToString();
     }
 
+    /// <summary>
+    /// Gets the arguments of the current process (the executable path is removed).<br/>
+    /// The result is cached after the first call.
+    /// </summary>
+    /// <returns>The arguments, or <see cref="string.Empty"/> if there is none.</returns>
     public static string GetCommandLineArguments()
     {
         return commandlineArguments is not null ?
@@ -209,6 +216,11 @@ public static class SimpleParserHelper
             (commandlineArguments = ParseArguments(Environment.CommandLine));
     }
 
+    /// <summary>
+    /// Removes the leading executable path (quoted or not) from a command line.
+    /// </summary>
+    /// <param name="commandLine">The command line (<see cref="Environment.CommandLine"/> style).</param>
+    /// <returns>The arguments, or <see cref="string.Empty"/> if there is none.</returns>
     public static string ParseArguments(string commandLine)
     {
         if (commandLine.Length == 0)
@@ -290,12 +302,12 @@ public static class SimpleParserHelper
     }
 
     /// <summary>
-    /// Adds the specified environment variable to the arguments.<br/>
-    /// The return value is the environment variable.
+    /// Appends the value of the specified environment variable to the arguments.<br/>
+    /// The arguments are left unchanged if the variable is not set.
     /// </summary>
-    /// <param name="args">The arguments.</param>
+    /// <param name="args">The arguments to append to.</param>
     /// <param name="variable">The name of the environment variable.</param>
-    /// <returns>The environment variable.</returns>
+    /// <returns>The value of the environment variable, or <see cref="string.Empty"/> if it is not set.</returns>
     public static string AddEnvironmentVariable(ref string[] args, string variable)
     {
         try
@@ -316,12 +328,12 @@ public static class SimpleParserHelper
     }
 
     /// <summary>
-    /// Adds the specified environment variable to the arguments.<br/>
-    /// The return value is the environment variable.
+    /// Appends the value of the specified environment variable to the command line, separated by a space.<br/>
+    /// The command line is left unchanged if the variable is not set.
     /// </summary>
-    /// <param name="args">The arguments.</param>
+    /// <param name="args">The command line to append to.</param>
     /// <param name="variable">The name of the environment variable.</param>
-    /// <returns>The environment variable.</returns>
+    /// <returns>The value of the environment variable, or <see cref="string.Empty"/> if it is not set.</returns>
     public static string AddEnvironmentVariable(ref string args, string variable)
     {
         try
@@ -341,13 +353,13 @@ public static class SimpleParserHelper
     }
 
     /// <summary>
-    /// Get the value of a specified argument from an array of arguments.<br/>
-    /// The corresponding name/value is removed from the array.
+    /// Gets the value of the specified option from an array of arguments.<br/>
+    /// The name/value pair is removed from the array when it is found.
     /// </summary>
     /// <param name="args">The arguments.</param>
-    /// <param name="name">The name.</param>
-    /// <param name="value">The value.</param>
-    /// <returns><see langword="true"/> if found.</returns>
+    /// <param name="name">The option name, without the leading '-' (case insensitive).</param>
+    /// <param name="value">When this method returns, contains the value of the option; otherwise, <see cref="string.Empty"/>.</param>
+    /// <returns><see langword="true"/> if the option and its value are found.</returns>
     public static bool TryGetAndRemoveArgument(ref string[] args, string name, out string value)
     {
         value = string.Empty;
@@ -388,6 +400,11 @@ public static class SimpleParserHelper
         return false;
     }
 
+    /// <summary>
+    /// Removes the surrounding braces from the input string.
+    /// </summary>
+    /// <param name="text">The input string.</param>
+    /// <returns>The string without the surrounding braces, or the original string if it is not enclosed in braces.</returns>
     public static string UnwrapBracket(this string text)
     {
         if (text.Length >= 2 && text.StartsWith(SimpleParser.OpenBracket) && text.EndsWith(SimpleParser.CloseBracket))
@@ -398,6 +415,12 @@ public static class SimpleParserHelper
         return text;
     }
 
+    /// <summary>
+    /// Splits the input string at whitespace, discarding empty entries.<br/>
+    /// Quotes and braces are not taken into account (use <see cref="FormatArguments"/> to split a command line).
+    /// </summary>
+    /// <param name="text">The input string.</param>
+    /// <returns>An array of the separated strings.</returns>
     public static string[] SplitAtSpace(this string text) => text.Split((char[])null!, StringSplitOptions.RemoveEmptyEntries);
 
     /// <summary>
@@ -422,6 +445,13 @@ public static class SimpleParserHelper
         return !char.IsAsciiDigit(c) && c != '.';
     }
 
+    /// <summary>
+    /// Splits a command line at the separator <see cref="SimpleParser.Separator"/> ('|') into individual command lines.<br/>
+    /// A separator inside quotes or braces is not treated as a separator.
+    /// </summary>
+    /// <param name="arg">The command line.</param>
+    /// <param name="delimiter">The argument delimiter (<see cref="SimpleParser.DefaultDelimiter"/> if empty).</param>
+    /// <returns>An array of command lines.</returns>
     public static string[] SeparateArguments(this string arg, ReadOnlySpan<char> delimiter = default)
     {
         var args = arg.FormatArguments(delimiter);
@@ -462,6 +492,14 @@ public static class SimpleParserHelper
         return list.ToArray();
     }
 
+    /// <summary>
+    /// Normalizes an argument: removes the surrounding delimiter or quotes, unescapes <c>\'</c> and <c>\"</c>,
+    /// and handles newlines according to <paramref name="argumentProcessing"/>.
+    /// </summary>
+    /// <param name="arg">The argument.</param>
+    /// <param name="parserOptions">The parser options which provide the argument delimiter.</param>
+    /// <param name="argumentProcessing">Specifies how newlines are handled.</param>
+    /// <returns>The normalized argument (the original instance if nothing has changed).</returns>
     public static string ProcessArgument(string arg, SimpleParserOptions parserOptions, ArgumentProcessing argumentProcessing)
     {
         var span = arg.AsSpan();

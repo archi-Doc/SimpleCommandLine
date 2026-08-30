@@ -9,20 +9,20 @@ using Microsoft.Extensions.DependencyInjection;
 namespace SimpleCommandLine;
 
 /// <summary>
-/// <see cref="SimpleCommandGroup{TCommand}"/> is base class for a group of commands.
+/// A base class for a command which dispatches its arguments to a group of subcommands.
 /// </summary>
-/// <typeparam name="TCommand">The type of command group.</typeparam>
+/// <typeparam name="TCommand">The type of the derived command group.</typeparam>
 public abstract class SimpleCommandGroup<TCommand> : ISimpleCommand
     where TCommand : SimpleCommandGroup<TCommand>
 {
     /// <summary>
-    /// Gets a <see cref="CommandGroup"/> to configure commands.
+    /// Registers <typeparamref name="TCommand"/> with its parent and returns its own <see cref="CommandGroup"/>,
+    /// to which the subcommands are then added.
     /// </summary>
-    /// <param name="context"><see cref="UnitBuilderContext"/>.</param>
-    /// <param name="parentCommand"><see cref="Type"/> of the parent command.<br/>
-    /// <see langword="null"/>: No parent.</param>
-    /// <param name="lifetime">The service lifetime for the command.</param>
-    /// <returns><see cref="CommandGroup"/>.</returns>
+    /// <param name="context">The unit configuration context.</param>
+    /// <param name="parentCommand">The type of the parent command. Use <see langword="null"/> to register at the top level.</param>
+    /// <param name="lifetime">The service lifetime of the command.</param>
+    /// <returns>The command group of <typeparamref name="TCommand"/>.</returns>
     public static CommandGroup ConfigureGroup(IUnitConfigurationContext context, Type? parentCommand = null, ServiceLifetime lifetime = ServiceLifetime.Scoped)
     {
         var commandType = typeof(TCommand);
@@ -48,9 +48,12 @@ public abstract class SimpleCommandGroup<TCommand> : ISimpleCommand
     /// <summary>
     /// Initializes a new instance of the <see cref="SimpleCommandGroup{TCommand}"/> class.
     /// </summary>
-    /// <param name="context"><see cref="UnitContext"/>.</param>
-    /// <param name="defaultArgument">The default argument to be used if the argument is empty.</param>
-    /// <param name="parserOptions"><see cref="SimpleParserOptions"/>.</param>
+    /// <param name="context">The unit context which provides the subcommand types and the service provider.</param>
+    /// <param name="defaultArgument">The argument used when no argument is given. Use <see langword="null"/> to show the command list instead.</param>
+    /// <param name="parserOptions">
+    /// The options of the inner parser. Use <see langword="null"/> for the defaults of a command group
+    /// (a strict command and option name, no usage text, and the command list as help).
+    /// </param>
     public SimpleCommandGroup(UnitContext context, string? defaultArgument = null, SimpleParserOptions? parserOptions = null)
     {
         this.commandTypes = context.GetCommandTypes(typeof(TCommand));
@@ -75,12 +78,12 @@ public abstract class SimpleCommandGroup<TCommand> : ISimpleCommand
     }
 
     /// <summary>
-    /// Parse the arguments and executes the specified command.<br/>
-    /// The default argument will be used if the argument is empty.
+    /// Parses the arguments and executes the specified subcommand.<br/>
+    /// The default argument is used when the arguments are empty.
     /// </summary>
-    /// <param name="args">The arguments to specify commands and options.</param>
-    /// <param name="cancellationToken">A token used to cancel command execution.</param>
-    /// <returns><see cref="Task"/>.</returns>
+    /// <param name="args">The arguments specifying the subcommand and its options.</param>
+    /// <param name="cancellationToken">A token used to cancel the command execution.</param>
+    /// <returns>A task that represents the command execution.</returns>
     public Task Execute(string[] args, CancellationToken cancellationToken)
     {
         if (args.Length == 0 && this.defaultArgument != null)
@@ -92,12 +95,12 @@ public abstract class SimpleCommandGroup<TCommand> : ISimpleCommand
     }
 
     /// <summary>
-    /// Gets <see cref="SimpleParserOptions"/>.
+    /// Gets the options of the inner parser.
     /// </summary>
     public SimpleParserOptions SimpleParserOptions { get; }
 
     /// <summary>
-    /// Gets <see cref="SimpleParser"/> instance.
+    /// Gets the parser for the subcommands, creating it on the first access.
     /// </summary>
     public SimpleParser SimpleParser
     {
