@@ -18,6 +18,7 @@
   <ItemGroup>
     <ProjectReference Include="..\SimpleCommandLine\SimpleCommandLine.csproj" />
     <Compile Include="../Tests/NativeAotTest/SmokeScenarios.cs" Link="NativeAot/SmokeScenarios.cs" />
+    <Compile Include="../Tests/NativeAotTest/UnitIntegrationScenarios.cs" Link="NativeAot/UnitIntegrationScenarios.cs" />
   </ItemGroup>
 
 </Project>

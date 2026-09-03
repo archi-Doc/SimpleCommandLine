@@ -76,6 +76,18 @@ public abstract class SimpleCommandGroup<[DynamicallyAccessedMembers(Dynamically
     {
     }
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SimpleCommandGroup{TCommand}"/> class using the unit's shared command registry.
+    /// </summary>
+    /// <param name="registry">The shared registry, supplied by dependency injection after generic command registration.</param>
+    /// <param name="context">The unit context supplying this group's child command types.</param>
+    /// <param name="defaultArgument">The default subcommand, or null to show the command list.</param>
+    /// <param name="parserOptions">Parser options. Supply a scoped ServiceProvider to resolve child commands in the same scope.</param>
+    public SimpleCommandGroup(SimpleCommandRegistry registry, UnitContext context, string? defaultArgument = null, SimpleParserOptions? parserOptions = null)
+        : this(context, defaultArgument, parserOptions, (types, options) => registry.CreateParser(types, options))
+    {
+    }
+
     private SimpleCommandGroup(UnitContext context, string? defaultArgument, SimpleParserOptions? parserOptions, Func<IEnumerable<Type>, SimpleParserOptions, SimpleParser> createParser)
     {
         this.createParser = createParser;
@@ -83,7 +95,7 @@ public abstract class SimpleCommandGroup<[DynamicallyAccessedMembers(Dynamically
 
         if (parserOptions != null)
         {
-            this.ParserOptions = parserOptions with { ServiceProvider = context.ServiceProvider, };
+            this.ParserOptions = parserOptions with { ServiceProvider = parserOptions.ServiceProvider ?? context.ServiceProvider, };
         }
         else
         {

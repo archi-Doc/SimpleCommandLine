@@ -16,6 +16,10 @@ public class NativeAotTest
         => Assert.True(await global::NativeAotTest.SmokeScenarios.Run() > 0);
 
     [Fact]
+    public async Task UnitRegistrationWorksInManagedRuntime()
+        => Assert.True(await global::NativeAotTest.UnitIntegrationScenarios.Run() > 0);
+
+    [Fact]
     public async Task ReflectionSupportsExplicitInterfaces()
     {
         var parser = new SimpleParser([typeof(ExplicitCommand)], SimpleParserOptions.Standard with { ReadCommandFromEnvironment = false });

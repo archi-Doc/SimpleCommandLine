@@ -22,6 +22,7 @@ Simple command-line parser for .NET console applications.
 - [Argument Syntax](#argument-syntax)
 - [Parser Options](#parser-options)
 - [Parser API](#parser-api)
+- [Arc.Unit Integration](#arcunit-integration)
 - [Command Groups](#command-groups)
 - [Helper Methods](#helper-methods)
 - [License](#license)
@@ -132,7 +133,7 @@ test Test command.
 
 ## NativeAOT and Trimming
 
-Use `SimpleParserBuilder` when publishing with NativeAOT or trimming. It preserves the reflection metadata used to create options and read or write their members, and dispatches commands through their interfaces without reflection invocation.
+Use `SimpleParserBuilder`, or the [Arc.Unit integration](#arcunit-integration), when publishing with NativeAOT or trimming. Both share the same registration implementation: they preserve the reflection metadata used to create options and read or write their members, and dispatch commands through their interfaces without reflection invocation.
 
 ```csharp
 var builder = new SimpleParserBuilder()
@@ -160,18 +161,18 @@ builder.TryParseOptions<TestOptions>("-number 1 -text example", out var options)
 
 `Build()` creates a snapshot, so later registrations do not change an existing parser. Attributes, aliases, help/version output, required options, nullable values, enums, inherited/non-public members, explicit interface implementations and Tinyhand-generated option serialization work with this API. `TryParseOptions` retains the existing helper's behavior: invalid optional values are ignored; use a parser's `Parse()` to reject conversion errors.
 
-The `IEnumerable<Type>` constructor, static `ParseAndExecute` overloads and static `TryParseOptions` methods remain available for untrimmed applications. They use runtime type discovery and are annotated with `RequiresUnreferencedCode`; migrate those calls to the builder for trimmed/NativeAOT applications.
+The `IEnumerable<Type>` constructor, static `ParseAndExecute` overloads and static `TryParseOptions` methods remain available for untrimmed applications. They use runtime type discovery and are annotated with `RequiresUnreferencedCode`; migrate those calls to the builder or the generic Arc.Unit registration methods for trimmed/NativeAOT applications.
 
-For command groups, supply a builder containing the group's subcommands to the new base constructor. Continue to configure the group in `Arc.Unit` as described below.
+With Arc.Unit, register each command once using the generic context/group methods and inject the unit's `SimpleCommandRegistry` into command groups. There is no separate parser-builder registration in the group constructor:
 
 ```csharp
-public DbCommand(UnitContext context)
-    : base(new SimpleParserBuilder().AddCommand<DbListCommand>(), context, "list")
+public DbCommand(SimpleCommandRegistry registry, UnitContext context)
+    : base(registry, context, "list")
 {
 }
 ```
 
-Register the outer command with `AddCommand<DbCommand>()` and pass the service provider to `Build()`. Service providers and custom serializers must themselves support NativeAOT. The legacy command-group constructor uses runtime discovery and requires migration too.
+See [Command Groups](#command-groups) for the complete registration example. Service providers and custom serializers must themselves support NativeAOT. The legacy command-group constructor uses runtime discovery and requires migration too. The constructor taking a standalone `SimpleParserBuilder` remains available.
 
 The library enables `IsAotCompatible` analysis. Publish and run the sample on Windows x64 with:
 
@@ -440,6 +441,60 @@ if (SimpleParser.TryParseOptions<TestOptions>("-number 1 -text example", out var
 
 
 
+## Arc.Unit Integration
+
+Import `SimpleCommandLine` to enable generic registration extensions on `IUnitConfigurationContext`. A single registration adds the command to Arc.Unit's command list and DI services, and records its NativeAOT metadata in the unit's shared registry.
+
+```csharp
+using Arc.Unit;
+using SimpleCommandLine;
+
+var unitBuilder = new UnitBuilder();
+unitBuilder.Configure(context =>
+{
+    context.AddCommand<TestCommand, TestOptions>();
+    // Register every nested options type used by these commands, if any:
+    context.AddOptionType<NestedOptions>();
+});
+
+var unit = unitBuilder.Build();
+var parser = unit.Context.CreateSimpleParser();
+await parser.ParseAndExecute(args);
+```
+
+Use `context.AddCommand<TCommand>()` for commands without options. Both overloads accept a `ServiceLifetime` (default: `Scoped`) and return whether the command was newly added to the selected list. Arc.Unit keeps the first DI registration, including its lifetime or a pre-registered service instance. Repeating a generic registration is safe; choosing a different options type for the same command throws an error.
+
+| Registration | Parser creation | Command list |
+| --- | --- | --- |
+| `context.AddCommand<TCommand, TOptions>()` | `unit.Context.CreateSimpleParser()` | `UnitContext.Commands` |
+| `context.AddSubcommand<TCommand, TOptions>()` | `unit.Context.CreateSimpleSubcommandParser()` | `UnitContext.Subcommands` |
+| `context.GetSimpleCommandGroup<TParent>().AddCommand<TCommand, TOptions>()` | `unit.Context.CreateSimpleParser<TParent>()` | `UnitContext.GetCommandTypes(typeof(TParent))` |
+
+Each registration also has a `TCommand`-only overload. Register the parent command itself in its desired list before obtaining its group. Child groups select commands from Arc.Unit's membership lists; command metadata can be shared across groups without adding those commands to other lists.
+
+The integration uses `IUnitCustomContext` to collect metadata across configuration delegates and modules. After `Configure` completes, it registers an immutable `SimpleCommandRegistry` singleton with the unit's service provider. Registrations must finish during `Configure`; modifying a retained context/group after it has been finalized throws an error. Different units have independent registries.
+
+`CreateSimpleParser` creates a fresh parser each time. Parse results, options instances and mutable help descriptions are independent. Command instances follow their DI lifetime; a parser caches each resolved command instance for its own lifetime, just as a standalone parser does.
+
+For scoped services, supply the current scope's provider:
+
+```csharp
+using Microsoft.Extensions.DependencyInjection;
+
+using var scope = unit.Context.ServiceProvider.CreateScope();
+var parser = unit.Context.CreateSimpleParser(SimpleParserOptions.Standard with
+{
+    ServiceProvider = scope.ServiceProvider,
+});
+await parser.ParseAndExecute(args);
+```
+
+Without an explicit provider, the unit's provider is used. When a command group must resolve its children in the same DI scope, inject `IServiceProvider` into the group and pass it through `parserOptions.ServiceProvider` to the base constructor.
+
+The existing Arc.Unit `AddCommand(typeof(...))` / `AddSubcommand(typeof(...))` methods do not capture parser metadata. Replace them with the generic extensions for this integration. If an existing raw registration is later supplemented with a generic registration, its DI registration is retained and its parser metadata is added. Raw-only commands or missing nested option types produce a descriptive error when creating the parser.
+
+
+
 ## Command Groups
 
 `SimpleCommandGroup<TCommand>` dispatches its arguments to a group of subcommands, using `Arc.Unit` for the registration and the service provider.
@@ -450,12 +505,13 @@ public class DbCommand : SimpleCommandGroup<DbCommand>
 {
     public static void Configure(IUnitConfigurationContext context)
     {
-        var group = ConfigureGroup(context); // Registers DbCommand and returns its own group.
-        group.AddCommand(typeof(DbListCommand)); // Adds a subcommand to the group.
+        context.AddCommand<DbCommand>(); // Register the parent in the top-level command list.
+        var group = context.GetSimpleCommandGroup<DbCommand>();
+        group.AddCommand<DbListCommand>(); // One registration for membership, DI and NativeAOT metadata.
     }
 
-    public DbCommand(UnitContext context)
-        : base(context, "list")
+    public DbCommand(SimpleCommandRegistry registry, UnitContext context)
+        : base(registry, context, "list")
     {// "list" is executed when no subcommand is specified.
     }
 }
@@ -468,11 +524,22 @@ public class DbListCommand : ISimpleCommand
 }
 ```
 
+In `Main`, configure the unit and create the top-level parser:
+
+```csharp
+var builder = new UnitBuilder();
+builder.Configure(DbCommand.Configure);
+var unit = builder.Build();
+await unit.Context.CreateSimpleParser().ParseAndExecute(args);
+```
+
 ```
 app.exe db list
 ```
 
-Pass `parentCommandType` to `ConfigureGroup()` to nest a group inside another group. The inner parser uses `RequireStrictCommandName`, `RequireStrictOptionName`, `DisplayUsage = false` and `DisplayCommandListAsHelp` unless you pass your own `SimpleParserOptions`.
+To nest a group, register it as a child with `context.GetSimpleCommandGroup<TParent>().AddCommand<TChildGroup>()`, then register its children through `context.GetSimpleCommandGroup<TChildGroup>()`. The inner parser uses `RequireStrictCommandName`, `RequireStrictOptionName`, `DisplayUsage = false` and `DisplayCommandListAsHelp` unless you pass your own `SimpleParserOptions`.
+
+The older `ConfigureGroup(context, parentCommandType)` API remains available for existing manually configured parsers. The generic context/group extensions above provide the shared-registry integration.
 
 
 

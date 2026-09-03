@@ -12,6 +12,7 @@ try
     }
 
     var checks = await SmokeScenarios.Run();
+    checks += await UnitIntegrationScenarios.Run();
     Console.WriteLine($"NativeAOT smoke tests passed: {checks} checks; dynamic code supported: {RuntimeFeature.IsDynamicCodeSupported}.");
     return 0;
 }

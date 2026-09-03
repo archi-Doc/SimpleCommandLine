@@ -3,7 +3,6 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Linq;
 
 namespace SimpleCommandLine;
 
@@ -21,7 +20,7 @@ public sealed class SimpleParserBuilder
     public SimpleParserBuilder AddCommand<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TCommand>()
         where TCommand : ISimpleCommand
     {
-        this.commands.TryAdd(typeof(TCommand), new SimpleCommandRegistration(
+        this.AddRegistration(new SimpleCommandRegistration(
             typeof(TCommand),
             null,
             typeof(ISimpleCommand),
@@ -42,7 +41,7 @@ public sealed class SimpleParserBuilder
         where TOptions : new()
     {
         this.AddOptions<TOptions>();
-        this.commands.TryAdd(typeof(TCommand), new SimpleCommandRegistration(
+        this.AddRegistration(new SimpleCommandRegistration(
             typeof(TCommand),
             typeof(TOptions),
             typeof(ISimpleCommand<>),
@@ -86,12 +85,9 @@ public sealed class SimpleParserBuilder
     }
 
     internal SimpleParser Build(SimpleParserOptions? parserOptions, IEnumerable<Type> commandTypes)
-    {
-        var registrations = commandTypes.Select(type => this.commands.TryGetValue(type, out var registration)
-            ? registration
-            : throw new InvalidOperationException($"Command type '{type}' is not registered. Call SimpleParserBuilder.AddCommand first.")).ToArray();
-        return new SimpleParser(registrations, parserOptions, CreateResolver(new Dictionary<Type, PreservedType>(this.optionTypes)));
-    }
+        => this.CreateRegistry().CreateParser(commandTypes, parserOptions);
+
+    internal SimpleCommandRegistry CreateRegistry() => new(this.commands, this.optionTypes);
 
     private static Func<Type, PreservedType> CreateResolver(Dictionary<Type, PreservedType> types)
         => type => types.TryGetValue(type, out var preserved)
@@ -108,6 +104,15 @@ public sealed class SimpleParserBuilder
         if (type.BaseType is { } baseType)
         {
             this.AddOptionType(baseType);
+        }
+    }
+
+    private void AddRegistration(SimpleCommandRegistration registration)
+    {
+        if (!this.commands.TryAdd(registration.CommandType, registration) &&
+            this.commands[registration.CommandType].OptionType != registration.OptionType)
+        {
+            throw new InvalidOperationException($"Command type '{registration.CommandType}' is already registered with a different options type.");
         }
     }
 
