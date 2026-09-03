@@ -89,6 +89,15 @@ public static class SmokeScenarios
         Check(builder.TryParseOptions("-number 4 -name updated", out var updated, parsed) && ReferenceEquals(parsed, updated), "update existing instance");
         Check(updated!.Number == 4 && updated.Nested.Value == 8, "update preserves unspecified nested value");
 
+        Check(parser.Parse(["run", "-name", "two words", "-number", "42", "", "\"literal\""]), "pre-split native arguments");
+        options = (Options)parser.CurrentCommand!.OptionClass.OptionInstance!;
+        Check(options.Name == "two words" && options.Number == 42, "array values retain their boundaries");
+        Check(parser.CurrentCommand.OptionClass.RemainingArguments is ["", "\"literal\""], "array literals are not normalized again");
+        Check(builder.TryParseOptions<Options>(["-name", ""], out var emptyName) && emptyName.Name.Length == 0, "standalone native array overload");
+        Check(parser.Parse("run -name quoted -number '5' -mode \"Second\""), "quoted scalar native conversion");
+        Check(builder.TryParseOptions<OverriddenOptions>("-value 17", out var overridden) && overridden.Value == 17, "virtual option override metadata");
+        Check(new SimpleParserBuilder().Build(settings).Parse("help"), "empty native parser help");
+
         var unregistered = new SimpleParserBuilder().AddCommand<OptionsCommand, Options>();
         ExpectInvalid(() => unregistered.Build(), "AddOptions", "unregistered nested options fail clearly");
         Check(new SimpleParserBuilder().AddCommand<PlainCommand>().AddCommand<PlainCommand>().Build(settings).NameToCommand.Count == 1, "idempotent command registration");
@@ -145,6 +154,17 @@ public static class SmokeScenarios
 
             throw new InvalidOperationException($"Failed: {description} (no exception)");
         }
+    }
+
+    private class VirtualOptions
+    {
+        [SimpleOption("value")]
+        public virtual int Value { get; set; }
+    }
+
+    private sealed class OverriddenOptions : VirtualOptions
+    {
+        public override int Value { get; set; }
     }
 
     private class BaseOptions

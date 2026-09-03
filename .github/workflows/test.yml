@@ -20,8 +20,18 @@ jobs:
       run: dotnet restore
     - name: Build
       run: dotnet build --configuration Release --no-restore
-    - name: Test
-      run: dotnet test --no-restore --verbosity normal
+    - name: Test with coverage
+      run: >-
+        dotnet test --project xUnitTest/xUnitTest.csproj -c Release --no-build --no-restore
+        --coverage --coverage-settings xUnitTest/coverage.config
+        --coverage-output-format cobertura
+        --coverage-output "${{ github.workspace }}/artifacts/coverage/coverage.cobertura.xml"
+    - name: Upload coverage
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: code-coverage
+        path: artifacts/coverage/*.cobertura.xml
 
   native-aot:
     strategy:

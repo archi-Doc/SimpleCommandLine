@@ -84,6 +84,21 @@ public sealed class SimpleParserBuilder
         return SimpleParser.TryParseOptionsCore(commandLine, out options, instanceToUpdate, CreateResolver(this.optionTypes));
     }
 
+    /// <summary>
+    /// Parses pre-split arguments without joining or unquoting their values. The root type is registered automatically.
+    /// </summary>
+    /// <typeparam name="TOptions">The root options type.</typeparam>
+    /// <param name="args">The arguments, with one value per array element.</param>
+    /// <param name="options">The parsed options.</param>
+    /// <param name="instanceToUpdate">An existing instance to update, or null to create one.</param>
+    /// <returns>True if options are created and required values are present. Invalid optional values are ignored.</returns>
+    public bool TryParseOptions<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TOptions>(
+        string[] args, [MaybeNullWhen(false)] out TOptions options, TOptions? instanceToUpdate = default)
+    {
+        this.AddOptions<TOptions>();
+        return SimpleParser.TryParseOptionsCore(args, out options, instanceToUpdate, CreateResolver(this.optionTypes), false);
+    }
+
     internal SimpleParser Build(SimpleParserOptions? parserOptions, IEnumerable<Type> commandTypes)
         => this.CreateRegistry().CreateParser(commandTypes, parserOptions);
 

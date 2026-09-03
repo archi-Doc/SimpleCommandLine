@@ -367,32 +367,32 @@ public static class SimpleParserHelper
         for (var i = 0; i < args.Length; i++)
         {
             var arg = args[i];
-            if (!arg.StartsWith(SimpleParser.OptionPrefix))
+            if (arg == SimpleParser.CommandSeparatorString)
+            {
+                break;
+            }
+
+            if (!arg.IsOptionName())
             {
                 continue;
             }
 
-            if (arg.AsSpan(1).Equals(nameSpan, StringComparison.OrdinalIgnoreCase))
+            if (arg.AsSpan().Trim(SimpleParser.OptionPrefix).Equals(nameSpan, StringComparison.OrdinalIgnoreCase))
             {
-                if (i + 1 >= args.Length)
+                if (i + 1 >= args.Length || args[i + 1] == SimpleParser.CommandSeparatorString)
                 {// No value
                     return false;
                 }
-                else if (args[i + 1].StartsWith(SimpleParser.OptionPrefix))
+                else if (args[i + 1].IsOptionName())
                 {// -argument
                     continue;
                 }
 
                 value = args[i + 1];
-                for (var j = i; j < args.Length; j++)
-                {
-                    if (j + 2 < args.Length)
-                    {
-                        args[j] = args[j + 2];
-                    }
-                }
-
-                Array.Resize(ref args, args.Length - 2);
+                var remaining = new string[args.Length - 2];
+                args.AsSpan(0, i).CopyTo(remaining);
+                args.AsSpan(i + 2).CopyTo(remaining.AsSpan(i));
+                args = remaining;
                 return true;
             }
         }
@@ -636,15 +636,16 @@ Exit:
     /// <param name="delimiter">The argument delimiter (<see cref="SimpleParser.DefaultArgumentDelimiter"/> if empty).</param>
     /// <returns>An array of arguments.</returns>
     public static string[] SplitArguments(this ReadOnlySpan<char> commandLine, ReadOnlySpan<char> delimiter = default)
+        => SplitArgumentsCore(commandLine, delimiter.IsEmpty ? SimpleParser.DefaultArgumentDelimiter : delimiter);
+
+    internal static string[] SplitParserArguments(string commandLine, SimpleParserOptions parserOptions)
+        => SplitArgumentsCore(commandLine, parserOptions.ArgumentDelimiter);
+
+    private static string[] SplitArgumentsCore(ReadOnlySpan<char> commandLine, ReadOnlySpan<char> delimiter)
     {
         if (commandLine.IsEmpty)
         {
             return [];
-        }
-
-        if (delimiter.IsEmpty)
-        {
-            delimiter = SimpleParser.DefaultArgumentDelimiter;
         }
 
         var ranges = new RangeList(stackalloc int[DefaultArgumentCapacity * 2]);
@@ -670,7 +671,7 @@ Exit:
                     nextPosition = position;
                     goto AddString;
                 }
-                else if (commandLine.Slice(position).StartsWith(delimiter))
+                else if (!delimiter.IsEmpty && commandLine.Slice(position).StartsWith(delimiter))
                 {// Delimiter """A B"""
                     enclosed.Push(SimpleParser.DelimiterChar);
                     nextPosition = position + delimiter.Length;
@@ -694,22 +695,26 @@ Exit:
             {
                 var peek = enclosed.Peek();
 
-                if (commandLine.Slice(position).StartsWith(delimiter))
+                if (!delimiter.IsEmpty && (peek == SimpleParser.OpenBrace || peek == SimpleParser.DelimiterChar) &&
+                    commandLine.Slice(position).StartsWith(delimiter))
                 {// """
                     if (peek == SimpleParser.DelimiterChar)
                     {// """abc"""
                         enclosed.Pop();
                         if (enclosed.Count == 0)
                         {
-                            position += delimiter.Length;
-                            nextPosition = position;
+                            nextPosition = position + delimiter.Length;
+                            position = nextPosition;
                             goto AddString;
                         }
                     }
                     else
                     {// { """A
-                        enclosed.Push(currentChar);
+                        enclosed.Push(SimpleParser.DelimiterChar);
                     }
+
+                    position += delimiter.Length;
+                    continue;
                 }
                 else if (currentChar == SimpleParser.Quote && lastChar != '\\')
                 {// " (not \")
@@ -722,7 +727,7 @@ Exit:
                             goto AddString;
                         }
                     }
-                    else if (peek != SimpleParser.DelimiterChar)
+                    else if (peek == SimpleParser.OpenBrace)
                     {
                         enclosed.Push(currentChar);
                     }
@@ -738,7 +743,7 @@ Exit:
                             goto AddString;
                         }
                     }
-                    else if (peek != SimpleParser.DelimiterChar)
+                    else if (peek == SimpleParser.OpenBrace)
                     {
                         enclosed.Push(currentChar);
                     }

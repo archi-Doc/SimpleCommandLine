@@ -112,7 +112,12 @@ public partial record TestClass : IStringConvertible<TestClass>
     bool IStringConvertible<TestClass>.TryFormat(Span<char> destination, out int written, IConversionOptions? conversionOptions)
     {
         var span = this.Name.AsSpan();
-        span.CopyTo(destination);
+        if (!span.TryCopyTo(destination))
+        {
+            written = 0;
+            return false;
+        }
+
         written = span.Length;
         return true;
     }
@@ -126,7 +131,7 @@ public class TestCommand : ISimpleCommand<TestOptions>
         this.CommandService = commandService;
     }
 
-    public async Task Execute(TestOptions options, string[] args, CancellationToken cancellationToken)
+    public virtual async Task Execute(TestOptions options, string[] args, CancellationToken cancellationToken)
     {
         Console.WriteLine("test command");
         Console.WriteLine();
@@ -157,7 +162,7 @@ public class DerivedCommand : TestCommand
     {
     }
 
-    public new async Task Execute(TestOptions options, string[] args, CancellationToken cancellationToken)
+    public override async Task Execute(TestOptions options, string[] args, CancellationToken cancellationToken)
     {
         Console.WriteLine("derived command");
     }
@@ -168,7 +173,7 @@ public class SyncCommand : ISimpleCommand
 {
     public async Task Execute(string[] args, CancellationToken cancellationToken)
     {
-        await SimpleParser.ParseAndExecute(new[] { typeof(TestCommand2) }, args);
+        await SimpleParser.ParseAndExecute(new[] { typeof(TestCommand2) }, args, cancellationToken: cancellationToken);
     }
 }
 
@@ -240,7 +245,7 @@ public class Program
             }
         });
 
-        var container = new Container(rules => rules.WithMicrosoftDependencyInjectionRules());
+        using var container = new Container(rules => rules.WithMicrosoftDependencyInjectionRules());
         builder.SetServiceProviderFactory(services => container.WithDependencyInjectionAdapter(services));
         var unit = builder.Build();
 
@@ -264,7 +269,6 @@ public class Program
             AutoAlias = true,
         };
 
-        var options = new TestOptions();
         // var b = SimpleParser.TryParseOptions<TestOptions>("test  -targetip '127.0.0.1' \"testdir\" -targetport 123 -enum hanbun", out options);
         // b = SimpleParser.TryParseOptions<TestOptions>("-enum Yes", out options, options);
 
@@ -289,7 +293,5 @@ public class Program
         /*var p = SimpleParser.Parse(commandTypes, args);
         p.Execute();
         p.ShowHelp();*/
-
-        container.Dispose();
     }
 }

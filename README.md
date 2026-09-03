@@ -25,6 +25,7 @@ Simple command-line parser for .NET console applications.
 - [Arc.Unit Integration](#arcunit-integration)
 - [Command Groups](#command-groups)
 - [Helper Methods](#helper-methods)
+- [Tests and Coverage](#tests-and-coverage)
 - [License](#license)
 
 
@@ -284,11 +285,11 @@ With `ReadFromEnvironment`, an option that is not specified on the command line 
 public string ApiKey { get; set; } = string.Empty;
 ```
 
-The command name itself is read from the `Command` environment variable when it is not specified on the command line (`ReadCommandFromEnvironment`).
+The command name itself is read from the `Command` environment variable when it is not specified on the command line (`ReadCommandFromEnvironment`). Explicit help and version requests take priority over that fallback. Invalid environment option values fail `Parse()` just like invalid command-line values; standalone `TryParseOptions()` continues to ignore invalid optional values.
 
 ### Argument Processing
 
-`ArgumentProcessing` controls how the value of a `string` option is normalized. The surrounding delimiter or quotes are always removed.
+For a raw command-line string, `ArgumentProcessing` controls how option values are normalized. The surrounding delimiter or quotes are removed before conversion, including for numeric and enum values. Pre-split `string[]` values are already arguments and are kept verbatim; their quotes, escapes and newlines are not processed again.
 
 | Value | Description |
 | --- | --- |
@@ -366,6 +367,10 @@ test Test command.
 | `\|` | Separates a command line into multiple command lines. |
 
 Unknown option names are passed to the command as remaining arguments. Set `RequireStrictOptionName` to make them an error instead.
+
+The syntax table applies to raw command-line strings. For `Parse(string[])`, `ParseAndExecute(string[])` and `TryParseOptions(string[])`, each element is already one argument: spaces, empty strings, commas and literal quotes inside a value are preserved. This also prevents subcommands from splitting forwarded values a second time. A standalone `|` still ends a command. Nested options are supplied as a single element containing their expression, such as `"{-host 'two words'}"`.
+
+Earlier versions joined array elements with spaces and parsed the resulting string again. Call the string overload explicitly if you intentionally pass command-line fragments instead of individual arguments. Set `ArgumentDelimiter = string.Empty` to disable the extra delimiter; single and double quotes still work.
 
 
 
@@ -562,6 +567,18 @@ The older `ConfigureGroup(context, parentCommandType)` API remains available for
 | `CreateAliasFromCommand(commandName)` | The initials of the hyphen-separated words. |
 | `TryGetAndRemoveArgument(ref args, optionName, out value)` | Takes an option and its value out of an argument array. |
 | `AppendEnvironmentVariable(ref args, variableName)` | Appends the value of an environment variable to the arguments. |
+
+
+
+## Tests and Coverage
+
+Run the tests and collect library-only line and branch coverage using Microsoft.Testing.Platform:
+
+```powershell
+dotnet test --project xUnitTest/xUnitTest.csproj -c Release --coverage --coverage-settings xUnitTest/coverage.config --coverage-output-format cobertura --coverage-output "$PWD/artifacts/coverage/coverage.cobertura.xml"
+```
+
+The configuration instruments `SimpleCommandLine.dll`, including its generated code, and excludes test assemblies, samples and dependencies by assembly selection. CI uploads the Cobertura report as `code-coverage`. The [review and coverage report](docs/code-review.md) records the baseline, added regression tests, compatibility changes and validation limits. NativeAOT verification uses the separate smoke-test commands above.
 
 
 

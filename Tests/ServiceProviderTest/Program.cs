@@ -48,11 +48,16 @@ namespace ConsoleApp1
         {
             this.CommandService.Enter(string.Empty);
 
-            Console.WriteLine("Test command");
-            await Task.Delay(1000);
-            Console.WriteLine($"N is {options.Number}");
-
-            this.CommandService.Exit();
+            try
+            {
+                Console.WriteLine("Test command");
+                await Task.Delay(1000, cancellationToken);
+                Console.WriteLine($"N is {options.Number}");
+            }
+            finally
+            {
+                this.CommandService.Exit();
+            }
         }
 
         public ICommandService CommandService { get; }
@@ -76,7 +81,7 @@ namespace ConsoleApp1
                 typeof(TestCommand2),
             };
 
-            var container = new Container();
+            using var container = new Container();
             container.Register<ICommandService, CommandService>(Reuse.Singleton);
             foreach (var x in commandTypes)
             {
@@ -93,8 +98,6 @@ namespace ConsoleApp1
             };
 
             await SimpleParser.ParseAndExecute(commandTypes, args, parserOptions);
-
-            container.Dispose();
         }
     }
 }

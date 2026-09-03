@@ -123,6 +123,66 @@ public class EnvironmentTest
             Environment.SetEnvironmentVariable(SimpleParser.CommandEnvironmentVariable, null);
         }
     }
+
+    [Fact]
+    public void ExplicitHelpAndVersionTakePriorityOverEnvironment()
+    {
+        var previous = Environment.GetEnvironmentVariable(SimpleParser.CommandEnvironmentVariable);
+        try
+        {
+            Environment.SetEnvironmentVariable(SimpleParser.CommandEnvironmentVariable, "env-command");
+            var parser = new SimpleParser(CommandTypes, Options);
+            Assert.True(parser.Parse("help env-alias"));
+            Assert.Equal("env-alias", parser.HelpCommandName);
+            Assert.Null(parser.CurrentCommand);
+            Assert.True(parser.Parse("version"));
+            Assert.True(parser.VersionRequested);
+            Assert.Null(parser.CurrentCommand);
+            Assert.True(parser.Parse(string.Empty));
+            Assert.Equal("env-command", parser.CurrentCommand!.CommandName);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(SimpleParser.CommandEnvironmentVariable, previous);
+        }
+    }
+
+    [Fact]
+    public void InvalidEnvironmentValueFailsCommandParsing()
+    {
+        const string Name = "SimpleCommandLine_ReviewNumber";
+        var previous = Environment.GetEnvironmentVariable(Name);
+        try
+        {
+            Environment.SetEnvironmentVariable(Name, "invalid");
+            var parser = new SimpleParserBuilder().AddCommand<EnvironmentNumberCommand, EnvironmentNumberOptions>()
+                .Build(Options with { ReadCommandFromEnvironment = false });
+            Assert.False(parser.Parse("number"));
+            Assert.Null(parser.CurrentCommand);
+            Assert.True(parser.Parse($"number -{Name} 7"));
+            Assert.Equal(7, ((EnvironmentNumberOptions)parser.CurrentCommand!.OptionClass.OptionInstance!).Number);
+
+            // The standalone API intentionally tolerates invalid optional values.
+            Assert.True(new SimpleParserBuilder().TryParseOptions<EnvironmentNumberOptions>(string.Empty, out var relaxed));
+            Assert.Equal(0, relaxed.Number);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(Name, previous);
+        }
+    }
+
+    public class EnvironmentNumberOptions
+    {
+        [SimpleOption("SimpleCommandLine_ReviewNumber", ReadFromEnvironment = true)]
+        public int Number { get; set; }
+    }
+
+    [SimpleCommand("number")]
+    public class EnvironmentNumberCommand : ISimpleCommand<EnvironmentNumberOptions>
+    {
+        public Task Execute(EnvironmentNumberOptions options, string[] args, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
 }
 
 public class SubOptions

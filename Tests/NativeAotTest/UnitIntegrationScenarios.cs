@@ -87,6 +87,9 @@ public static class UnitIntegrationScenarios
         var inner = (InnerCommand)database.Parser.CurrentCommand!.CommandInstance;
         Check(ReferenceEquals(inner.Parser.CurrentCommand!.CommandInstance, run), "nested groups preserve the DI scope");
         Check(run.Received!.Value == 40 && run.Token == cancellation.Token, "nested group execution");
+        Check(parser.Parse("db inner run -nested {-text \"say \\\"hello\\\"\"}"), "nested groups preserve nested expression escapes");
+        await parser.Execute(cancellation.Token);
+        Check(run.Received!.Nested.Text == "say \"hello\"", "nested text is unescaped exactly once");
         Check(parser.Parse("db"), "default group command");
         await parser.Execute(cancellation.Token);
         Check(run.Received!.Value == 0, "default group command uses new option values");

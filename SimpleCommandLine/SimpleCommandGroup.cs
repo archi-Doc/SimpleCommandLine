@@ -123,7 +123,7 @@ public abstract class SimpleCommandGroup<[DynamicallyAccessedMembers(Dynamically
     {
         if (args.Length == 0 && this.defaultArgument != null)
         {// Default argument
-            args = [this.defaultArgument,];
+            return this.Parser.ParseAndExecute(this.defaultArgument, cancellationToken);
         }
 
         return this.Parser.ParseAndExecute(args, cancellationToken);
