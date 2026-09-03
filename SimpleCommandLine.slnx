@@ -6,6 +6,7 @@
     <Project Path="Tests/ArgumentsTest/ArgumentsTest.csproj" />
     <Project Path="Tests/BasicTest/BasicTest.csproj" />
     <Project Path="Tests/CommandListTest/CommandListTest.csproj" />
+    <Project Path="Tests/NativeAotTest/NativeAotTest.csproj" />
     <Project Path="Tests/ServiceProviderTest/ServiceProviderTest.csproj" />
     <Project Path="Tests/TypeTest/TypeTest.csproj" />
   </Folder>

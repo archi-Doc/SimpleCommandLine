@@ -1,6 +1,8 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System;
+using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
 using Arc.Unit;
@@ -12,7 +14,7 @@ namespace SimpleCommandLine;
 /// A base class for a command which dispatches its arguments to a group of subcommands.
 /// </summary>
 /// <typeparam name="TCommand">The type of the derived command group.</typeparam>
-public abstract class SimpleCommandGroup<TCommand> : ISimpleCommand
+public abstract class SimpleCommandGroup<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TCommand> : ISimpleCommand
     where TCommand : SimpleCommandGroup<TCommand>
 {
     /// <summary>
@@ -23,7 +25,9 @@ public abstract class SimpleCommandGroup<TCommand> : ISimpleCommand
     /// <param name="parentCommandType">The type of the parent command. Use <see langword="null"/> to register at the top level.</param>
     /// <param name="lifetime">The service lifetime of the command.</param>
     /// <returns>The command group of <typeparamref name="TCommand"/>.</returns>
-    public static CommandGroup ConfigureGroup(IUnitConfigurationContext context, Type? parentCommandType = null, ServiceLifetime lifetime = ServiceLifetime.Scoped)
+    [UnconditionalSuppressMessage("Trimming", "IL2067", Justification = "Arc.Unit 0.46 GetCommandGroup uses the type as a dictionary key and registers it with DI. The public constructors required by DI are preserved.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2087", Justification = "Arc.Unit 0.46 GetCommandGroup uses the type as a key and AddCommand registers a DI ServiceDescriptor. Only public constructors are required; command dispatch is handled separately by SimpleParserBuilder.")]
+    public static CommandGroup ConfigureGroup(IUnitConfigurationContext context, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type? parentCommandType = null, ServiceLifetime lifetime = ServiceLifetime.Scoped)
     {
         var commandType = typeof(TCommand);
 
@@ -54,8 +58,27 @@ public abstract class SimpleCommandGroup<TCommand> : ISimpleCommand
     /// The options of the inner parser. Use <see langword="null"/> for the defaults of a command group
     /// (a strict command and option name, no usage text, and the command list as help).
     /// </param>
+    [RequiresUnreferencedCode(PreservedType.ReflectionWarning)]
     public SimpleCommandGroup(UnitContext context, string? defaultArgument = null, SimpleParserOptions? parserOptions = null)
+        : this(context, defaultArgument, parserOptions, static (types, options) => new SimpleParser(types, options))
     {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SimpleCommandGroup{TCommand}"/> class using explicitly registered types for trimming and NativeAOT.
+    /// </summary>
+    /// <param name="parserBuilder">The builder containing all subcommands and nested options types.</param>
+    /// <param name="context">The unit context containing the group's command types and services.</param>
+    /// <param name="defaultArgument">The default subcommand, or null to show the command list.</param>
+    /// <param name="parserOptions">Options for the inner parser, or null for the group defaults.</param>
+    public SimpleCommandGroup(SimpleParserBuilder parserBuilder, UnitContext context, string? defaultArgument = null, SimpleParserOptions? parserOptions = null)
+        : this(context, defaultArgument, parserOptions, (types, options) => parserBuilder.Build(options, types))
+    {
+    }
+
+    private SimpleCommandGroup(UnitContext context, string? defaultArgument, SimpleParserOptions? parserOptions, Func<IEnumerable<Type>, SimpleParserOptions, SimpleParser> createParser)
+    {
+        this.createParser = createParser;
         this.commandTypes = context.GetCommandTypes(typeof(TCommand));
 
         if (parserOptions != null)
@@ -91,7 +114,7 @@ public abstract class SimpleCommandGroup<TCommand> : ISimpleCommand
             args = [this.defaultArgument,];
         }
 
-        return this.Parser.ParseAndExecute(args);
+        return this.Parser.ParseAndExecute(args, cancellationToken);
     }
 
     /// <summary>
@@ -106,12 +129,13 @@ public abstract class SimpleCommandGroup<TCommand> : ISimpleCommand
     {
         get
         {
-            this.parser ??= new(this.commandTypes, this.ParserOptions);
+            this.parser ??= this.createParser(this.commandTypes, this.ParserOptions);
             return this.parser;
         }
     }
 
     private readonly Type[] commandTypes;
+    private readonly Func<IEnumerable<Type>, SimpleParserOptions, SimpleParser> createParser;
     private readonly string? defaultArgument;
     private SimpleParser? parser;
 }

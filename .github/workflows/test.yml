@@ -3,6 +3,7 @@ name: Build and Test
 on:
   push:
     branches: [ main ]
+  pull_request:
 
 jobs:
   build:
@@ -21,3 +22,24 @@ jobs:
       run: dotnet build --configuration Release --no-restore
     - name: Test
       run: dotnet test --no-restore --verbosity normal
+
+  native-aot:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+            executable: NativeAotTest.exe
+          - os: ubuntu-latest
+            rid: linux-x64
+            executable: NativeAotTest
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v5
+    - uses: actions/setup-dotnet@v5
+      with:
+        dotnet-version: 10.0.x
+    - name: Publish NativeAOT smoke tests (warnings are errors)
+      run: dotnet publish Tests/NativeAotTest/NativeAotTest.csproj -c Release -r ${{ matrix.rid }} -o artifacts/native-aot
+    - name: Run native executable
+      run: ./artifacts/native-aot/${{ matrix.executable }} --require-aot

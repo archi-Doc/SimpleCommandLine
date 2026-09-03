@@ -15,6 +15,7 @@ Simple command-line parser for .NET console applications.
 
 - [Requirements](#requirements)
 - [Quick Start](#quick-start)
+- [NativeAOT and Trimming](#nativeaot-and-trimming)
 - [Commands](#commands)
 - [Options](#options)
 - [Option Types](#option-types)
@@ -126,6 +127,67 @@ test Test command.
   -number, -n <Int32>    test number (Default: 10)
   -text, -t <String>     test text (Required)
 ```
+
+
+
+## NativeAOT and Trimming
+
+Use `SimpleParserBuilder` when publishing with NativeAOT or trimming. It preserves the reflection metadata used to create options and read or write their members, and dispatches commands through their interfaces without reflection invocation.
+
+```csharp
+var builder = new SimpleParserBuilder()
+    .AddCommand<TestCommand, TestOptions>(); // Registers the command and its root options.
+
+var parser = builder.Build();
+await parser.ParseAndExecute(args);
+```
+
+Use `AddCommand<TCommand>()` for a command without options. For nested options, register **each nested options type** with `AddOptions<TOptions>()`. Base classes and their non-public members are preserved automatically. Missing nested registrations produce an `InvalidOperationException` naming the type at parser construction time.
+
+```csharp
+var builder = new SimpleParserBuilder()
+    .AddCommand<TestCommand, TestOptions>()
+    .AddOptions<NestedOptions>();
+
+var parser = builder.Build(SimpleParserOptions.Standard with
+{
+    RequireStrictOptionName = true,
+});
+
+// Parse without a command; the root options type is registered automatically.
+builder.TryParseOptions<TestOptions>("-number 1 -text example", out var options);
+```
+
+`Build()` creates a snapshot, so later registrations do not change an existing parser. Attributes, aliases, help/version output, required options, nullable values, enums, inherited/non-public members, explicit interface implementations and Tinyhand-generated option serialization work with this API. `TryParseOptions` retains the existing helper's behavior: invalid optional values are ignored; use a parser's `Parse()` to reject conversion errors.
+
+The `IEnumerable<Type>` constructor, static `ParseAndExecute` overloads and static `TryParseOptions` methods remain available for untrimmed applications. They use runtime type discovery and are annotated with `RequiresUnreferencedCode`; migrate those calls to the builder for trimmed/NativeAOT applications.
+
+For command groups, supply a builder containing the group's subcommands to the new base constructor. Continue to configure the group in `Arc.Unit` as described below.
+
+```csharp
+public DbCommand(UnitContext context)
+    : base(new SimpleParserBuilder().AddCommand<DbListCommand>(), context, "list")
+{
+}
+```
+
+Register the outer command with `AddCommand<DbCommand>()` and pass the service provider to `Build()`. Service providers and custom serializers must themselves support NativeAOT. The legacy command-group constructor uses runtime discovery and requires migration too.
+
+The library enables `IsAotCompatible` analysis. Publish and run the sample on Windows x64 with:
+
+```powershell
+dotnet publish QuickStart/QuickStart.csproj -c Release -r win-x64 -p:PublishAot=true -o artifacts/quickstart
+./artifacts/quickstart/QuickStart.exe test -text example
+```
+
+The smoke-test project treats compiler and trimming warnings as errors and exercises parsing, command execution, DI, groups, help, Tinyhand serialization and failure/recovery paths. It runs in CI on Windows x64 and Linux x64:
+
+```powershell
+dotnet publish Tests/NativeAotTest/NativeAotTest.csproj -c Release -r win-x64 -o artifacts/native-aot
+./artifacts/native-aot/NativeAotTest.exe --require-aot
+```
+
+For Linux, use `-r linux-x64` and run `./artifacts/native-aot/NativeAotTest --require-aot`. NativeAOT requires the platform's native build tools; see Microsoft's [NativeAOT prerequisites](https://learn.microsoft.com/dotnet/core/deploying/native-aot/).
 
 
 

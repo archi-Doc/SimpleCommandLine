@@ -64,7 +64,6 @@ public class SimpleParser : ISimpleParser
     /// </summary>
     public static ReadOnlySpan<char> DefaultArgumentDelimiter => "\"\"\"";
 
-    internal const string ExecuteMethodString = "Execute";
     internal const string IndentString = "  ";
     internal const string IndentString2 = "    ";
     internal const int DefaultWindowWidth = 80;
@@ -81,12 +80,15 @@ public class SimpleParser : ISimpleParser
 
     private class HollowParser : ISimpleParser
     {
-        public HollowParser(SimpleParserOptions parserOptions)
+        public HollowParser(SimpleParserOptions parserOptions, Func<Type, PreservedType> resolveType)
         {
             this.ParserOptions = parserOptions;
+            this.resolveType = resolveType;
         }
 
         public SimpleParserOptions ParserOptions { get; }
+
+        public PreservedType ResolveType(Type type) => this.resolveType(type);
 
         public void AddErrorMessage(string message)
         {
@@ -95,6 +97,8 @@ public class SimpleParser : ISimpleParser
         public void AddOptionClassUsage(OptionClass optionClass)
         {
         }
+
+        private readonly Func<Type, PreservedType> resolveType;
     }
 
     /// <summary>
@@ -106,6 +110,7 @@ public class SimpleParser : ISimpleParser
     /// <param name="options">When this method returns, contains the parsed options.</param>
     /// <param name="instanceToUpdate">The instance to set the values on. Use <see langword="null"/> to create a new instance.</param>
     /// <returns><see langword="true"/> if the options are created (unknown option names are ignored).</returns>
+    [RequiresUnreferencedCode(PreservedType.ReflectionWarning)]
     public static bool TryParseOptions<TOptions>(string[] args, [MaybeNullWhen(false)] out TOptions options, TOptions? instanceToUpdate = default)
         => TryParseOptions(string.Join(' ', args), out options, instanceToUpdate);
 
@@ -120,9 +125,13 @@ public class SimpleParser : ISimpleParser
     /// <see langword="true"/> if the options are created. Unknown option names and values that cannot be converted
     /// are ignored; only a missing required value results in <see langword="false"/>.
     /// </returns>
+    [RequiresUnreferencedCode(PreservedType.ReflectionWarning)]
     public static bool TryParseOptions<TOptions>(string commandLine, [MaybeNullWhen(false)] out TOptions options, TOptions? instanceToUpdate = default)
+        => TryParseOptionsCore(commandLine, out options, instanceToUpdate, PreservedType.FromReflection);
+
+    internal static bool TryParseOptionsCore<TOptions>(string commandLine, [MaybeNullWhen(false)] out TOptions options, TOptions? instanceToUpdate, Func<Type, PreservedType> resolveType)
     {
-        var parser = new HollowParser(SimpleParserOptions.Standard);
+        var parser = new HollowParser(SimpleParserOptions.Standard, resolveType);
 
         var optionClass = new OptionClass(parser, typeof(TOptions), null);
         if (instanceToUpdate != null)
@@ -153,12 +162,20 @@ public class SimpleParser : ISimpleParser
         /// <param name="commandType">The command type. It must implement <see cref="ISimpleCommand"/> or <see cref="ISimpleCommand{TOptions}"/>.</param>
         /// <param name="attribute">The <see cref="SimpleCommandAttribute"/> of the command type.</param>
         /// <exception cref="InvalidOperationException">The command type is not a valid command.</exception>
+        [RequiresUnreferencedCode(PreservedType.ReflectionWarning)]
         public Command(SimpleParser parser, Type commandType, SimpleCommandAttribute attribute)
+            : this(parser, SimpleCommandRegistration.FromReflection(commandType), attribute)
         {
-            const string MultipleInterfacesException = "Type {0} can implement only single ISimpleCommand interface.";
+        }
 
+        internal Command(SimpleParser parser, SimpleCommandRegistration registration, SimpleCommandAttribute attribute)
+        {
+            var commandType = registration.CommandType;
             this.Parser = parser;
             this.CommandType = commandType;
+            this.CommandInterface = registration.CommandInterface;
+            this.OptionType = registration.OptionType;
+            this.execute = registration.Execute;
             this.CommandName = attribute.CommandName;
             this.Alias = attribute.Alias;
             this.IsDefault = attribute.IsDefault;
@@ -170,42 +187,6 @@ public class SimpleParser : ISimpleParser
                 this.IsDefault = true;
             }
 
-            foreach (var y in commandType.GetInterfaces())
-            {
-                if (y == typeof(ISimpleCommand))
-                {
-                    if (this.CommandInterface == null)
-                    {
-                        this.CommandInterface = y;
-                    }
-                    else
-                    {
-                        throw new InvalidOperationException(string.Format(MultipleInterfacesException, commandType.ToString()));
-                    }
-                }
-                else if (y.IsGenericType)
-                {
-                    var z = y.GetGenericTypeDefinition();
-                    if (z == typeof(ISimpleCommand<>))
-                    {
-                        if (this.CommandInterface == null)
-                        {
-                            this.CommandInterface = z;
-                            this.OptionType = y.GetGenericArguments()[0];
-                        }
-                        else
-                        {
-                            throw new InvalidOperationException(string.Format(MultipleInterfacesException, commandType.ToString()));
-                        }
-                    }
-                }
-            }
-
-            if (this.CommandInterface == null)
-            {
-                throw new InvalidOperationException($"Type \"{commandType.ToString()}\" must implement ISimpleCommand or ISimpleCommand<TOption>.");
-            }
-
             var constructor = this.CommandType.GetConstructor(Type.EmptyTypes);
             if (this.Parser.ParserOptions.ServiceProvider == null && constructor == null)
             {
@@ -214,14 +195,6 @@ public class SimpleParser : ISimpleParser
 
             this.constructorInvoker = constructor is null ? null : ConstructorInvoker.Create(constructor);
 
-            var mi = this.FindMethod();
-            if (mi == null)
-            {// No Execute method
-                throw new InvalidOperationException($"{ExecuteMethodString}() method is required in Type {this.CommandType.ToString()}.");
-            }
-
-            this.executeInvoker = MethodInvoker.Create(mi);
-            this.hasOptionType = this.CommandInterface == typeof(ISimpleCommand<>);
             this.OptionClass = new OptionClass(this.Parser, this.OptionType, null);
         }
 
@@ -233,11 +206,7 @@ public class SimpleParser : ISimpleParser
         public Task Execute(CancellationToken cancellationToken)
         {
             var args = this.OptionClass.RemainingArguments ?? Array.Empty<string>();
-            var task = this.hasOptionType ?
-                this.executeInvoker.Invoke(this.CommandInstance, this.OptionClass.OptionInstance, args, cancellationToken) : // Task Execute(Options option, string[] args, CancellationToken cancellationToken);
-                this.executeInvoker.Invoke(this.CommandInstance, args, cancellationToken); // Task Execute(string[] args, CancellationToken cancellationToken);
-
-            return (Task?)task ?? Task.CompletedTask;
+            return this.execute(this.CommandInstance, this.OptionClass.OptionInstance, args, cancellationToken);
         }
 
         /// <summary>
@@ -248,6 +217,7 @@ public class SimpleParser : ISimpleParser
         /// <summary>
         /// Gets the type of the command class.
         /// </summary>
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
         public Type CommandType { get; }
 
         /// <summary>
@@ -322,44 +292,8 @@ public class SimpleParser : ISimpleParser
         }
 
         private readonly ConstructorInvoker? constructorInvoker;
-        private readonly MethodInvoker executeInvoker;
-        private readonly bool hasOptionType;
+        private readonly Func<object, object?, string[], CancellationToken, Task> execute;
         private object? commandInstance;
-
-        private MethodInfo? FindMethod()
-        {
-            var withOptions = this.CommandInterface == typeof(ISimpleCommand<>);
-            foreach (var x in this.CommandType.GetMethods(BindingFlags.Public | BindingFlags.Instance))
-            {
-                if (x.Name != ExecuteMethodString || x.ReturnType != typeof(Task))
-                {
-                    continue;
-                }
-
-                var parameters = x.GetParameters();
-                if (withOptions)
-                {// Task Execute(Options option, string[] args, CancellationToken cancellationToken);
-                    if (parameters.Length == 3 &&
-                        parameters[0].ParameterType == this.OptionType &&
-                        parameters[1].ParameterType == typeof(string[]) &&
-                        parameters[2].ParameterType == typeof(CancellationToken))
-                    {
-                        return x;
-                    }
-                }
-                else
-                {// Task Execute(string[] args, CancellationToken cancellationToken);
-                    if (parameters.Length == 2 &&
-                        parameters[0].ParameterType == typeof(string[]) &&
-                        parameters[1].ParameterType == typeof(CancellationToken))
-                    {
-                        return x;
-                    }
-                }
-            }
-
-            return null;
-        }
     }
 
     /// <summary>
@@ -393,7 +327,7 @@ public class SimpleParser : ISimpleParser
             this.Parser = parser;
             if (optionType is not null)
             {
-                this.OptionType = optionType;
+                this.OptionType = parser.ResolveType(optionType).Type;
                 this.OptionTypeIdentifier = TinyhandTypeIdentifier.GetTypeIdentifier(optionType);
             }
 
@@ -453,6 +387,8 @@ public class SimpleParser : ISimpleParser
         /// <returns><see langword="true"/> if the arguments are successfully parsed.</returns>
         public bool Parse(string[] args, int startIndex, bool acceptUnknownOptionName)
         {
+            this.FatalError = false;
+            this.RemainingArguments = null;
             var errorFlag = false;
             List<string>? remaining = null;
             var options = CollectionsMarshal.AsSpan(this.Options);
@@ -536,9 +472,9 @@ public class SimpleParser : ISimpleParser
                         {
                             option.ValueIsSet = true;
                         }
-                        else if (n > 0)
+                        else
                         {// Parse error
-                            this.Parser.AddErrorMessage($"Could not convert '{args[n]}' to Type '{option.OptionType.Name}' ({args[n - 1]} {args[n]})");
+                            this.Parser.AddErrorMessage($"Could not convert '{args[n]}' to Type '{option.OptionType.Name}' ({option.LongName})");
                             errorFlag = true;
                         }
 
@@ -620,6 +556,7 @@ public class SimpleParser : ISimpleParser
         /// <summary>
         /// Gets the type of the options class, or <see langword="null"/> if the command has no options.
         /// </summary>
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
         public Type? OptionType { get; }
 
         /// <summary>
@@ -772,34 +709,30 @@ public class SimpleParser : ISimpleParser
         /// </summary>
         /// <param name="optionType">The option type.</param>
         /// <returns>An array of members and their attributes.</returns>
-        private static (MemberInfo MemberInfo, SimpleOptionAttribute Attribute)[] GetOptionMembers(Type optionType)
-            => OptionMembersCache.GetOrAdd(optionType, static type =>
+        private static (MemberInfo MemberInfo, SimpleOptionAttribute Attribute)[] GetOptionMembers([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] Type optionType)
+        {
+            if (OptionMembersCache.TryGetValue(optionType, out var cached))
             {
-                var types = new List<Type>();
-                for (var current = type; current is not null && current != typeof(object); current = current.BaseType)
+                return cached;
+            }
+
+            var list = new List<(MemberInfo, SimpleOptionAttribute)>();
+            if (optionType.BaseType is { } baseType && baseType != typeof(object))
+            {
+                list.AddRange(GetOptionMembers(baseType));
+            }
+
+            foreach (var member in optionType.GetMembers(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly))
+            {
+                if ((member.MemberType == MemberTypes.Field || member.MemberType == MemberTypes.Property) &&
+                    member.GetCustomAttribute<SimpleOptionAttribute>(true) is { } attribute)
                 {
-                    types.Add(current);
+                    list.Add((member, attribute));
                 }
+            }
 
-                var list = new List<(MemberInfo, SimpleOptionAttribute)>();
-                for (var i = types.Count - 1; i >= 0; i--)
-                {// Base type -> derived type
-                    foreach (var x in types[i].GetMembers(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly))
-                    {
-                        if (x.MemberType != MemberTypes.Field && x.MemberType != MemberTypes.Property)
-                        {
-                            continue;
-                        }
-
-                        if (x.GetCustomAttribute<SimpleOptionAttribute>(true) is { } attribute)
-                        {
-                            list.Add((x, attribute));
-                        }
-                    }
-                }
-
-                return list.ToArray();
-            });
+            return OptionMembersCache.GetOrAdd(optionType, list.ToArray());
+        }
 
         /// <summary>
         /// Creates an instance of the option type (falls back to Tinyhand reconstruction when there is no parameterless constructor).
@@ -880,18 +813,20 @@ public class SimpleParser : ISimpleParser
             this.FieldInfo = memberInfo as FieldInfo;
             if (this.PropertyInfo is { } propertyInfo)
             {
+                if (propertyInfo.GetIndexParameters().Length != 0)
+                {
+                    throw new InvalidOperationException($"{optionType.Name}.{propertyInfo.Name} is an indexer and cannot be an option.");
+                }
+
                 this.optionType = propertyInfo.PropertyType;
-                this.FieldInfo = optionType.GetField($"<{propertyInfo.Name}>k__BackingField", BindingFlags.Instance | BindingFlags.NonPublic);
-                if (propertyInfo.GetSetMethod() is { } setMethod)
+                var declaringType = parser.ResolveType(propertyInfo.DeclaringType!).Type;
+                this.FieldInfo = declaringType.GetField($"<{propertyInfo.Name}>k__BackingField", BindingFlags.Instance | BindingFlags.NonPublic);
+                if (propertyInfo.GetSetMethod(true) is { } setMethod)
                 {
                     this.setInvoker = MethodInvoker.Create(setMethod);
                 }
-                else if (this.FieldInfo is null && propertyInfo.GetSetMethod(true) is { } nonPublicSetMethod)
-                {// Neither a public setter nor a backing field: fall back to the non-public setter.
-                    this.setInvoker = MethodInvoker.Create(nonPublicSetMethod);
-                }
 
-                if (propertyInfo.GetGetMethod() is { } getMethod)
+                if (propertyInfo.GetGetMethod(true) is { } getMethod)
                 {
                     this.getInvoker = MethodInvoker.Create(getMethod);
                 }
@@ -968,6 +903,8 @@ public class SimpleParser : ISimpleParser
             object value;
             if (this.OptionClass is not null)
             {
+                // Each occurrence supplies a fresh nested value; never reuse a previous parse result.
+                this.OptionClass.optionInstance = null;
                 argument = SimpleParserHelper.ProcessArgument(argument, this.Parser.ParserOptions, this.ArgumentProcessing);
                 var typeIdentifier = this.OptionClass.OptionTypeIdentifier;
                 if (typeIdentifier != 0 && TinyhandTypeIdentifier.IsRegistered(typeIdentifier))
@@ -1167,8 +1104,15 @@ public class SimpleParser : ISimpleParser
     /// <param name="commandTypes">The command types. Each must have a <see cref="SimpleCommandAttribute"/>.</param>
     /// <param name="parserOptions">The parser options. Use <see langword="null"/> for <see cref="SimpleParserOptions.Standard"/>.</param>
     /// <exception cref="InvalidOperationException">A command type is not valid, or a command name or alias is duplicated.</exception>
+    [RequiresUnreferencedCode(PreservedType.ReflectionWarning)]
     public SimpleParser(IEnumerable<Type> commandTypes, SimpleParserOptions? parserOptions = null)
+        : this(commandTypes.Select(SimpleCommandRegistration.FromReflection), parserOptions, PreservedType.FromReflection)
     {
+    }
+
+    internal SimpleParser(IEnumerable<SimpleCommandRegistration> registrations, SimpleParserOptions? parserOptions, Func<Type, PreservedType> resolveType)
+    {
+        this.resolveType = resolveType;
         this.ParserOptions = parserOptions ?? SimpleParserOptions.Standard;
         this.consoleService = this.ParserOptions.ServiceProvider?.GetService<IConsoleService>();
 
@@ -1177,8 +1121,9 @@ public class SimpleParser : ISimpleParser
         this.AliasToCommand = new(StringComparer.OrdinalIgnoreCase);
         this.ErrorMessage = new();
         this.OptionClassUsage = new();
-        foreach (var x in commandTypes)
+        foreach (var registration in registrations)
         {
+            var x = registration.CommandType;
             // Get SimpleCommandAttribute
             var attribute = x.GetCustomAttribute<SimpleCommandAttribute>(true);
             if (attribute == null)
@@ -1198,7 +1143,7 @@ public class SimpleParser : ISimpleParser
             }
             else
             {
-                command = new(this, x, attribute);
+                command = new(this, registration, attribute);
                 this.NameToCommand.Add(name, command);
 
                 // Regards the first command as the default command.
@@ -1256,6 +1201,7 @@ public class SimpleParser : ISimpleParser
     /// <param name="parserOptions">The parser options. Use <see langword="null"/> for <see cref="SimpleParserOptions.Standard"/>.</param>
     /// <param name="cancellationToken">A token used to cancel the command execution.</param>
     /// <returns>A task that represents the command execution.</returns>
+    [RequiresUnreferencedCode(PreservedType.ReflectionWarning)]
     public static Task ParseAndExecute(IEnumerable<Type> commandTypes, string commandLine, SimpleParserOptions? parserOptions = null, CancellationToken cancellationToken = default)
     {
         var p = new SimpleParser(commandTypes, parserOptions);
@@ -1272,6 +1218,7 @@ public class SimpleParser : ISimpleParser
     /// <param name="parserOptions">The parser options. Use <see langword="null"/> for <see cref="SimpleParserOptions.Standard"/>.</param>
     /// <param name="cancellationToken">A token used to cancel the command execution.</param>
     /// <returns>A task that represents the command execution.</returns>
+    [RequiresUnreferencedCode(PreservedType.ReflectionWarning)]
     public static Task ParseAndExecute(IEnumerable<Type> commandTypes, string[] args, SimpleParserOptions? parserOptions = null, CancellationToken cancellationToken = default)
     {
         var p = new SimpleParser(commandTypes, parserOptions);
@@ -1750,6 +1697,9 @@ public class SimpleParser : ISimpleParser
         this.OptionClassUsage.Add(optionClass);
     }
 
+    PreservedType ISimpleParser.ResolveType(Type type) => this.resolveType(type);
+
+    private readonly Func<Type, PreservedType> resolveType;
     private readonly IConsoleService? consoleService;
 
     private List<string> ErrorMessage { get; }
@@ -1784,14 +1734,13 @@ public class SimpleParser : ISimpleParser
 
         static string GetEntryName()
         {
-            // Assembly.Location is empty for a single-file application.
-            var location = Assembly.GetEntryAssembly()?.Location;
-            if (string.IsNullOrEmpty(location))
+            var name = Assembly.GetEntryAssembly()?.GetName().Name;
+            if (!string.IsNullOrEmpty(name))
             {
-                location = Environment.ProcessPath;
+                return name;
             }
 
-            return string.IsNullOrEmpty(location) ? string.Empty : Path.GetFileNameWithoutExtension(location);
+            return Path.GetFileNameWithoutExtension(Environment.ProcessPath) ?? string.Empty;
         }
     }
 

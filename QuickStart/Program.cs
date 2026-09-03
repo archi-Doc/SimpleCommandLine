@@ -34,19 +34,15 @@ public class Program
 {
     public static async Task Main(string[] args)
     {
-        // An array of command types.
-        // Command type must have SimpleCommandAttribute and implement ISimpleCommand or ISimpleCommand<TOptions>.
-        var commandTypes = new Type[]
-        {
-            typeof(TestCommand),
-        };
+        // Explicit registration preserves the metadata required by trimming and NativeAOT.
+        var builder = new SimpleParserBuilder().AddCommand<TestCommand, TestOptions>();
 
         // Parse arguments and call the appropriate command method.
-        await SimpleParser.ParseAndExecute(commandTypes, args); // If you do not specify a text option with a valid value, an error will occur.
+        await builder.Build().ParseAndExecute(args); // If you do not specify a text option with a valid value, an error will occur.
         Console.WriteLine();
 
         // You can manually create a parser and parse an argument string.
-        var p = new SimpleParser(commandTypes);
+        var p = builder.Build();
         p.Parse("-number 1 -text example");
         await p.Execute();
         Console.WriteLine();
