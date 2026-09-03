@@ -1150,13 +1150,15 @@ public class SimpleParser : ISimpleParser
     }
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="SimpleParser"/> class.<br/>
-    /// Unless <see cref="SimpleParserOptions.RequireStrictCommandName"/> is enabled, the first command type
-    /// (or the first one whose <see cref="SimpleCommandAttribute.IsDefault"/> is <see langword="true"/>) becomes the default command.
+    /// Initializes a new instance of the <see cref="SimpleParser"/> class using runtime command discovery.
     /// </summary>
     /// <param name="commandTypes">The command types. Each must have a <see cref="SimpleCommandAttribute"/>.</param>
     /// <param name="parserOptions">The parser options. Use <see langword="null"/> for <see cref="SimpleParserOptions.Standard"/>.</param>
     /// <exception cref="InvalidOperationException">A command type is not valid, or a command name or alias is duplicated.</exception>
+    /// <remarks>
+    /// The first command marked as default or with an empty name is selected; otherwise, the first registered command is used.
+    /// <see cref="SimpleParserOptions.RequireStrictCommandName"/> disables the default. Use <see cref="SimpleParserBuilder"/> for trimming or NativeAOT.
+    /// </remarks>
     [RequiresUnreferencedCode(PreservedType.ReflectionWarning)]
     public SimpleParser(IEnumerable<Type> commandTypes, SimpleParserOptions? parserOptions = null)
         : this(commandTypes.Select(SimpleCommandRegistration.FromReflection), parserOptions, PreservedType.FromReflection)

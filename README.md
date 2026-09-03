@@ -1,321 +1,190 @@
-## SimpleCommandLine
+# SimpleCommandLine
 
-![Nuget](https://img.shields.io/nuget/v/SimpleCommandLine) ![Build and Test](https://github.com/archi-Doc/SimpleCommandLine/workflows/Build%20and%20Test/badge.svg)
+![NuGet](https://img.shields.io/nuget/v/SimpleCommandLine) ![Build and Test](https://github.com/archi-Doc/SimpleCommandLine/actions/workflows/test.yml/badge.svg)
 
-Simple command-line parser for .NET console applications.
+A command-line parser for .NET console applications.
 
-- Declare commands and options with attributes; no builder code.
-- Parse a `string[]` or a raw command line string.
-- Generates the help and version messages for you.
-- Supports required options, nested option classes, environment variables, aliases and subcommands.
+- Describe commands and options with attributes.
+- Parse raw command lines or pre-split argument arrays.
+- Use typed registration for trimming and NativeAOT.
+- Share command registration with Arc.Unit and dependency injection.
+- Support required and nested options, environment variables, aliases, help, and version output.
 
+## Contents
 
-
-## Table of Contents
-
-- [Requirements](#requirements)
+- [Requirements and Installation](#requirements-and-installation)
 - [Quick Start](#quick-start)
-- [NativeAOT and Trimming](#nativeaot-and-trimming)
 - [Commands](#commands)
 - [Options](#options)
-- [Option Types](#option-types)
 - [Argument Syntax](#argument-syntax)
 - [Parser Options](#parser-options)
-- [Parser API](#parser-api)
+- [Parser API and State](#parser-api-and-state)
+- [Standalone Options](#standalone-options)
+- [NativeAOT and Trimming](#nativeaot-and-trimming)
 - [Arc.Unit Integration](#arcunit-integration)
 - [Command Groups](#command-groups)
 - [Helper Methods](#helper-methods)
 - [Tests and Coverage](#tests-and-coverage)
 - [License](#license)
 
+## Requirements and Installation
 
+Targets **.NET 10**. Install the package in a .NET 10 or later application:
 
-## Requirements
-
-**.NET 10** or later
-
-
+```shell
+dotnet add package SimpleCommandLine
+```
 
 ## Quick Start
 
-Install SimpleCommandLine using Package Manager Console.
-
-```
-Install-Package SimpleCommandLine
-```
-
-This is a small sample code to use SimpleCommandLine.
+Use this as `Program.cs` in a console application:
 
 ```csharp
-// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
-
 using System;
 using System.Threading;
 using System.Threading.Tasks;
 using SimpleCommandLine;
 
-namespace ConsoleApp1;
+var parser = new SimpleParserBuilder()
+    .AddCommand<GreetCommand, GreetOptions>()
+    .Build();
 
-public class TestOptions
-{// Option class stores command options. Default constructor is required.
-    [SimpleOption("number", ShortName = "n", Description = "test number")] // Annotate SimpleOptionAttribute and specify a long/short option name and description.
-    public int Number { get; set; } = 10; // Set a default value.
+await parser.ParseAndExecute(args);
 
-    [SimpleOption("text", ShortName = "t", Description = "test text", Required = true)] // Set Required property to true if you want to make the option required.
-    public string Text { get; set; } = string.Empty;
-}
-
-[SimpleCommand("test", Description = "Test command.")] // Annotate SimpleCommandAttribute and specify a command name and description.
-public class TestCommand : ISimpleCommand<TestOptions> // Implementation of either ISimpleCommand or ISimpleCommand<TOptions> is required.
-{// Command class handles the command function.
-    public async Task Execute(TestOptions options, string[] args, CancellationToken cancellationToken)
-    {// Execute() method will be called if you specify "test" command-line argument.
-     // TestOptions class is parsed from command-line arguments.
-     // args is the remaining arguments.
-
-        Console.WriteLine("Test command:");
-        Console.WriteLine($"Number is {options.Number}");
-        Console.WriteLine($"Text is {options.Text}");
-    }
-}
-
-public class Program
+public class GreetOptions
 {
-    public static async Task Main(string[] args)
+    [SimpleOption("name", ShortName = "n", Required = true)]
+    public string Name { get; set; } = string.Empty;
+
+    [SimpleOption("count", ShortName = "c")]
+    public int Count { get; set; } = 1;
+}
+
+[SimpleCommand("greet", Alias = "g", Description = "Print a greeting.")]
+public class GreetCommand : ISimpleCommand<GreetOptions>
+{
+    public Task Execute(GreetOptions options, string[] args, CancellationToken cancellationToken)
     {
-        // An array of command types.
-        // Command type must have SimpleCommandAttribute and implement ISimpleCommand or ISimpleCommand<TOptions>.
-        var commandTypes = new Type[]
+        for (var i = 0; i < options.Count; i++)
         {
-            typeof(TestCommand),
-        };
-
-        // Parse arguments and call the appropriate command method.
-        await SimpleParser.ParseAndExecute(commandTypes, args); // If you do not specify a text option with a valid value, an error will occur.
-        Console.WriteLine();
-
-        // You can manually create a parser and parse a command line.
-        var p = new SimpleParser(commandTypes);
-        p.Parse("-number 1 -text example");
-        await p.Execute();
-        Console.WriteLine();
-
-        p.ShowVersion("QuickStart"); // Show application version.
-        Console.WriteLine();
-
-        p.ShowHelp(); // Show help text.
-        Console.WriteLine();
-
-        if (p.TryGetOption("test", "text", out var option))
-        {// You can modify the documentation by changing the options registered with SimpleParser.
-            option.Description = "Modified";
+            cancellationToken.ThrowIfCancellationRequested();
+            Console.WriteLine($"Hello, {options.Name}!");
         }
 
-        p.ShowHelp(); // Show help text.
-        Console.WriteLine();
+        return Task.CompletedTask;
     }
 }
 ```
 
-`ShowHelp()` writes a message like this.
-
-```
-Usage: QuickStart <Command> -option value...
-
-Commands:
-  test (default)
-
-test Test command.
-  -number, -n <Int32>    test number (Default: 10)
-  -text, -t <String>     test text (Required)
+```shell
+dotnet run -- greet -name "Ada Lovelace" -count 2
+dotnet run -- g Ada
+dotnet run -- help greet
+dotnet run -- version
 ```
 
-
-
-## NativeAOT and Trimming
-
-Use `SimpleParserBuilder`, or the [Arc.Unit integration](#arcunit-integration), when publishing with NativeAOT or trimming. Both share the same registration implementation: they preserve the reflection metadata used to create options and read or write their members, and dispatch commands through their interfaces without reflection invocation.
-
-```csharp
-var builder = new SimpleParserBuilder()
-    .AddCommand<TestCommand, TestOptions>(); // Registers the command and its root options.
-
-var parser = builder.Build();
-await parser.ParseAndExecute(args);
-```
-
-Use `AddCommand<TCommand>()` for a command without options. For nested options, register **each nested options type** with `AddOptions<TOptions>()`. Base classes and their non-public members are preserved automatically. Missing nested registrations produce an `InvalidOperationException` naming the type at parser construction time.
-
-```csharp
-var builder = new SimpleParserBuilder()
-    .AddCommand<TestCommand, TestOptions>()
-    .AddOptions<NestedOptions>();
-
-var parser = builder.Build(SimpleParserOptions.Standard with
-{
-    RequireStrictOptionName = true,
-});
-
-// Parse without a command; the root options type is registered automatically.
-builder.TryParseOptions<TestOptions>("-number 1 -text example", out var options);
-```
-
-`Build()` creates a snapshot, so later registrations do not change an existing parser. Attributes, aliases, help/version output, required options, nullable values, enums, inherited/non-public members, explicit interface implementations and Tinyhand-generated option serialization work with this API. `TryParseOptions` retains the existing helper's behavior: invalid optional values are ignored; use a parser's `Parse()` to reject conversion errors.
-
-The `IEnumerable<Type>` constructor, static `ParseAndExecute` overloads and static `TryParseOptions` methods remain available for untrimmed applications. They use runtime type discovery and are annotated with `RequiresUnreferencedCode`; migrate those calls to the builder or the generic Arc.Unit registration methods for trimmed/NativeAOT applications.
-
-With Arc.Unit, register each command once using the generic context/group methods and inject the unit's `SimpleCommandRegistry` into command groups. There is no separate parser-builder registration in the group constructor:
-
-```csharp
-public DbCommand(SimpleCommandRegistry registry, UnitContext context)
-    : base(registry, context, "list")
-{
-}
-```
-
-See [Command Groups](#command-groups) for the complete registration example. Service providers and custom serializers must themselves support NativeAOT. The legacy command-group constructor uses runtime discovery and requires migration too. The constructor taking a standalone `SimpleParserBuilder` remains available.
-
-The library enables `IsAotCompatible` analysis. Publish and run the sample on Windows x64 with:
-
-```powershell
-dotnet publish QuickStart/QuickStart.csproj -c Release -r win-x64 -p:PublishAot=true -o artifacts/quickstart
-./artifacts/quickstart/QuickStart.exe test -text example
-```
-
-The smoke-test project treats compiler and trimming warnings as errors and exercises parsing, command execution, DI, groups, help, Tinyhand serialization and failure/recovery paths. It runs in CI on Windows x64 and Linux x64:
-
-```powershell
-dotnet publish Tests/NativeAotTest/NativeAotTest.csproj -c Release -r win-x64 -o artifacts/native-aot
-./artifacts/native-aot/NativeAotTest.exe --require-aot
-```
-
-For Linux, use `-r linux-x64` and run `./artifacts/native-aot/NativeAotTest --require-aot`. NativeAOT requires the platform's native build tools; see Microsoft's [NativeAOT prerequisites](https://learn.microsoft.com/dotnet/core/deploying/native-aot/).
-
-
+`GreetCommand` is the default command because it is registered first. With the default settings, `greet Ada` and `greet -name Ada` are equivalent: `Ada` supplies the first unset required option.
 
 ## Commands
 
-A command is a class annotated with `SimpleCommandAttribute` which implements one of the following interfaces.
+A command class has `[SimpleCommand(...)]` and implements either:
 
-```csharp
-// A command with an options class.
-public interface ISimpleCommand<TOptions>
-    where TOptions : new()
-{
-    Task Execute(TOptions options, string[] args, CancellationToken cancellationToken);
-}
+- `ISimpleCommand<TOptions>`: `Task Execute(TOptions options, string[] args, CancellationToken cancellationToken)`.
+- `ISimpleCommand`: `Task Execute(string[] args, CancellationToken cancellationToken)`.
 
-// A command without options.
-public interface ISimpleCommand
-{
-    Task Execute(string[] args, CancellationToken cancellationToken);
-}
-```
+`args` contains unconsumed arguments. Explicit interface implementations are supported. The parser forwards cancellation tokens; command implementations must observe them. Register commands with options using `AddCommand<TCommand, TOptions>()`, and commands without options using `AddCommand<TCommand>()`.
 
-`args` receives the arguments which were not consumed as an option.
-
-| `SimpleCommandAttribute` | Description |
+| `SimpleCommandAttribute` member | Meaning |
 | --- | --- |
-| `CommandName` | The name of the command (case insensitive). An empty name makes it the default command. |
-| `Alias` | An alternate name for the command. |
-| `IsDefault` | The command is executed when the command name is not specified. |
-| `Description` | The description shown in a help message. |
-| `IsSubcommand` | The command accepts unknown option names and forwards them, so that it can dispatch them to its own parser. |
+| `CommandName` | Case-insensitive name, trimmed of surrounding whitespace. An empty name is a default candidate. |
+| `Alias` | An explicit case-insensitive alias; empty by default. |
+| `IsDefault` | Marks a default candidate; false by default. |
+| `Description` | Text shown in help. |
+| `IsSubcommand` | Accepts unknown options even in strict mode and leaves command-specific help for the child parser. |
 
-The command name may be omitted on the command line. The default command is the first command which declares `IsDefault`, or the first registered command if none does. Set `RequireStrictCommandName` to disable the default command.
+The first default candidate wins; otherwise, the first registered command is used. `RequireStrictCommandName` disables the default. Command names take precedence over aliases. With `AutoAlias`, hyphen-separated initials become aliases, such as `remove-file` to `rf`; conflicts with command names or existing aliases are skipped.
 
-An instance is created with the parameterless constructor of the command type, or resolved from `ServiceProvider` if one is set.
+The provider in `ServiceProvider` is asked for each command instance on first access. If it returns null, the parser uses a public parameterless constructor. The parser caches the instance, even for a transient DI registration.
 
 ### Help and Version
 
-The parser handles these before dispatching to a command.
-
-| Command line | Result |
+| Input | Result |
 | --- | --- |
-| `app.exe help` | The usage, the command list and the options of every command. |
-| `app.exe help <command>` | The options of the specified command. |
-| `app.exe <command> help` | The same as above. |
-| `app.exe version` | The version of the entry assembly. |
+| `help` or `-help` | Help for all commands. |
+| `help greet` | Help for the full command name `greet`. |
+| `greet help` or `greet -help` | Help for `greet`. |
+| `version` or `-version` | Entry assembly version output. |
+| `h` or `-h` | General help when `AutoAlias` is enabled. |
 
-`Parse()` sets `HelpCommandName` or `VersionRequested` instead of `CurrentCommand`, and `Execute()` writes the message. Call `ShowHelp()`, `ShowVersion()` or `ShowCommandList()` to write them yourself.
+Registered commands and aliases are resolved before built-in help/version names. A registered `help` option takes precedence over `greet -help`; `greet help` still requests help. Subcommands receive command-specific help as remaining arguments.
 
-### Running Multiple Commands
-
-A single parse stops at the separator `|`. To run several commands with one command line, split it first.
-
-```csharp
-foreach (var x in "first -number 1 | second".SplitCommandLines())
-{
-    await SimpleParser.ParseAndExecute(commandTypes, x);
-}
-```
-
-
+`Parse()` returns true for help/version requests and sets `HelpCommandName` or `VersionRequested`, leaving `CurrentCommand` null. `Execute()` writes the requested output. Explicit help/version requests take precedence over the `Command` environment variable.
 
 ## Options
 
-An options class is a plain class with a parameterless constructor. Each field or property annotated with `SimpleOptionAttribute` becomes an option, including inherited and non-public ones.
+Options classes normally have public parameterless constructors. Annotated instance fields and properties are discovered, including inherited and non-public members. Setters may be non-public; getter-only auto-properties use their backing fields. Getter-only computed properties and indexers are rejected. Virtual overrides replace their base option metadata while retaining its position in required-option ordering.
 
-| `SimpleOptionAttribute` | Description |
+| `SimpleOptionAttribute` member | Meaning |
 | --- | --- |
-| `LongName` | The long option name, specified as `-name` (case insensitive). |
-| `ShortName` | The short option name. The long name takes precedence when both match. |
-| `Description` | The description shown in a help message. |
-| `DefaultValueText` | The text shown as the default value in a help message. When omitted, the actual value of a new instance is shown. |
-| `Required` | A value is required for this option. |
-| `ReadFromEnvironment` | The value is read from an environment variable when the option is not specified. |
-| `ArgumentProcessing` | How newlines and escape sequences in the value are handled. |
+| `LongName` | Required nonblank name, used as `-name` or `--name`; case insensitive. |
+| `ShortName` | Optional short name; blank names are ignored. Long names take precedence over short names. |
+| `Description` | Text shown in help. |
+| `DefaultValueText` | Help-only text; does not assign a value. Required options display it as a hint. |
+| `Required` | Requires a successfully supplied value on each parse. |
+| `ReadFromEnvironment` | Reads from the environment when no value was successfully supplied. |
+| `ArgumentProcessing` | Normalizes raw values; defaults to `ReplaceNewlinesWithSpace`. |
 
-### Required Options
+Set ordinary defaults in member initializers or the options constructor. Repeated valid occurrences use the last value. Every recognized option needs a value, including boolean options such as `-enabled true`.
 
-A required option which is not set is an error, and `Parse()` returns `false`. Its name may be omitted, so a value without an option name is assigned to the first required option that is not set yet.
+### Required Values and Environment Variables
 
-```
-app.exe test example    # The same as: app.exe test -text example
-```
+An unset required option fails parsing even if its member has an initializer. Unnamed values supply the first unset required option in base-to-derived declaration order. Set `OmitOptionNamesForRequiredOptions = false` to require option names. An empty string is a valid value for a required string option.
 
-Set `OmitOptionNamesForRequiredOptions` to `false` to always require the name.
-
-### Environment Variables
-
-With `ReadFromEnvironment`, an option that is not specified on the command line falls back to the environment variable named after its short name, then its long name.
+For `ReadFromEnvironment`, the short-name environment variable is checked first, then the long name if the short variable is absent. A successfully parsed input value takes precedence. An invalid supplied value still makes ordinary `Parse()` fail even if the environment provides a valid fallback.
 
 ```csharp
 [SimpleOption("api-key", ShortName = "API_KEY", ReadFromEnvironment = true)]
 public string ApiKey { get; set; } = string.Empty;
 ```
 
-The command name itself is read from the `Command` environment variable when it is not specified on the command line (`ReadCommandFromEnvironment`). Explicit help and version requests take priority over that fallback. Invalid environment option values fail `Parse()` just like invalid command-line values; standalone `TryParseOptions()` continues to ignore invalid optional values.
+With `ReadCommandFromEnvironment` enabled, the `Command` environment variable selects a command name or alias when the input does not select one. An unknown environment value falls back to normal default-command behavior. Invalid environment option values fail `Parse()`.
 
-### Argument Processing
+### Supported Types
 
-For a raw command-line string, `ArgumentProcessing` controls how option values are normalized. The surrounding delimiter or quotes are removed before conversion, including for numeric and enum values. Pre-split `string[]` values are already arguments and are kept verbatim; their quotes, escapes and newlines are not processed again.
-
-| Value | Description |
+| Type | Conversion |
 | --- | --- |
-| `ReplaceNewlinesWithSpace` | Removes `\r`, replaces `\n` with a space, and unescapes `\'` and `\"`. The default. |
-| `RemoveNewlines` | Removes `\r` and `\n`, and unescapes `\'` and `\"`. |
-| `AsIs` | Keeps newlines and escape sequences as they are. |
+| `string` | Raw values use `ArgumentProcessing`; array values are kept verbatim. |
+| `bool` | `true` or `false`, case insensitive. |
+| `sbyte`, `byte`, `short`, `ushort`, `int`, `uint`, `long`, `ulong` | Invariant-culture numbers. |
+| `float`, `double`, `decimal` | Invariant-culture numbers. |
+| `char` | The first character of a nonempty value. |
+| Enum | Case-insensitive member names or numeric values. |
+| Nullable value types | Nullable forms of the supported numeric, boolean, character, and enum types. |
+| Options class | A nested expression, usually enclosed in braces. |
 
+Numeric enum values need not name a declared member. Conversion failures make ordinary `Parse()` return false. Unsupported types are treated as nested options types, not converted using general-purpose type converters.
 
+### Nested Options and Tinyhand
 
-## Option Types
-
-| Type | Note |
-| --- | --- |
-| `string` | Normalized according to `ArgumentProcessing`. |
-| `bool` | `true` / `false` (case insensitive). |
-| `sbyte` `byte` `short` `ushort` `int` `uint` `long` `ulong` | Parsed with the invariant culture. |
-| `float` `double` `decimal` | Parsed with the invariant culture. |
-| `char` | The first character of the value. |
-| `enum` | By member name (case insensitive) or by its numeric value. |
-| `Nullable<T>` | Any of the above, such as `int?` or `DayOfWeek?`. |
-| An options class | A nested options class, enclosed in braces. |
-
-A value which cannot be converted is an error, and `Parse()` returns `false`.
+Register every nested type with `AddOptions<TOptions>()`. This standalone program parses an endpoint:
 
 ```csharp
-public class NestedOptions
+using System;
+using SimpleCommandLine;
+
+var builder = new SimpleParserBuilder().AddOptions<EndpointOptions>();
+if (builder.TryParseOptions<NetworkOptions>("-server {-host localhost -port 100}", out var options))
+{
+    Console.WriteLine($"{options.Server.Host}:{options.Server.Port}");
+}
+
+public class NetworkOptions
+{
+    [SimpleOption("server")]
+    public EndpointOptions Server { get; set; } = new();
+}
+
+public class EndpointOptions
 {
     [SimpleOption("host")]
     public string Host { get; set; } = string.Empty;
@@ -323,165 +192,176 @@ public class NestedOptions
     [SimpleOption("port")]
     public int Port { get; set; }
 }
-
-public class TestOptions
-{
-    [SimpleOption("count")]
-    public int? Count { get; set; } // A nullable value type is supported.
-
-    [SimpleOption("server")]
-    public NestedOptions Server { get; set; } = new(); // A nested options class is enclosed in braces.
-}
 ```
 
-```
-app.exe test -count 3 -server {-host localhost -port 100}
-```
+Each explicit nested occurrence creates a fresh value instead of merging into the previous instance. Unspecified nested members retain their existing instance, or are initialized when possible. Nested types are described once each in help. Circular type dependencies are rejected.
 
-A nested options class is described in its own block of the help message.
-
-```
-test Test command.
-  -count <Int32?>             (Optional)
-  -server {NestedOptions}
-
-{NestedOptions}
-  -host <String>     (Default: "")
-  -port <Int32>      (Default: 0)
-```
-
-
+For types registered with Tinyhand, nested values first use Tinyhand string parsing or deserialization, then fall back to option parsing if no object is returned. Tinyhand reconstruction can also create registered nested types without public parameterless constructors. These types still need `AddOptions<TOptions>()` for trimming and NativeAOT; root command options retain the `new()` constraint of `ISimpleCommand<TOptions>`.
 
 ## Argument Syntax
 
-| Syntax | Description |
+### Raw Command Lines
+
+| Syntax | Meaning |
 | --- | --- |
-| `-name value` | An option and its value. `--name` is also accepted. |
-| `-n value` | The short name of an option. |
-| `value` | A value without an option name: assigned to a required option, otherwise passed to the command as a remaining argument. |
-| `"a b"` `'a b'` | A value containing spaces. |
-| `"""a b"""` | The argument delimiter (`ArgumentDelimiter`). Useful for a value which itself contains quotes. |
-| `{...}` | A nested options class. |
-| `-5` `-.5` | A negative number is a value, not an option name. |
-| `,` | Separates arguments, like whitespace. |
-| `\|` | Separates a command line into multiple command lines. |
+| `-name value`, `--name value` | An option and its value. |
+| `value` | An unnamed required value or a remaining argument. |
+| `"a b"`, `'a b'` | One value containing spaces. |
+| `"""a "quoted" value"""` | A value enclosed by the default argument delimiter. |
+| `{...}` | A nested options expression. |
+| `-5`, `-.5` | Negative values, not option names. |
+| `,` | An argument separator, like whitespace. |
+| `\|` | Ends the current command outside quotes or braces. |
 
-Unknown option names are passed to the command as remaining arguments. Set `RequireStrictOptionName` to make them an error instead.
+Quotes and the configured delimiter are removed before scalar conversion, including numeric and enum conversion. Quote characters preceded by a backslash do not open or close single/double-quoted text. This is the library's syntax, not a shell grammar.
 
-The syntax table applies to raw command-line strings. For `Parse(string[])`, `ParseAndExecute(string[])` and `TryParseOptions(string[])`, each element is already one argument: spaces, empty strings, commas and literal quotes inside a value are preserved. This also prevents subcommands from splitting forwarded values a second time. A standalone `|` still ends a command. Nested options are supplied as a single element containing their expression, such as `"{-host 'two words'}"`.
+| `ArgumentProcessing` | Raw-value handling after removing enclosing quotes/delimiters |
+| --- | --- |
+| `ReplaceNewlinesWithSpace` | Removes `\r`, replaces `\n` with a space, and unescapes `\'` and `\"`. |
+| `RemoveNewlines` | Removes `\r` and `\n`, and unescapes `\'` and `\"`. |
+| `AsIs` | Preserves newlines and escapes. |
 
-Earlier versions joined array elements with spaces and parsed the resulting string again. Call the string overload explicitly if you intentionally pass command-line fragments instead of individual arguments. Set `ArgumentDelimiter = string.Empty` to disable the extra delimiter; single and double quotes still work.
+Nested brace expressions retain their syntax until their own parser handles it. Remaining scalar arguments use `ReplaceNewlinesWithSpace`. Setting `ArgumentDelimiter = string.Empty` disables the extra delimiter; single and double quotes remain active.
 
+### Pre-split Argument Arrays
 
+Each `string[]` element is already one argument. Spaces, empty values, commas, quotes, escapes, and newlines inside a value are kept verbatim. Option-name detection still applies, and a standalone `|` still ends the command:
+
+```csharp
+parser.Parse(new[] { "greet", "-name", "Ada Lovelace", "-count", "2" });
+```
+
+Nested expressions belong in one element, such as `"{-host 'two words' -port 100}"`. Do not add shell-style enclosing quotes to ordinary array values. If you intentionally have command-line fragments, join them explicitly and use the string overload. Earlier versions joined arrays automatically.
+
+### Multiple Commands
+
+A parse handles only the input before the first command separator. Split raw text to execute several commands using an existing parser:
+
+```csharp
+foreach (var line in "greet Ada | greet Grace".SplitCommandLines())
+{
+    await parser.ParseAndExecute(line);
+}
+```
 
 ## Parser Options
 
-`SimpleParserOptions` controls the behavior of the parser. Create a variant with a `with` expression.
+Use `SimpleParserOptions.Standard with { ... }` to customize parsing. `StrictCommandName` and `StrictOptionName` are presets that enable their respective flags independently.
 
-```csharp
-var parserOptions = SimpleParserOptions.Standard with
-{
-    RequireStrictCommandName = true,
-    AutoAlias = true,
-};
-
-await SimpleParser.ParseAndExecute(commandTypes, args, parserOptions);
-```
-
-| Property | Default | Description |
+| Property | Default | Meaning |
 | --- | --- | --- |
-| `ServiceProvider` | `null` | Resolves command instances. When `null`, the parameterless constructor is used. |
-| `RequireStrictCommandName` | `false` | The command name is required (no default command). |
-| `RequireStrictOptionName` | `false` | An unregistered option name results in an error. |
-| `DisplayUsage` | `true` | The usage text is displayed in a help message. |
-| `DisplayCommandListAsHelp` | `false` | Help displays a single-line list of command names. |
-| `OmitOptionNamesForRequiredOptions` | `true` | The name of a required option may be omitted. |
-| `AutoAlias` | `false` | An alias is created from the initials of the hyphen-separated words ('remove-file' becomes 'rf'). |
-| `ReadCommandFromEnvironment` | `true` | The command name is read from the `Command` environment variable when it is not specified. |
-| `ArgumentDelimiter` | `"""` | The delimiter that encloses an argument containing spaces or newlines. |
-| `SuppressConsoleOutput` | `false` | Help, version and error messages are not written to the console. |
+| `ServiceProvider` | `null` | Resolves command instances and an optional `IConsoleService`. |
+| `RequireStrictCommandName` | `false` | Requires a command name or alias; disables the default command. |
+| `RequireStrictOptionName` | `false` | Rejects unknown option names, except for subcommands. |
+| `DisplayUsage` | `true` | Includes usage text in help. |
+| `DisplayCommandListAsHelp` | `false` | Uses a single-line name list for general help; command-specific help remains detailed. |
+| `OmitOptionNamesForRequiredOptions` | `true` | Allows unnamed required values. |
+| `AutoAlias` | `false` | Creates nonconflicting command initials and enables the help alias `h`. |
+| `ReadCommandFromEnvironment` | `true` | Uses the `Command` variable when no command/help/version request is recognized. |
+| `ArgumentDelimiter` | `"""` | Extra raw-value delimiter; an empty string disables it. |
+| `SuppressConsoleOutput` | `false` | Suppresses parser output through both the console and `IConsoleService`. Command output is unaffected. |
 
-`SimpleParserOptions.Standard`, `StrictCommandName` and `StrictOptionName` are ready-made instances.
+## Parser API and State
 
+Build a parser once and use it sequentially. Each parse clears the previous command, help/version flags, and errors. A command parse creates fresh root options. Command instances and edited help descriptions remain cached.
 
-
-## Parser API
-
-`SimpleParser.ParseAndExecute()` is a shortcut for `Parse()` followed by `Execute()`. Keep a parser instance to inspect the result.
-
-```csharp
-var parser = new SimpleParser(commandTypes, parserOptions);
-if (parser.Parse(args))
-{
-    await parser.Execute(cancellationToken);
-}
-```
-
-| Member | Description |
+| Member | Meaning |
 | --- | --- |
-| `Parse(string)` / `Parse(string[])` | Parses the arguments. Returns `false` on an error. |
-| `Execute(CancellationToken)` | Executes the parsed command, or writes the help or version message. |
-| `ParseAndExecute(...)` | Both of the above. Also available as a static method. |
-| `CurrentCommand` | The command of the last successful parse. |
-| `DefaultCommandName` | The name of the default command. |
-| `HelpCommandName` / `VersionRequested` | Set when help or version was requested. |
-| `OriginalCommandLine` | The arguments passed to the last `Parse()`. |
-| `NameToCommand` / `AliasToCommand` | The registered commands, keyed by name or alias. |
-| `TryGetCommand(name, out command)` | Looks up a command (case insensitive). |
-| `TryGetOption(commandName, optionName, out option)` | Looks up an option by its long name (case insensitive). |
-| `ShowHelp(commandName)` / `ShowVersion(prefix)` | Writes a help or version message. |
-| `ShowCommandList(maxColumnWidth)` | Writes the command names in columns sized to the console width. |
-| `AddErrorMessage(message)` | Adds a message to be displayed by `ShowHelp()`. |
+| `Parse(string)` / `Parse(string[])` | Returns true for a valid command or help/version request; false for a parsing error. |
+| `Execute(token)` | Executes the stored command or writes help/errors/version. Repeated calls repeat the operation. |
+| `ParseAndExecute(input, token)` | Parses, then executes or displays output, including help after a parse error. |
+| `CurrentCommand` | Result of the latest parse; null before parsing, on error, or for help/version. |
+| `DefaultCommandName` | Selected default name; null when disabled or no commands exist. |
+| `HelpCommandName` | Null for no help request, empty for all commands, or a specific command name. |
+| `VersionRequested` | Whether the latest parse requested version output. |
+| `OriginalCommandLine` | Raw input, or array elements joined with spaces for diagnostics. |
+| `ParserOptions` / `RequireStrictOptionName` | Parser configuration and the strict-option flag. |
+| `NameToCommand` / `AliasToCommand` | Case-insensitive command lookups. |
+| `TryGetCommand(name, out command)` | Looks up a full command name, not an alias. |
+| `TryGetOption(commandName, longName, out option)` | Looks up a long option name under a full command name. |
+| `ShowHelp(commandName)` | Writes help. Null uses `HelpCommandName`; empty or unknown names target all commands. |
+| `ShowVersion(prefix)` | Writes version output with an optional prefix. |
+| `ShowCommandList(maxColumnWidth)` | Writes columns, capped at 19 characters by default. Redirected output uses an 80-character width. Zero writes a blank line; negative widths throw. |
+| `AddErrorMessage(message)` | Adds text to the next help output; the next parse clears it. |
+| `AddOptionClassUsage(optionClass)` | Adds a nested type to the current help traversal, deduplicated by type. `ShowHelp` rebuilds this list. |
 
-`Description` of a `Command` or an `Option` is settable, so a help message can be localized at runtime.
+`SimpleParser.Command` exposes the cached `CommandInstance` and its `OptionClass`. The latter exposes `OptionInstance`, `DefaultInstance`, `Options`, and `RemainingArguments`. `SimpleParser.Option` exposes member metadata and editable `Description` / `DefaultValueText` for help customization.
 
-To parse a command line into an options class without registering a command, use `SimpleParser.TryParseOptions()`. Pass an instance as the third argument to update it instead of creating a new one.
+The low-level `OptionClass.Parse` and `Option.Parse` methods process raw tokens, unlike `SimpleParser.Parse(string[])`. `OptionClass.Parse` updates its existing instance; `Option.Parse` assigns one value without updating `ValueIsSet`. Prefer the parser or builder APIs for normal use.
+
+Parsing errors request help; `Parse()` itself does not print it. Registration errors and user-code exceptions can still throw. To display parser errors, call `parser.Parse(args)` followed by `await parser.Execute(token)`. To handle errors yourself, branch on the parse result and distinguish `CurrentCommand` from help/version requests.
+
+Parsers and builders contain mutable state. Complete command execution before parsing again on the same instance. Use separate parsers for concurrent work; DI may still share command instances, so their own concurrency rules apply.
+
+## Standalone Options
+
+`SimpleParserBuilder.TryParseOptions<TOptions>` parses without a command and automatically registers the root type. Register nested types first. Both raw-string and pre-split-array overloads use `SimpleParserOptions.Standard`.
 
 ```csharp
-if (SimpleParser.TryParseOptions<TestOptions>("-number 1 -text example", out var options))
+var builder = new SimpleParserBuilder();
+if (builder.TryParseOptions<GreetOptions>(new[] { "-name", "Ada Lovelace" }, out var options))
 {
-    Console.WriteLine(options.Number);
+    Console.WriteLine(options.Name);
 }
 ```
 
+This API is intentionally permissive: unknown names and invalid optional values are ignored. Missing required values or instance-creation failure return false. Invalid type metadata or missing nested registration may throw. Use a command parser's `Parse()` when all conversion errors must fail.
 
+Pass an existing instance as the third argument to update it. Unspecified members are retained, but required values must be supplied on every call. Updates are not transactional: the instance may already be partly changed when parsing returns false.
+
+## NativeAOT and Trimming
+
+`SimpleParserBuilder` uses typed interface dispatch and preserves reflection metadata needed for option creation and member access. Arc.Unit's generic registration extensions use the same registration implementation.
+
+| Registration | Purpose |
+| --- | --- |
+| `AddCommand<TCommand>()` | Registers a command without typed options. |
+| `AddCommand<TCommand, TOptions>()` | Registers a command and its root options type. |
+| `AddOptions<TOptions>()` | Preserves an options type and its base types; call for every nested type. |
+| `Build(parserOptions)` | Creates an independent parser from a registration snapshot, in insertion order. |
+
+Repeated registration with the same command/options pairing is safe. A conflicting pairing throws. Later builder changes do not affect an existing parser. All nested types must be registered even when no value is supplied for them in a particular invocation.
+
+The `SimpleParser(IEnumerable<Type>, ...)` constructor, public `SimpleParser.Command` constructor, static `SimpleParser.ParseAndExecute` / `TryParseOptions`, and legacy command-group constructor use runtime discovery. They carry `RequiresUnreferencedCode` and are intended for untrimmed applications. Migrate those calls to typed registration for trimming or NativeAOT. DI providers and serializers must also support the publishing mode.
+
+The library enables `IsAotCompatible` analysis. Publish the QuickStart sample on Windows x64:
+
+```powershell
+dotnet publish QuickStart/QuickStart.csproj -c Release -r win-x64 -p:PublishAot=true -o artifacts/quickstart
+./artifacts/quickstart/QuickStart.exe test -text example
+```
+
+The repository's QuickStart sample uses the command name `test`. For Linux, use `-r linux-x64` and run the executable without `.exe`. NativeAOT requires the platform's native toolchain; see Microsoft's [NativeAOT prerequisites](https://learn.microsoft.com/dotnet/core/deploying/native-aot/).
 
 ## Arc.Unit Integration
 
-Import `SimpleCommandLine` to enable generic registration extensions on `IUnitConfigurationContext`. A single registration adds the command to Arc.Unit's command list and DI services, and records its NativeAOT metadata in the unit's shared registry.
+Import `SimpleCommandLine` to enable extensions on `IUnitConfigurationContext`. One generic registration adds Arc.Unit membership, DI registration, and parser metadata:
 
 ```csharp
 using Arc.Unit;
 using SimpleCommandLine;
 
 var unitBuilder = new UnitBuilder();
-unitBuilder.Configure(context =>
-{
-    context.AddCommand<TestCommand, TestOptions>();
-    // Register every nested options type used by these commands, if any:
-    context.AddOptionType<NestedOptions>();
-});
-
+unitBuilder.Configure(context => context.AddCommand<GreetCommand, GreetOptions>());
 var unit = unitBuilder.Build();
-var parser = unit.Context.CreateSimpleParser();
-await parser.ParseAndExecute(args);
+await unit.Context.CreateSimpleParser().ParseAndExecute(args);
 ```
 
-Use `context.AddCommand<TCommand>()` for commands without options. Both overloads accept a `ServiceLifetime` (default: `Scoped`) and return whether the command was newly added to the selected list. Arc.Unit keeps the first DI registration, including its lifetime or a pre-registered service instance. Repeating a generic registration is safe; choosing a different options type for the same command throws an error.
+This snippet reuses the greeting types from Quick Start. Registration overloads accept `ServiceLifetime` (default: `Scoped`) and return whether the command was newly added to the selected list. An existing DI registration, lifetime, or service instance is retained.
 
-| Registration | Parser creation | Command list |
+| Registration | Parser creation | Membership |
 | --- | --- | --- |
-| `context.AddCommand<TCommand, TOptions>()` | `unit.Context.CreateSimpleParser()` | `UnitContext.Commands` |
-| `context.AddSubcommand<TCommand, TOptions>()` | `unit.Context.CreateSimpleSubcommandParser()` | `UnitContext.Subcommands` |
-| `context.GetSimpleCommandGroup<TParent>().AddCommand<TCommand, TOptions>()` | `unit.Context.CreateSimpleParser<TParent>()` | `UnitContext.GetCommandTypes(typeof(TParent))` |
+| `context.AddCommand<TCommand, TOptions>()` | `unit.Context.CreateSimpleParser()` | Top-level `Commands`. |
+| `context.AddSubcommand<TCommand, TOptions>()` | `unit.Context.CreateSimpleSubcommandParser()` | Separate `Subcommands` list. |
+| `context.GetSimpleCommandGroup<TParent>().AddCommand<TCommand, TOptions>()` | `unit.Context.CreateSimpleParser<TParent>()` | Children of `TParent`. |
 
-Each registration also has a `TCommand`-only overload. Register the parent command itself in its desired list before obtaining its group. Child groups select commands from Arc.Unit's membership lists; command metadata can be shared across groups without adding those commands to other lists.
+Each registration has a `TCommand`-only overload. Use `context.AddOptionType<TOptions>()` for each nested type; this registers metadata, not an options instance in DI. Register a parent separately to choose its list. Sharing metadata across groups does not add a command to other membership lists.
 
-The integration uses `IUnitCustomContext` to collect metadata across configuration delegates and modules. After `Configure` completes, it registers an immutable `SimpleCommandRegistry` singleton with the unit's service provider. Registrations must finish during `Configure`; modifying a retained context/group after it has been finalized throws an error. Different units have independent registries.
+The unit collects metadata through `IUnitCustomContext` and registers an immutable `SimpleCommandRegistry` singleton when configuration is finalized. Finish all registration during `UnitBuilder.Configure`. Changes through retained contexts or group builders after finalization throw. Different units have separate registries.
 
-`CreateSimpleParser` creates a fresh parser each time. Parse results, options instances and mutable help descriptions are independent. Command instances follow their DI lifetime; a parser caches each resolved command instance for its own lifetime, just as a standalone parser does.
+Every creation call returns a fresh parser. The registry can also create a selected parser with `registry.CreateParser(commandTypes, parserOptions)`. That direct call uses standard options and does not add the unit's provider automatically. UnitContext extension methods do add that provider as a fallback. `CreateSimpleParser<TParent>()` uses standard parser settings, not `SimpleCommandGroup` defaults.
 
-For scoped services, supply the current scope's provider:
+For a specific DI scope, supply its provider:
 
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
@@ -494,30 +374,49 @@ var parser = unit.Context.CreateSimpleParser(SimpleParserOptions.Standard with
 await parser.ParseAndExecute(args);
 ```
 
-Without an explicit provider, the unit's provider is used. When a command group must resolve its children in the same DI scope, inject `IServiceProvider` into the group and pass it through `parserOptions.ServiceProvider` to the base constructor.
+Each parser caches its resolved commands. Do not reuse a parser after its DI scope has been disposed.
 
-The existing Arc.Unit `AddCommand(typeof(...))` / `AddSubcommand(typeof(...))` methods do not capture parser metadata. Replace them with the generic extensions for this integration. If an existing raw registration is later supplemented with a generic registration, its DI registration is retained and its parser metadata is added. Raw-only commands or missing nested option types produce a descriptive error when creating the parser.
-
-
+Arc.Unit's raw `AddCommand(typeof(...))` / `AddSubcommand(typeof(...))` calls do not record parser metadata. Generic registration can supplement a raw entry while retaining DI registration. Missing typed metadata or nested types produce an error when the parser is created.
 
 ## Command Groups
 
-`SimpleCommandGroup<TCommand>` dispatches its arguments to a group of subcommands, using `Arc.Unit` for the registration and the service provider.
+Derive from `SimpleCommandGroup<TCommand>` and set `IsSubcommand = true`. This complete example registers a parent and child once and keeps child resolution in the parent's DI scope:
 
 ```csharp
-[SimpleCommand("db", IsSubcommand = true)] // A group must be a subcommand.
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using Arc.Unit;
+using Microsoft.Extensions.DependencyInjection;
+using SimpleCommandLine;
+
+var builder = new UnitBuilder();
+builder.Configure(context =>
+{
+    context.AddCommand<DbCommand>();
+    context.GetSimpleCommandGroup<DbCommand>().AddCommand<DbListCommand>();
+});
+
+var unit = builder.Build();
+using var scope = unit.Context.ServiceProvider.CreateScope();
+await unit.Context.CreateSimpleParser(SimpleParserOptions.Standard with
+{
+    ServiceProvider = scope.ServiceProvider,
+}).ParseAndExecute(args);
+
+[SimpleCommand("db", IsSubcommand = true)]
 public class DbCommand : SimpleCommandGroup<DbCommand>
 {
-    public static void Configure(IUnitConfigurationContext context)
+    public DbCommand(SimpleCommandRegistry registry, UnitContext context, IServiceProvider services)
+        : base(registry, context, "list", SimpleParserOptions.Standard with
+        {
+            ServiceProvider = services,
+            RequireStrictCommandName = true,
+            RequireStrictOptionName = true,
+            DisplayUsage = false,
+            DisplayCommandListAsHelp = true,
+        })
     {
-        context.AddCommand<DbCommand>(); // Register the parent in the top-level command list.
-        var group = context.GetSimpleCommandGroup<DbCommand>();
-        group.AddCommand<DbListCommand>(); // One registration for membership, DI and NativeAOT metadata.
-    }
-
-    public DbCommand(SimpleCommandRegistry registry, UnitContext context)
-        : base(registry, context, "list")
-    {// "list" is executed when no subcommand is specified.
     }
 }
 
@@ -525,63 +424,60 @@ public class DbCommand : SimpleCommandGroup<DbCommand>
 public class DbListCommand : ISimpleCommand
 {
     public Task Execute(string[] args, CancellationToken cancellationToken)
-        => Task.CompletedTask;
+    {
+        Console.WriteLine("List command");
+        return Task.CompletedTask;
+    }
 }
 ```
 
-In `Main`, configure the unit and create the top-level parser:
+Both `db list` and `db` execute the list command. `defaultArgument` is a raw command line, so it may include options. It is used only for an empty argument array; null leaves the input empty. Cancellation is forwarded to the selected child.
 
-```csharp
-var builder = new UnitBuilder();
-builder.Configure(DbCommand.Configure);
-var unit = builder.Build();
-await unit.Context.CreateSimpleParser().ParseAndExecute(args);
-```
+When `parserOptions` is null, group defaults require strict command and option names, disable usage text, and show a single-line list for general help. A supplied record replaces these defaults; only a missing service provider falls back to the unit's provider. The group's `Parser` is created lazily and cached.
 
-```
-app.exe db list
-```
+For nested groups, register the child group with `context.GetSimpleCommandGroup<TParent>().AddCommand<TChildGroup>()`, then register that child's commands through its own group builder.
 
-To nest a group, register it as a child with `context.GetSimpleCommandGroup<TParent>().AddCommand<TChildGroup>()`, then register its children through `context.GetSimpleCommandGroup<TChildGroup>()`. The inner parser uses `RequireStrictCommandName`, `RequireStrictOptionName`, `DisplayUsage = false` and `DisplayCommandListAsHelp` unless you pass your own `SimpleParserOptions`.
-
-The older `ConfigureGroup(context, parentCommandType)` API remains available for existing manually configured parsers. The generic context/group extensions above provide the shared-registry integration.
-
-
+The constructor taking a standalone `SimpleParserBuilder` remains available. The legacy `ConfigureGroup(context, parentCommandType)` API registers Arc.Unit membership only: a null parent adds the command to the separate **subcommand list**, not the top-level list. It does not populate the shared registry. Prefer generic context/group extensions for shared registration.
 
 ## Helper Methods
 
-`SimpleParserHelper` contains the utilities used by the parser.
-
-| Method | Description |
+| Method | Meaning |
 | --- | --- |
-| `GetCommandLineArguments()` | The arguments of the current process, with the executable path removed. |
-| `ExtractArguments(commandLine)` | Removes the leading executable path from a command line. |
-| `PeekCommand(commandLine)` | The leading command name of a command line, without parsing it. |
-| `SplitArguments(commandLine)` | Splits a command line into arguments, honoring quotes and braces. |
-| `SplitCommandLines(commandLine)` | Splits a command line at `\|` into multiple command lines. |
-| `SplitAtSpace(text)` / `JoinWithSpace(values)` | Splits at whitespace / joins with a space. |
-| `TrimQuotes(text)` / `TrimQuotesAndBraces(text)` | Removes the surrounding quotes or braces. |
-| `UnwrapDoubleQuote(text)` / `UnwrapBraces(text)` | Removes the surrounding double quotes or braces, without trimming whitespace. |
-| `ProcessArgument(argument, parserOptions, processing)` | Normalizes an argument the way the parser does. |
-| `IsOptionName(text)` | Whether the text is an option name rather than a value. |
-| `CreateAliasFromCommand(commandName)` | The initials of the hyphen-separated words. |
-| `TryGetAndRemoveArgument(ref args, optionName, out value)` | Takes an option and its value out of an argument array. |
-| `AppendEnvironmentVariable(ref args, variableName)` | Appends the value of an environment variable to the arguments. |
-
-
+| `GetCommandLineArguments()` | Cached process command line with the executable path removed. |
+| `ExtractArguments(commandLine)` | Removes an executable path from Environment.CommandLine-style text. |
+| `PeekCommand(commandLine)` | First whitespace-delimited word, or empty for blank input or a word starting with `-`; does not parse syntax. |
+| `SplitArguments(commandLine, delimiter)` | Raw tokens with enclosing quotes/braces retained. An empty delimiter argument selects triple quotes. |
+| `SplitCommandLines(commandLine, delimiter)` | Splits at unenclosed `\|` and rejoins each command's tokens with spaces. |
+| `SplitAtSpace(text)` | Splits at whitespace without interpreting quotes or braces. |
+| `JoinWithSpace(values)` | Joins with spaces without quoting; reparsing may lose argument boundaries. |
+| `TrimQuotes(text)` / `TrimQuotesAndBraces(text)` | Trims surrounding whitespace and removes recognized wrappers; does not unescape values. |
+| `UnwrapDoubleQuote(text)` / `UnwrapBraces(text)` | Removes a matching wrapper without trimming whitespace. |
+| `ProcessArgument(argument, parserOptions, processing)` | Unwraps raw values and applies newline/escape handling. |
+| `IsOptionName(text)` | Detects a leading `-`, except negative numeric forms. |
+| `CreateAliasFromCommand(commandName)` | Hyphen-separated initials without checking registration conflicts. |
+| `TryGetAndRemoveArgument(ref args, name, out value)` | Removes a matching option/value pair before the first command separator. |
+| `AppendEnvironmentVariable(ref args, name)` | Appends one literal array element or unescaped text to a command-line string. |
 
 ## Tests and Coverage
 
-Run the tests and collect library-only line and branch coverage using Microsoft.Testing.Platform:
+From the repository root:
 
 ```powershell
+dotnet build SimpleCommandLine.slnx -c Release
 dotnet test --project xUnitTest/xUnitTest.csproj -c Release --coverage --coverage-settings xUnitTest/coverage.config --coverage-output-format cobertura --coverage-output "$PWD/artifacts/coverage/coverage.cobertura.xml"
 ```
 
-The configuration instruments `SimpleCommandLine.dll`, including its generated code, and excludes test assemblies, samples and dependencies by assembly selection. CI uploads the Cobertura report as `code-coverage`. The [review and coverage report](docs/code-review.md) records the baseline, added regression tests, compatibility changes and validation limits. NativeAOT verification uses the separate smoke-test commands above.
+Coverage includes `SimpleCommandLine.dll` and its generated code, excluding other assemblies. CI uploads the Cobertura report as `code-coverage`.
 
+NativeAOT smoke tests treat compiler and trimming warnings as errors and run in CI on Windows x64 and Linux x64:
 
+```powershell
+dotnet publish Tests/NativeAotTest/NativeAotTest.csproj -c Release -r win-x64 -o artifacts/native-aot
+./artifacts/native-aot/NativeAotTest.exe --require-aot
+```
+
+For Linux, use `-r linux-x64` and run `./artifacts/native-aot/NativeAotTest --require-aot`.
 
 ## License
 
-MIT License. See [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
