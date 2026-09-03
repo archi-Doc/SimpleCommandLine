@@ -8,8 +8,9 @@ using Microsoft.Extensions.DependencyInjection;
 namespace SimpleCommandLine;
 
 /// <summary>
-/// Integrates Arc.Unit command registration and DI with SimpleCommandLine's NativeAOT metadata.
+/// Shares command registration between Arc.Unit, dependency injection, and NativeAOT-compatible parsers.
 /// </summary>
+/// <remarks>Register commands during unit configuration; create parsers from the built unit or its shared <see cref="SimpleCommandRegistry"/>.</remarks>
 public static class UnitCommandExtensions
 {
     /// <summary>
@@ -18,7 +19,7 @@ public static class UnitCommandExtensions
     /// <typeparam name="TCommand">The command type.</typeparam>
     /// <param name="context">The configuration context.</param>
     /// <param name="lifetime">The DI service lifetime, used if the service is not already registered.</param>
-    /// <returns>True if newly added to the top-level command list; otherwise false.</returns>
+    /// <returns><see langword="true"/> if newly added to the top-level command list; otherwise, <see langword="false"/>.</returns>
     public static bool AddCommand<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TCommand>(
         this IUnitConfigurationContext context, ServiceLifetime lifetime = ServiceLifetime.Scoped)
         where TCommand : ISimpleCommand
@@ -31,7 +32,7 @@ public static class UnitCommandExtensions
     /// <typeparam name="TOptions">The root options type.</typeparam>
     /// <param name="context">The configuration context.</param>
     /// <param name="lifetime">The DI service lifetime, used if the service is not already registered.</param>
-    /// <returns>True if newly added to the top-level command list; otherwise false.</returns>
+    /// <returns><see langword="true"/> if newly added to the top-level command list; otherwise, <see langword="false"/>.</returns>
     public static bool AddCommand<
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TCommand,
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TOptions>(
@@ -46,7 +47,7 @@ public static class UnitCommandExtensions
     /// <typeparam name="TCommand">The command type.</typeparam>
     /// <param name="context">The configuration context.</param>
     /// <param name="lifetime">The DI service lifetime, used if the service is not already registered.</param>
-    /// <returns>True if newly added to the subcommand list; otherwise false.</returns>
+    /// <returns><see langword="true"/> if newly added to the subcommand list; otherwise, <see langword="false"/>.</returns>
     public static bool AddSubcommand<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TCommand>(
         this IUnitConfigurationContext context, ServiceLifetime lifetime = ServiceLifetime.Scoped)
         where TCommand : ISimpleCommand
@@ -59,7 +60,7 @@ public static class UnitCommandExtensions
     /// <typeparam name="TOptions">The root options type.</typeparam>
     /// <param name="context">The configuration context.</param>
     /// <param name="lifetime">The DI service lifetime, used if the service is not already registered.</param>
-    /// <returns>True if newly added to the subcommand list; otherwise false.</returns>
+    /// <returns><see langword="true"/> if newly added to the subcommand list; otherwise, <see langword="false"/>.</returns>
     public static bool AddSubcommand<
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TCommand,
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TOptions>(
@@ -69,10 +70,11 @@ public static class UnitCommandExtensions
         => GetConfigurationGroup(context, true).AddCommand<TCommand, TOptions>(lifetime);
 
     /// <summary>
-    /// Preserves a nested options type and its inherited/non-public members in this unit's shared registry.
+    /// Preserves a nested options type and its inherited and non-public members in the unit's registry.
     /// </summary>
     /// <typeparam name="TOptions">The options type.</typeparam>
     /// <param name="context">The configuration context.</param>
+    /// <remarks>Registers parser metadata only; it does not add an options instance to DI.</remarks>
     public static void AddOptionType<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TOptions>(this IUnitConfigurationContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -80,12 +82,12 @@ public static class UnitCommandExtensions
     }
 
     /// <summary>
-    /// Gets a command's child group for combined Arc.Unit and parser registration.
-    /// Register the parent command itself with AddCommand or AddSubcommand to choose where it belongs.
+    /// Gets a child group for combined Arc.Unit and parser registration.
     /// </summary>
     /// <typeparam name="TCommand">The parent command type.</typeparam>
     /// <param name="context">The configuration context.</param>
     /// <returns>A builder for the parent's child commands.</returns>
+    /// <remarks>Register the parent separately with AddCommand or AddSubcommand to choose its command list.</remarks>
     [UnconditionalSuppressMessage("Trimming", "IL2087", Justification = "Arc.Unit 0.46 GetCommandGroup uses the type as a dictionary key and registers it with DI. The public constructors required by DI are preserved.")]
     public static SimpleCommandGroupBuilder GetSimpleCommandGroup<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TCommand>(this IUnitConfigurationContext context)
         where TCommand : ISimpleCommand
@@ -102,6 +104,7 @@ public static class UnitCommandExtensions
     /// <param name="context">The built unit context.</param>
     /// <param name="parserOptions">Parser options. ServiceProvider defaults to the unit's provider; supply a scoped provider when needed.</param>
     /// <returns>A new parser.</returns>
+    /// <exception cref="InvalidOperationException">The shared registry is missing, a type is unregistered, or a registration is invalid.</exception>
     public static SimpleParser CreateSimpleParser(this UnitContext context, SimpleParserOptions? parserOptions = null)
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -115,6 +118,8 @@ public static class UnitCommandExtensions
     /// <param name="context">The built unit context.</param>
     /// <param name="parserOptions">Parser options. ServiceProvider defaults to the unit's provider.</param>
     /// <returns>A new parser for this group only.</returns>
+    /// <remarks>Uses standard parser options by default, not the defaults of <see cref="SimpleCommandGroup{TCommand}"/>.</remarks>
+    /// <exception cref="InvalidOperationException">The shared registry is missing, a type is unregistered, or a registration is invalid.</exception>
     public static SimpleParser CreateSimpleParser<TCommand>(this UnitContext context, SimpleParserOptions? parserOptions = null)
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -127,6 +132,7 @@ public static class UnitCommandExtensions
     /// <param name="context">The built unit context.</param>
     /// <param name="parserOptions">Parser options. ServiceProvider defaults to the unit's provider.</param>
     /// <returns>A new parser.</returns>
+    /// <exception cref="InvalidOperationException">The shared registry is missing, a type is unregistered, or a registration is invalid.</exception>
     public static SimpleParser CreateSimpleSubcommandParser(this UnitContext context, SimpleParserOptions? parserOptions = null)
     {
         ArgumentNullException.ThrowIfNull(context);

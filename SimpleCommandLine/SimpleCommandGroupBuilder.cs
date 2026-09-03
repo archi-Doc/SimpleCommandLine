@@ -8,9 +8,9 @@ using Microsoft.Extensions.DependencyInjection;
 namespace SimpleCommandLine;
 
 /// <summary>
-/// Registers commands in an Arc.Unit command group and in the unit's shared NativeAOT metadata registry.
-/// Obtain a group using <see cref="UnitCommandExtensions.GetSimpleCommandGroup{TCommand}"/>.
+/// Registers a group's commands with Arc.Unit, dependency injection, and the shared parser registry.
 /// </summary>
+/// <remarks>Obtain this builder with <see cref="UnitCommandExtensions.GetSimpleCommandGroup{TCommand}"/> and finish registration during unit configuration.</remarks>
 public sealed class SimpleCommandGroupBuilder
 {
     internal SimpleCommandGroupBuilder(SimpleCommandConfiguration configuration, CommandGroup group)
@@ -24,7 +24,8 @@ public sealed class SimpleCommandGroupBuilder
     /// </summary>
     /// <typeparam name="TCommand">The command type.</typeparam>
     /// <param name="lifetime">The DI service lifetime, used if the service is not already registered.</param>
-    /// <returns>True if the command was newly added to this group; false if it already belonged to the group.</returns>
+    /// <returns><see langword="true"/> if newly added to this group; otherwise, <see langword="false"/>.</returns>
+    /// <exception cref="InvalidOperationException">Registration is finalized, or the command has conflicting options metadata.</exception>
     public bool AddCommand<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TCommand>(ServiceLifetime lifetime = ServiceLifetime.Scoped)
         where TCommand : ISimpleCommand
     {
@@ -38,7 +39,8 @@ public sealed class SimpleCommandGroupBuilder
     /// <typeparam name="TCommand">The command type.</typeparam>
     /// <typeparam name="TOptions">The root options type.</typeparam>
     /// <param name="lifetime">The DI service lifetime, used if the service is not already registered.</param>
-    /// <returns>True if the command was newly added to this group; false if it already belonged to the group.</returns>
+    /// <returns><see langword="true"/> if newly added to this group; otherwise, <see langword="false"/>.</returns>
+    /// <exception cref="InvalidOperationException">Registration is finalized, or the command has conflicting options metadata.</exception>
     public bool AddCommand<
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TCommand,
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TOptions>(ServiceLifetime lifetime = ServiceLifetime.Scoped)

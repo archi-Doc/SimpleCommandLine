@@ -5,8 +5,7 @@ using System;
 namespace SimpleCommandLine;
 
 /// <summary>
-/// Marks a class as a command and specifies its name and other properties.<br/>
-/// The class must implement <see cref="ISimpleCommand"/> or <see cref="ISimpleCommand{TOptions}"/>.
+/// Names and configures a class implementing <see cref="ISimpleCommand"/> or <see cref="ISimpleCommand{TOptions}"/>.
 /// </summary>
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = true)]
 public class SimpleCommandAttribute : Attribute
@@ -22,10 +21,9 @@ public class SimpleCommandAttribute : Attribute
     public string Alias { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets a value indicating whether this command is executed when the command name
-    /// is not specified [the default is <see langword="false"/>].<br/>
-    /// An empty command name implies <see langword="true"/>. If no command declares it, the first registered command becomes the default.
+    /// Gets or sets a value indicating whether this command is a default candidate. The default is false.
     /// </summary>
+    /// <remarks>An empty name also marks a candidate. The first candidate wins; otherwise, the first command is used. Strict command names disable the default.</remarks>
     public bool IsDefault { get; set; }
 
     /// <summary>
@@ -34,15 +32,14 @@ public class SimpleCommandAttribute : Attribute
     public string Description { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets a value indicating whether this command is a subcommand [the default is <see langword="false"/>].<br/>
-    /// A subcommand accepts unknown option names and forwards them, so that it can dispatch them to its own parser.
+    /// Gets or sets a value indicating whether this command forwards unknown options and help to its own parser. The default is false.
     /// </summary>
     public bool IsSubcommand { get; set; } = false;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SimpleCommandAttribute"/> class.
     /// </summary>
-    /// <param name="commandName">The name of the command. An empty name makes it the default command.</param>
+    /// <param name="commandName">The command name, trimmed of surrounding whitespace. An empty name makes it a default candidate.</param>
     public SimpleCommandAttribute(string commandName)
     {
         this.CommandName = commandName.Trim();

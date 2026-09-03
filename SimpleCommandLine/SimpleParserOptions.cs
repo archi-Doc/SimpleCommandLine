@@ -5,9 +5,9 @@ using System;
 namespace SimpleCommandLine;
 
 /// <summary>
-/// Options that control how <see cref="SimpleParser"/> parses arguments and displays messages.<br/>
-/// Create a variant with a <c>with</c> expression (for example <c>SimpleParserOptions.Standard with { AutoAlias = true, }</c>).
+/// Configures argument parsing, command resolution, and parser output.
 /// </summary>
+/// <remarks>Create a variant with <c>SimpleParserOptions.Standard with { AutoAlias = true }</c>.</remarks>
 public record SimpleParserOptions
 {
     /// <summary>
@@ -33,8 +33,7 @@ public record SimpleParserOptions
     }
 
     /// <summary>
-    /// Gets the <see cref="IServiceProvider"/> used to resolve command instances.<br/>
-    /// When <see langword="null"/>, each command type is instantiated with its parameterless constructor.
+    /// Gets the provider for command instances and <see cref="Arc.Unit.IConsoleService"/>, or null to use constructors and standard output.
     /// </summary>
     public IServiceProvider? ServiceProvider { get; init; }
 
@@ -44,7 +43,7 @@ public record SimpleParserOptions
     public bool RequireStrictCommandName { get; init; } = false;
 
     /// <summary>
-    /// Gets a value indicating whether an unregistered option name results in an error [the default is <see langword="false"/>].
+    /// Gets a value indicating whether unknown option names cause errors, except for subcommands. The default is false.
     /// </summary>
     public bool RequireStrictOptionName { get; init; } = false;
 
@@ -54,8 +53,7 @@ public record SimpleParserOptions
     public bool DisplayUsage { get; init; } = true;
 
     /// <summary>
-    /// Gets a value indicating whether help displays a single-line list of command names
-    /// instead of the detailed description of each command [the default is <see langword="false"/>].
+    /// Gets a value indicating whether help for all commands uses a single-line name list. The default is false.
     /// </summary>
     public bool DisplayCommandListAsHelp { get; init; } = false;
 
@@ -67,19 +65,19 @@ public record SimpleParserOptions
 
     /// <summary>
     /// Gets a value indicating whether an alias is created automatically from the command name [the default is <see langword="false"/>].<br/>
-    /// The alias consists of the initials of the words separated by hyphens (for example, 'remove-file' becomes 'rf').
+    /// Uses hyphen-separated initials, such as <c>remove-file</c> to <c>rf</c>; conflicting names or aliases are skipped.
     /// </summary>
     public bool AutoAlias { get; init; } = false;
 
     /// <summary>
     /// Gets a value indicating whether the command name is read from the environment variable
-    /// <see cref="SimpleParser.CommandEnvironmentVariable"/> when it is not specified in the arguments [the default is <see langword="true"/>].
+    /// <see cref="SimpleParser.CommandEnvironmentVariable"/> when no command, help, or version request is recognized. The default is true.
     /// </summary>
     public bool ReadCommandFromEnvironment { get; init; } = true;
 
     /// <summary>
     /// Gets the delimiter that encloses an argument containing spaces or newlines (for example, <c>"""a b"""</c>).<br/>
-    /// The default value is a triple quote. An empty string disables the delimiter.
+    /// Defaults to triple quotes. An empty string disables this delimiter; single and double quotes remain active.
     /// </summary>
     public string ArgumentDelimiter
     {
@@ -94,8 +92,7 @@ public record SimpleParserOptions
     }
 
     /// <summary>
-    /// Gets a value indicating whether help, version and error messages are not written
-    /// to the console [the default is <see langword="false"/>].
+    /// Gets a value indicating whether parser output, including console-service output, is suppressed. The default is false.
     /// </summary>
     public bool SuppressConsoleOutput { get; init; } = false;
 

@@ -12,7 +12,7 @@ using Arc;
 namespace SimpleCommandLine;
 
 /// <summary>
-/// Helper methods for handling command lines and arguments.
+/// Splits, normalizes, and inspects command-line text and argument arrays.
 /// </summary>
 public static class SimpleParserHelper
 {
@@ -54,6 +54,7 @@ public static class SimpleParserHelper
     /// <summary>
     /// Joins a collection of strings with space separators.
     /// </summary>
+    /// <remarks>Does not quote or escape values; the result may not preserve argument boundaries when parsed again.</remarks>
     /// <param name="values">The collection of strings to join.</param>
     /// <returns>A single string containing all values joined with spaces.</returns>
     public static string JoinWithSpace(this IEnumerable<string> values)
@@ -92,7 +93,7 @@ public static class SimpleParserHelper
 
     /// <summary>
     /// Trims whitespace and removes the surrounding triple quotes, double quotes or single quotes from the input string.<br/>
-    /// The quotes are kept if the text contains an unescaped quote of the same kind.
+    /// Single or double quotes are kept if the content contains an unescaped quote of the same kind.
     /// </summary>
     /// <param name="input">The input string.</param>
     /// <returns>The trimmed and unquoted string.</returns>
@@ -101,7 +102,7 @@ public static class SimpleParserHelper
 
     /// <summary>
     /// Trims whitespace and removes the surrounding triple quotes, double quotes or single quotes from the input span.<br/>
-    /// The quotes are kept if the text contains an unescaped quote of the same kind.
+    /// Single or double quotes are kept if the content contains an unescaped quote of the same kind.
     /// </summary>
     /// <param name="input">The input span.</param>
     /// <returns>The trimmed and unquoted span.</returns>
@@ -169,10 +170,10 @@ public static class SimpleParserHelper
     }
 
     /// <summary>
-    /// Gets the leading command name of a command line without parsing it.
+    /// Gets the first whitespace-delimited word without interpreting quotes, braces, or separators.
     /// </summary>
     /// <param name="commandLine">The command line.</param>
-    /// <returns>The first word of the command line, or <see cref="string.Empty"/> if it is blank or starts with an option.</returns>
+    /// <returns>The first word, or <see cref="string.Empty"/> if the input is blank or the word starts with <c>-</c>.</returns>
     public static string PeekCommand(ReadOnlySpan<char> commandLine)
     {
         if (commandLine.Length == 0)
@@ -302,12 +303,11 @@ public static class SimpleParserHelper
     }
 
     /// <summary>
-    /// Appends the value of the specified environment variable to the arguments.<br/>
-    /// The arguments are left unchanged if the variable is not set.
+    /// Appends an environment variable's value as one literal array element.
     /// </summary>
     /// <param name="args">The arguments to append to.</param>
     /// <param name="variableName">The name of the environment variable.</param>
-    /// <returns>The value of the environment variable, or <see cref="string.Empty"/> if it is not set.</returns>
+    /// <returns>The variable's value, or <see cref="string.Empty"/> if it is unset or cannot be read.</returns>
     public static string AppendEnvironmentVariable(ref string[] args, string variableName)
     {
         try
@@ -333,7 +333,8 @@ public static class SimpleParserHelper
     /// </summary>
     /// <param name="args">The command line to append to.</param>
     /// <param name="variableName">The name of the environment variable.</param>
-    /// <returns>The value of the environment variable, or <see cref="string.Empty"/> if it is not set.</returns>
+    /// <returns>The variable's value, or <see cref="string.Empty"/> if it is unset or cannot be read.</returns>
+    /// <remarks>The appended text is not quoted or escaped and may contain multiple arguments.</remarks>
     public static string AppendEnvironmentVariable(ref string args, string variableName)
     {
         try
@@ -353,13 +354,13 @@ public static class SimpleParserHelper
     }
 
     /// <summary>
-    /// Gets the value of the specified option from an array of arguments.<br/>
-    /// The name/value pair is removed from the array when it is found.
+    /// Removes the first matching option/value pair before a command separator and returns its value.
     /// </summary>
     /// <param name="args">The arguments.</param>
     /// <param name="optionName">The option name, without the leading '-' (case insensitive).</param>
     /// <param name="value">When this method returns, contains the value of the option; otherwise, <see cref="string.Empty"/>.</param>
     /// <returns><see langword="true"/> if the option and its value are found.</returns>
+    /// <remarks>Accepts <c>-name</c>, <c>--name</c>, and negative numeric values. Does not normalize the returned value.</remarks>
     public static bool TryGetAndRemoveArgument(ref string[] args, string optionName, out string value)
     {
         value = string.Empty;
@@ -451,7 +452,7 @@ public static class SimpleParserHelper
     /// </summary>
     /// <param name="commandLine">The command line.</param>
     /// <param name="delimiter">The argument delimiter (<see cref="SimpleParser.DefaultArgumentDelimiter"/> if empty).</param>
-    /// <returns>An array of command lines.</returns>
+    /// <returns>Command lines with tokens joined by spaces; enclosing quotes and braces are retained.</returns>
     public static string[] SplitCommandLines(this string commandLine, ReadOnlySpan<char> delimiter = default)
     {
         var args = commandLine.SplitArguments(delimiter);
@@ -493,13 +494,13 @@ public static class SimpleParserHelper
     }
 
     /// <summary>
-    /// Normalizes an argument: removes the surrounding delimiter or quotes, unescapes <c>\'</c> and <c>\"</c>,
-    /// and handles newlines according to <paramref name="argumentProcessing"/>.
+    /// Removes enclosing quotes or the configured delimiter, then processes newlines and escapes as requested.
     /// </summary>
     /// <param name="argument">The argument.</param>
     /// <param name="parserOptions">The parser options which provide the argument delimiter.</param>
     /// <param name="argumentProcessing">Specifies how newlines are handled.</param>
     /// <returns>The normalized argument (the original instance if nothing has changed).</returns>
+    /// <remarks><see cref="ArgumentProcessing.AsIs"/> preserves newlines and escapes, but still removes enclosing quotes or delimiters.</remarks>
     public static string ProcessArgument(string argument, SimpleParserOptions parserOptions, ArgumentProcessing argumentProcessing)
     {
         var span = argument.AsSpan();
@@ -630,11 +631,11 @@ Exit:
     }
 
     /// <summary>
-    /// Splits a command line into arguments, honoring quotes ('), double quotes ("), the argument delimiter (""") and brackets ({}).
+    /// Splits raw text at whitespace, commas, and command separators while honoring quotes, delimiters, and braces.
     /// </summary>
     /// <param name="commandLine">The command line.</param>
     /// <param name="delimiter">The argument delimiter (<see cref="SimpleParser.DefaultArgumentDelimiter"/> if empty).</param>
-    /// <returns>An array of arguments.</returns>
+    /// <returns>Raw tokens with quotes and braces retained; an unenclosed <c>|</c> is a separate token.</returns>
     public static string[] SplitArguments(this ReadOnlySpan<char> commandLine, ReadOnlySpan<char> delimiter = default)
         => SplitArgumentsCore(commandLine, delimiter.IsEmpty ? SimpleParser.DefaultArgumentDelimiter : delimiter);
 

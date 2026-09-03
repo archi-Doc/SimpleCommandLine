@@ -6,10 +6,10 @@ using System.Threading.Tasks;
 namespace SimpleCommandLine;
 
 /// <summary>
-/// Implemented by a command class which takes an options class.<br/>
-/// The class must also have a <see cref="SimpleCommandAttribute"/>.
+/// Executes a command with typed options and remaining arguments.
 /// </summary>
 /// <typeparam name="TOptions">The type of the options class.</typeparam>
+/// <remarks>Annotate the implementing class with <see cref="SimpleCommandAttribute"/>.</remarks>
 public interface ISimpleCommand<TOptions>
     where TOptions : new()
 {
@@ -18,22 +18,22 @@ public interface ISimpleCommand<TOptions>
     /// </summary>
     /// <param name="options">The options parsed from the command line.</param>
     /// <param name="args">The arguments which were not consumed as an option.</param>
-    /// <param name="cancellationToken">A token used to cancel the command execution.</param>
+    /// <param name="cancellationToken">The caller's cancellation token, which the implementation should observe.</param>
     /// <returns>A task that represents the command execution.</returns>
     Task Execute(TOptions options, string[] args, CancellationToken cancellationToken);
 }
 
 /// <summary>
-/// Implemented by a command class which takes no options.<br/>
-/// The class must also have a <see cref="SimpleCommandAttribute"/>.
+/// Executes a command without a typed options class.
 /// </summary>
+/// <remarks>Annotate the implementing class with <see cref="SimpleCommandAttribute"/>.</remarks>
 public interface ISimpleCommand
 {
     /// <summary>
     /// Called when the command is executed.
     /// </summary>
     /// <param name="args">The arguments which were not consumed as an option.</param>
-    /// <param name="cancellationToken">A token used to cancel the command execution.</param>
+    /// <param name="cancellationToken">The caller's cancellation token, which the implementation should observe.</param>
     /// <returns>A task that represents the command execution.</returns>
     Task Execute(string[] args, CancellationToken cancellationToken);
 }

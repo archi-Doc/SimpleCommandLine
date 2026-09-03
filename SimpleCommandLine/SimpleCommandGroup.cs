@@ -11,20 +11,21 @@ using Microsoft.Extensions.DependencyInjection;
 namespace SimpleCommandLine;
 
 /// <summary>
-/// A base class for a command which dispatches its arguments to a group of subcommands.
+/// Dispatches remaining arguments to an Arc.Unit command group's cached parser.
 /// </summary>
 /// <typeparam name="TCommand">The type of the derived command group.</typeparam>
+/// <remarks>Annotate the derived class with <see cref="SimpleCommandAttribute"/> and set <see cref="SimpleCommandAttribute.IsSubcommand"/> to true.</remarks>
 public abstract class SimpleCommandGroup<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TCommand> : ISimpleCommand
     where TCommand : SimpleCommandGroup<TCommand>
 {
     /// <summary>
-    /// Registers <typeparamref name="TCommand"/> with its parent and returns its own <see cref="CommandGroup"/>,
-    /// to which the subcommands are then added.
+    /// Registers this command in Arc.Unit and returns its child group for legacy configuration.
     /// </summary>
     /// <param name="context">The unit configuration context.</param>
-    /// <param name="parentCommandType">The type of the parent command. Use <see langword="null"/> to register at the top level.</param>
+    /// <param name="parentCommandType">The parent command type, or null to register in Arc.Unit's separate subcommand list.</param>
     /// <param name="lifetime">The service lifetime of the command.</param>
     /// <returns>The command group of <typeparamref name="TCommand"/>.</returns>
+    /// <remarks>This method does not populate <see cref="SimpleCommandRegistry"/>. Use the generic <see cref="UnitCommandExtensions"/> for shared registration.</remarks>
     [UnconditionalSuppressMessage("Trimming", "IL2067", Justification = "Arc.Unit 0.46 GetCommandGroup uses the type as a dictionary key and registers it with DI. The public constructors required by DI are preserved.")]
     [UnconditionalSuppressMessage("Trimming", "IL2087", Justification = "Arc.Unit 0.46 GetCommandGroup uses the type as a key and AddCommand registers a DI ServiceDescriptor. Only public constructors are required; command dispatch is handled separately by SimpleParserBuilder.")]
     public static CommandGroup ConfigureGroup(IUnitConfigurationContext context, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type? parentCommandType = null, ServiceLifetime lifetime = ServiceLifetime.Scoped)
@@ -53,7 +54,7 @@ public abstract class SimpleCommandGroup<[DynamicallyAccessedMembers(Dynamically
     /// Initializes a new instance of the <see cref="SimpleCommandGroup{TCommand}"/> class.
     /// </summary>
     /// <param name="context">The unit context which provides the subcommand types and the service provider.</param>
-    /// <param name="defaultArgument">The argument used when no argument is given. Use <see langword="null"/> to show the command list instead.</param>
+    /// <param name="defaultArgument">The raw command line used when the argument array is empty, or null to pass empty input to the parser.</param>
     /// <param name="parserOptions">
     /// The options of the inner parser. Use <see langword="null"/> for the defaults of a command group
     /// (a strict command and option name, no usage text, and the command list as help).
@@ -69,7 +70,7 @@ public abstract class SimpleCommandGroup<[DynamicallyAccessedMembers(Dynamically
     /// </summary>
     /// <param name="parserBuilder">The builder containing all subcommands and nested options types.</param>
     /// <param name="context">The unit context containing the group's command types and services.</param>
-    /// <param name="defaultArgument">The default subcommand, or null to show the command list.</param>
+    /// <param name="defaultArgument">The raw command line used for an empty argument array, or null to leave the input empty.</param>
     /// <param name="parserOptions">Options for the inner parser, or null for the group defaults.</param>
     public SimpleCommandGroup(SimpleParserBuilder parserBuilder, UnitContext context, string? defaultArgument = null, SimpleParserOptions? parserOptions = null)
         : this(context, defaultArgument, parserOptions, (types, options) => parserBuilder.Build(options, types))
@@ -81,8 +82,8 @@ public abstract class SimpleCommandGroup<[DynamicallyAccessedMembers(Dynamically
     /// </summary>
     /// <param name="registry">The shared registry, supplied by dependency injection after generic command registration.</param>
     /// <param name="context">The unit context supplying this group's child command types.</param>
-    /// <param name="defaultArgument">The default subcommand, or null to show the command list.</param>
-    /// <param name="parserOptions">Parser options. Supply a scoped ServiceProvider to resolve child commands in the same scope.</param>
+    /// <param name="defaultArgument">The raw command line used for an empty argument array, or null to leave the input empty.</param>
+    /// <param name="parserOptions">Options, or null for group defaults. Supply a scoped service provider to share the parent's scope.</param>
     public SimpleCommandGroup(SimpleCommandRegistry registry, UnitContext context, string? defaultArgument = null, SimpleParserOptions? parserOptions = null)
         : this(context, defaultArgument, parserOptions, (types, options) => registry.CreateParser(types, options))
     {
@@ -113,11 +114,10 @@ public abstract class SimpleCommandGroup<[DynamicallyAccessedMembers(Dynamically
     }
 
     /// <summary>
-    /// Parses the arguments and executes the specified subcommand.<br/>
-    /// The default argument is used when the arguments are empty.
+    /// Parses pre-split arguments and executes a child command, or processes the default command line for empty input.
     /// </summary>
     /// <param name="args">The arguments specifying the subcommand and its options.</param>
-    /// <param name="cancellationToken">A token used to cancel the command execution.</param>
+    /// <param name="cancellationToken">The token forwarded to the child command.</param>
     /// <returns>A task that represents the command execution.</returns>
     public Task Execute(string[] args, CancellationToken cancellationToken)
     {
@@ -130,7 +130,7 @@ public abstract class SimpleCommandGroup<[DynamicallyAccessedMembers(Dynamically
     }
 
     /// <summary>
-    /// Gets the options of the inner parser.
+    /// Gets the inner parser's options, with the unit's service provider as the fallback.
     /// </summary>
     public SimpleParserOptions ParserOptions { get; }
 

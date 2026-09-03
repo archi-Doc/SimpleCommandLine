@@ -8,9 +8,9 @@ using System.Linq;
 namespace SimpleCommandLine;
 
 /// <summary>
-/// An immutable snapshot of command and options metadata, shared by parsers belonging to the same Arc.Unit unit.
-/// Parser instances and their parse results are not shared.
+/// Stores immutable command registrations and preserved options metadata for creating parsers.
 /// </summary>
+/// <remarks>Arc.Unit registers one instance per unit. Parsers have separate parse state; their command instances may be shared by DI.</remarks>
 public sealed class SimpleCommandRegistry
 {
     internal SimpleCommandRegistry(Dictionary<Type, SimpleCommandRegistration> commands, Dictionary<Type, PreservedType> optionTypes)
@@ -23,9 +23,10 @@ public sealed class SimpleCommandRegistry
     /// Creates a parser for the specified registered commands, preserving their order.
     /// </summary>
     /// <param name="commandTypes">The command types, usually supplied by Arc.Unit's command lists.</param>
-    /// <param name="parserOptions">The parser options, or null for the defaults.</param>
+    /// <param name="parserOptions">The parser options, or null for <see cref="SimpleParserOptions.Standard"/>. Supply a service provider when needed.</param>
     /// <returns>A new parser with independent options and parse state.</returns>
-    /// <exception cref="InvalidOperationException">A command or nested options type has not been registered.</exception>
+    /// <exception cref="ArgumentNullException"><paramref name="commandTypes"/> is null.</exception>
+    /// <exception cref="InvalidOperationException">A type is not registered, or the selected commands or options are invalid.</exception>
     public SimpleParser CreateParser(IEnumerable<Type> commandTypes, SimpleParserOptions? parserOptions = null)
     {
         ArgumentNullException.ThrowIfNull(commandTypes);
