@@ -3,8 +3,9 @@
 namespace SimpleCommandLine;
 
 /// <summary>
-/// Specifies how newlines and escape sequences in a string argument are handled.<br/>
+/// Specifies how newlines and escape sequences in a raw command-line argument are handled.<br/>
 /// The surrounding delimiter or quotes are always removed, whichever value is used.
+/// Pre-split string-array values are kept verbatim and do not use this normalization.
 /// </summary>
 public enum ArgumentProcessing
 {

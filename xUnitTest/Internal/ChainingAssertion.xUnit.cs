@@ -389,16 +389,21 @@ namespace Xunit
 
             Assert.Equal(expectedCollection.Count, actualCollection.Count);
             var names = new[] { actual.GetType().Name };
+            var matched = new bool[actualCollection.Count];
             foreach (var expectedEntry in expectedCollection)
             {
                 bool matchFound = false;
+                var actualIndex = 0;
                 foreach (var actualEntry in actualCollection)
                 {
-                    if (StructuralEqual(actualEntry, expectedEntry, names).IsEquals)
+                    if (!matched[actualIndex] && StructuralEqual(actualEntry, expectedEntry, names).IsEquals)
                     {
+                        matched[actualIndex] = true;
                         matchFound = true;
                         break;
                     }
+
+                    actualIndex++;
                 }
 
                 Assert.True(matchFound);

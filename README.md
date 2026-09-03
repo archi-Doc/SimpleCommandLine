@@ -15,14 +15,17 @@ Simple command-line parser for .NET console applications.
 
 - [Requirements](#requirements)
 - [Quick Start](#quick-start)
+- [NativeAOT and Trimming](#nativeaot-and-trimming)
 - [Commands](#commands)
 - [Options](#options)
 - [Option Types](#option-types)
 - [Argument Syntax](#argument-syntax)
 - [Parser Options](#parser-options)
 - [Parser API](#parser-api)
+- [Arc.Unit Integration](#arcunit-integration)
 - [Command Groups](#command-groups)
 - [Helper Methods](#helper-methods)
+- [Tests and Coverage](#tests-and-coverage)
 - [License](#license)
 
 
@@ -129,6 +132,67 @@ test Test command.
 
 
 
+## NativeAOT and Trimming
+
+Use `SimpleParserBuilder`, or the [Arc.Unit integration](#arcunit-integration), when publishing with NativeAOT or trimming. Both share the same registration implementation: they preserve the reflection metadata used to create options and read or write their members, and dispatch commands through their interfaces without reflection invocation.
+
+```csharp
+var builder = new SimpleParserBuilder()
+    .AddCommand<TestCommand, TestOptions>(); // Registers the command and its root options.
+
+var parser = builder.Build();
+await parser.ParseAndExecute(args);
+```
+
+Use `AddCommand<TCommand>()` for a command without options. For nested options, register **each nested options type** with `AddOptions<TOptions>()`. Base classes and their non-public members are preserved automatically. Missing nested registrations produce an `InvalidOperationException` naming the type at parser construction time.
+
+```csharp
+var builder = new SimpleParserBuilder()
+    .AddCommand<TestCommand, TestOptions>()
+    .AddOptions<NestedOptions>();
+
+var parser = builder.Build(SimpleParserOptions.Standard with
+{
+    RequireStrictOptionName = true,
+});
+
+// Parse without a command; the root options type is registered automatically.
+builder.TryParseOptions<TestOptions>("-number 1 -text example", out var options);
+```
+
+`Build()` creates a snapshot, so later registrations do not change an existing parser. Attributes, aliases, help/version output, required options, nullable values, enums, inherited/non-public members, explicit interface implementations and Tinyhand-generated option serialization work with this API. `TryParseOptions` retains the existing helper's behavior: invalid optional values are ignored; use a parser's `Parse()` to reject conversion errors.
+
+The `IEnumerable<Type>` constructor, static `ParseAndExecute` overloads and static `TryParseOptions` methods remain available for untrimmed applications. They use runtime type discovery and are annotated with `RequiresUnreferencedCode`; migrate those calls to the builder or the generic Arc.Unit registration methods for trimmed/NativeAOT applications.
+
+With Arc.Unit, register each command once using the generic context/group methods and inject the unit's `SimpleCommandRegistry` into command groups. There is no separate parser-builder registration in the group constructor:
+
+```csharp
+public DbCommand(SimpleCommandRegistry registry, UnitContext context)
+    : base(registry, context, "list")
+{
+}
+```
+
+See [Command Groups](#command-groups) for the complete registration example. Service providers and custom serializers must themselves support NativeAOT. The legacy command-group constructor uses runtime discovery and requires migration too. The constructor taking a standalone `SimpleParserBuilder` remains available.
+
+The library enables `IsAotCompatible` analysis. Publish and run the sample on Windows x64 with:
+
+```powershell
+dotnet publish QuickStart/QuickStart.csproj -c Release -r win-x64 -p:PublishAot=true -o artifacts/quickstart
+./artifacts/quickstart/QuickStart.exe test -text example
+```
+
+The smoke-test project treats compiler and trimming warnings as errors and exercises parsing, command execution, DI, groups, help, Tinyhand serialization and failure/recovery paths. It runs in CI on Windows x64 and Linux x64:
+
+```powershell
+dotnet publish Tests/NativeAotTest/NativeAotTest.csproj -c Release -r win-x64 -o artifacts/native-aot
+./artifacts/native-aot/NativeAotTest.exe --require-aot
+```
+
+For Linux, use `-r linux-x64` and run `./artifacts/native-aot/NativeAotTest --require-aot`. NativeAOT requires the platform's native build tools; see Microsoft's [NativeAOT prerequisites](https://learn.microsoft.com/dotnet/core/deploying/native-aot/).
+
+
+
 ## Commands
 
 A command is a class annotated with `SimpleCommandAttribute` which implements one of the following interfaces.
@@ -221,11 +285,11 @@ With `ReadFromEnvironment`, an option that is not specified on the command line 
 public string ApiKey { get; set; } = string.Empty;
 ```
 
-The command name itself is read from the `Command` environment variable when it is not specified on the command line (`ReadCommandFromEnvironment`).
+The command name itself is read from the `Command` environment variable when it is not specified on the command line (`ReadCommandFromEnvironment`). Explicit help and version requests take priority over that fallback. Invalid environment option values fail `Parse()` just like invalid command-line values; standalone `TryParseOptions()` continues to ignore invalid optional values.
 
 ### Argument Processing
 
-`ArgumentProcessing` controls how the value of a `string` option is normalized. The surrounding delimiter or quotes are always removed.
+For a raw command-line string, `ArgumentProcessing` controls how option values are normalized. The surrounding delimiter or quotes are removed before conversion, including for numeric and enum values. Pre-split `string[]` values are already arguments and are kept verbatim; their quotes, escapes and newlines are not processed again.
 
 | Value | Description |
 | --- | --- |
@@ -304,6 +368,10 @@ test Test command.
 
 Unknown option names are passed to the command as remaining arguments. Set `RequireStrictOptionName` to make them an error instead.
 
+The syntax table applies to raw command-line strings. For `Parse(string[])`, `ParseAndExecute(string[])` and `TryParseOptions(string[])`, each element is already one argument: spaces, empty strings, commas and literal quotes inside a value are preserved. This also prevents subcommands from splitting forwarded values a second time. A standalone `|` still ends a command. Nested options are supplied as a single element containing their expression, such as `"{-host 'two words'}"`.
+
+Earlier versions joined array elements with spaces and parsed the resulting string again. Call the string overload explicitly if you intentionally pass command-line fragments instead of individual arguments. Set `ArgumentDelimiter = string.Empty` to disable the extra delimiter; single and double quotes still work.
+
 
 
 ## Parser Options
@@ -378,6 +446,60 @@ if (SimpleParser.TryParseOptions<TestOptions>("-number 1 -text example", out var
 
 
 
+## Arc.Unit Integration
+
+Import `SimpleCommandLine` to enable generic registration extensions on `IUnitConfigurationContext`. A single registration adds the command to Arc.Unit's command list and DI services, and records its NativeAOT metadata in the unit's shared registry.
+
+```csharp
+using Arc.Unit;
+using SimpleCommandLine;
+
+var unitBuilder = new UnitBuilder();
+unitBuilder.Configure(context =>
+{
+    context.AddCommand<TestCommand, TestOptions>();
+    // Register every nested options type used by these commands, if any:
+    context.AddOptionType<NestedOptions>();
+});
+
+var unit = unitBuilder.Build();
+var parser = unit.Context.CreateSimpleParser();
+await parser.ParseAndExecute(args);
+```
+
+Use `context.AddCommand<TCommand>()` for commands without options. Both overloads accept a `ServiceLifetime` (default: `Scoped`) and return whether the command was newly added to the selected list. Arc.Unit keeps the first DI registration, including its lifetime or a pre-registered service instance. Repeating a generic registration is safe; choosing a different options type for the same command throws an error.
+
+| Registration | Parser creation | Command list |
+| --- | --- | --- |
+| `context.AddCommand<TCommand, TOptions>()` | `unit.Context.CreateSimpleParser()` | `UnitContext.Commands` |
+| `context.AddSubcommand<TCommand, TOptions>()` | `unit.Context.CreateSimpleSubcommandParser()` | `UnitContext.Subcommands` |
+| `context.GetSimpleCommandGroup<TParent>().AddCommand<TCommand, TOptions>()` | `unit.Context.CreateSimpleParser<TParent>()` | `UnitContext.GetCommandTypes(typeof(TParent))` |
+
+Each registration also has a `TCommand`-only overload. Register the parent command itself in its desired list before obtaining its group. Child groups select commands from Arc.Unit's membership lists; command metadata can be shared across groups without adding those commands to other lists.
+
+The integration uses `IUnitCustomContext` to collect metadata across configuration delegates and modules. After `Configure` completes, it registers an immutable `SimpleCommandRegistry` singleton with the unit's service provider. Registrations must finish during `Configure`; modifying a retained context/group after it has been finalized throws an error. Different units have independent registries.
+
+`CreateSimpleParser` creates a fresh parser each time. Parse results, options instances and mutable help descriptions are independent. Command instances follow their DI lifetime; a parser caches each resolved command instance for its own lifetime, just as a standalone parser does.
+
+For scoped services, supply the current scope's provider:
+
+```csharp
+using Microsoft.Extensions.DependencyInjection;
+
+using var scope = unit.Context.ServiceProvider.CreateScope();
+var parser = unit.Context.CreateSimpleParser(SimpleParserOptions.Standard with
+{
+    ServiceProvider = scope.ServiceProvider,
+});
+await parser.ParseAndExecute(args);
+```
+
+Without an explicit provider, the unit's provider is used. When a command group must resolve its children in the same DI scope, inject `IServiceProvider` into the group and pass it through `parserOptions.ServiceProvider` to the base constructor.
+
+The existing Arc.Unit `AddCommand(typeof(...))` / `AddSubcommand(typeof(...))` methods do not capture parser metadata. Replace them with the generic extensions for this integration. If an existing raw registration is later supplemented with a generic registration, its DI registration is retained and its parser metadata is added. Raw-only commands or missing nested option types produce a descriptive error when creating the parser.
+
+
+
 ## Command Groups
 
 `SimpleCommandGroup<TCommand>` dispatches its arguments to a group of subcommands, using `Arc.Unit` for the registration and the service provider.
@@ -388,12 +510,13 @@ public class DbCommand : SimpleCommandGroup<DbCommand>
 {
     public static void Configure(IUnitConfigurationContext context)
     {
-        var group = ConfigureGroup(context); // Registers DbCommand and returns its own group.
-        group.AddCommand(typeof(DbListCommand)); // Adds a subcommand to the group.
+        context.AddCommand<DbCommand>(); // Register the parent in the top-level command list.
+        var group = context.GetSimpleCommandGroup<DbCommand>();
+        group.AddCommand<DbListCommand>(); // One registration for membership, DI and NativeAOT metadata.
     }
 
-    public DbCommand(UnitContext context)
-        : base(context, "list")
+    public DbCommand(SimpleCommandRegistry registry, UnitContext context)
+        : base(registry, context, "list")
     {// "list" is executed when no subcommand is specified.
     }
 }
@@ -406,11 +529,22 @@ public class DbListCommand : ISimpleCommand
 }
 ```
 
+In `Main`, configure the unit and create the top-level parser:
+
+```csharp
+var builder = new UnitBuilder();
+builder.Configure(DbCommand.Configure);
+var unit = builder.Build();
+await unit.Context.CreateSimpleParser().ParseAndExecute(args);
+```
+
 ```
 app.exe db list
 ```
 
-Pass `parentCommandType` to `ConfigureGroup()` to nest a group inside another group. The inner parser uses `RequireStrictCommandName`, `RequireStrictOptionName`, `DisplayUsage = false` and `DisplayCommandListAsHelp` unless you pass your own `SimpleParserOptions`.
+To nest a group, register it as a child with `context.GetSimpleCommandGroup<TParent>().AddCommand<TChildGroup>()`, then register its children through `context.GetSimpleCommandGroup<TChildGroup>()`. The inner parser uses `RequireStrictCommandName`, `RequireStrictOptionName`, `DisplayUsage = false` and `DisplayCommandListAsHelp` unless you pass your own `SimpleParserOptions`.
+
+The older `ConfigureGroup(context, parentCommandType)` API remains available for existing manually configured parsers. The generic context/group extensions above provide the shared-registry integration.
 
 
 
@@ -433,6 +567,18 @@ Pass `parentCommandType` to `ConfigureGroup()` to nest a group inside another gr
 | `CreateAliasFromCommand(commandName)` | The initials of the hyphen-separated words. |
 | `TryGetAndRemoveArgument(ref args, optionName, out value)` | Takes an option and its value out of an argument array. |
 | `AppendEnvironmentVariable(ref args, variableName)` | Appends the value of an environment variable to the arguments. |
+
+
+
+## Tests and Coverage
+
+Run the tests and collect library-only line and branch coverage using Microsoft.Testing.Platform:
+
+```powershell
+dotnet test --project xUnitTest/xUnitTest.csproj -c Release --coverage --coverage-settings xUnitTest/coverage.config --coverage-output-format cobertura --coverage-output "$PWD/artifacts/coverage/coverage.cobertura.xml"
+```
+
+The configuration instruments `SimpleCommandLine.dll`, including its generated code, and excludes test assemblies, samples and dependencies by assembly selection. CI uploads the Cobertura report as `code-coverage`. The [review and coverage report](docs/code-review.md) records the baseline, added regression tests, compatibility changes and validation limits. NativeAOT verification uses the separate smoke-test commands above.
 
 
 

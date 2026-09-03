@@ -5,8 +5,7 @@ using System;
 namespace SimpleCommandLine;
 
 /// <summary>
-/// Marks a field or property of an options class as a command-line option
-/// and specifies its name and other properties.
+/// Maps an instance field or property to a named command-line option.
 /// </summary>
 [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property, AllowMultiple = false, Inherited = true)]
 public class SimpleOptionAttribute : Attribute
@@ -28,15 +27,16 @@ public class SimpleOptionAttribute : Attribute
     public string Description { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the text shown as the default value in a help message
-    /// [the default is <see langword="null"/>: the actual value of a new instance is shown].
+    /// Gets or sets help-only default text, or null to use the member's default value for optional options.
     /// </summary>
+    /// <remarks>Does not set the parsed value. Required options display this text as a hint.</remarks>
     public string? DefaultValueText { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether a value is required for this option [the default is <see langword="false"/>].<br/>
     /// The option name may be omitted unless <see cref="SimpleParserOptions.OmitOptionNamesForRequiredOptions"/> is disabled.
     /// </summary>
+    /// <remarks>A default member value does not satisfy this requirement; supply a value in the input or environment.</remarks>
     public bool Required { get; set; }
 
     /// <summary>
@@ -47,16 +47,16 @@ public class SimpleOptionAttribute : Attribute
     public bool ReadFromEnvironment { get; set; }
 
     /// <summary>
-    /// Gets or sets how the argument is normalized
-    /// [the default is <see cref="ArgumentProcessing.ReplaceNewlinesWithSpace"/>].
+    /// Gets or sets raw-value normalization; defaults to <see cref="ArgumentProcessing.ReplaceNewlinesWithSpace"/>.
     /// </summary>
+    /// <remarks>Pre-split array values are kept verbatim. Nested expressions are processed by their own options parser.</remarks>
     public ArgumentProcessing ArgumentProcessing { get; set; } = ArgumentProcessing.ReplaceNewlinesWithSpace;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SimpleOptionAttribute"/> class.
     /// </summary>
     /// <param name="longName">The long option name.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="longName"/> is empty or whitespace.</exception>
+    /// <exception cref="ArgumentNullException"><paramref name="longName"/> is null, empty, or whitespace.</exception>
     public SimpleOptionAttribute(string longName)
     {
         if (string.IsNullOrWhiteSpace(longName))

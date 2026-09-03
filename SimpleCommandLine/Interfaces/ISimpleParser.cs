@@ -9,6 +9,13 @@ namespace SimpleCommandLine;
 internal interface ISimpleParser
 {
     /// <summary>
+    /// Resolves an options type with preserved reflection metadata.
+    /// </summary>
+    /// <param name="type">The options type.</param>
+    /// <returns>The preserved type.</returns>
+    PreservedType ResolveType(System.Type type);
+
+    /// <summary>
     /// Adds an error message to be displayed in a help message.
     /// </summary>
     /// <param name="message">The error message.</param>

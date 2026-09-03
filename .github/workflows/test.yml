@@ -3,6 +3,7 @@ name: Build and Test
 on:
   push:
     branches: [ main ]
+  pull_request:
 
 jobs:
   build:
@@ -19,5 +20,36 @@ jobs:
       run: dotnet restore
     - name: Build
       run: dotnet build --configuration Release --no-restore
-    - name: Test
-      run: dotnet test --no-restore --verbosity normal
+    - name: Test with coverage
+      run: >-
+        dotnet test --project xUnitTest/xUnitTest.csproj -c Release --no-build --no-restore
+        --coverage --coverage-settings xUnitTest/coverage.config
+        --coverage-output-format cobertura
+        --coverage-output "${{ github.workspace }}/artifacts/coverage/coverage.cobertura.xml"
+    - name: Upload coverage
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: code-coverage
+        path: artifacts/coverage/*.cobertura.xml
+
+  native-aot:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+            executable: NativeAotTest.exe
+          - os: ubuntu-latest
+            rid: linux-x64
+            executable: NativeAotTest
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v5
+    - uses: actions/setup-dotnet@v5
+      with:
+        dotnet-version: 10.0.x
+    - name: Publish NativeAOT smoke tests (warnings are errors)
+      run: dotnet publish Tests/NativeAotTest/NativeAotTest.csproj -c Release -r ${{ matrix.rid }} -o artifacts/native-aot
+    - name: Run native executable
+      run: ./artifacts/native-aot/${{ matrix.executable }} --require-aot

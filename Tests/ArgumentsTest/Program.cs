@@ -58,7 +58,7 @@ static void Test2(StringBuilder sb, string arg, string[]? formatted, ReadOnlySpa
     sb.Append($"{prefix}{arg}  ->  {string.Join(',', result)}");
     foreach (var x in result)
     {
-        if (x.Length >= 2 && x.StartsWith('{') && arg.EndsWith('}'))
+        if (x.Length >= 2 && x.StartsWith('{') && x.EndsWith('}'))
         {
             var result2 = x.Substring(1, x.Length - 2).SplitArguments(delimiter);
             if (result2.Length > 1)
