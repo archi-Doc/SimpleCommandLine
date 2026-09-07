@@ -128,10 +128,12 @@ public sealed class SimpleParserBuilder
 
     private void AddOptionType([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] Type type)
     {
-        if (type == typeof(object) || !this.optionTypes.TryAdd(type, new PreservedType(type)))
+        if (type == typeof(object) || this.optionTypes.ContainsKey(type))
         {
             return;
         }
+
+        this.optionTypes.Add(type, new PreservedType(type));
 
         if (type.BaseType is { } baseType)
         {

@@ -95,6 +95,15 @@ public static class SmokeScenarios
         Check(parser.CurrentCommand.OptionClass.RemainingArguments is ["", "\"literal\""], "array literals are not normalized again");
         Check(builder.TryParseOptions<Options>(["-name", ""], out var emptyName) && emptyName.Name.Length == 0, "standalone native array overload");
         Check(parser.Parse("run -name quoted -number '5' -mode \"Second\""), "quoted scalar native conversion");
+        Check(parser.Parse("run -name 'a\nb' -number '42' | ignored -number invalid"), "first command and normalized value");
+        options = (Options)parser.CurrentCommand!.OptionClass.OptionInstance!;
+        Check(options.Name == "a b" && options.Number == 42, "span scalar conversion preserves values");
+        var delimitedParser = builder.Build(settings with { ServiceProvider = provider, ArgumentDelimiter = "||" });
+        Check(delimitedParser.Parse("run -name ||a | b||"), "separator-prefixed custom delimiter");
+        Check(((Options)delimitedParser.CurrentCommand!.OptionClass.OptionInstance!).Name == "a | b", "custom delimiter content");
+        var deep = new string('{', 100) + "a | b" + new string('}', 100);
+        Check(deep.SplitArguments() is [var nestedToken] && nestedToken == deep, "pooled nesting stack");
+        Check("||".SplitCommandLines() is ["", "", ""], "empty command segments");
         Check(builder.TryParseOptions<OverriddenOptions>("-value 17", out var overridden) && overridden.Value == 17, "virtual option override metadata");
         Check(new SimpleParserBuilder().Build(settings).Parse("help"), "empty native parser help");
 

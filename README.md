@@ -24,6 +24,7 @@ A command-line parser for .NET console applications.
 - [Arc.Unit Integration](#arcunit-integration)
 - [Command Groups](#command-groups)
 - [Helper Methods](#helper-methods)
+- [Performance](#performance)
 - [Tests and Coverage](#tests-and-coverage)
 - [License](#license)
 
@@ -134,11 +135,11 @@ Options classes normally have public parameterless constructors. Annotated insta
 | `ReadFromEnvironment` | Reads from the environment when no value was successfully supplied. |
 | `ArgumentProcessing` | Normalizes raw values; defaults to `ReplaceNewlinesWithSpace`. |
 
-Set ordinary defaults in member initializers or the options constructor. Repeated valid occurrences use the last value. Every recognized option needs a value, including boolean options such as `-enabled true`.
+Set ordinary defaults in member initializers or the options constructor. Repeated valid occurrences use the last value. Every recognized option needs a value, including boolean options such as `-enabled true`. Only leading hyphens are removed during name lookup: `-name-` targets an option named `name-`, and `help-` does not request help.
 
 ### Required Values and Environment Variables
 
-An unset required option fails parsing even if its member has an initializer. Unnamed values supply the first unset required option in base-to-derived declaration order. Set `OmitOptionNamesForRequiredOptions = false` to require option names. An empty string is a valid value for a required string option.
+An unset required option fails parsing even if its member has an initializer. Unnamed values supply the first unset required option in base-to-derived reflection order; within each type, this may differ from source order when fields and properties are mixed. Use explicit option names when ordering matters, or set `OmitOptionNamesForRequiredOptions = false`. An empty string is a valid value for a required string option.
 
 For `ReadFromEnvironment`, the short-name environment variable is checked first, then the long name if the short variable is absent. A successfully parsed input value takes precedence. An invalid supplied value still makes ordinary `Parse()` fail even if the environment provides a valid fallback.
 
@@ -221,7 +222,7 @@ Quotes and the configured delimiter are removed before scalar conversion, includ
 | `RemoveNewlines` | Removes `\r` and `\n`, and unescapes `\'` and `\"`. |
 | `AsIs` | Preserves newlines and escapes. |
 
-Nested brace expressions retain their syntax until their own parser handles it. Remaining scalar arguments use `ReplaceNewlinesWithSpace`. Setting `ArgumentDelimiter = string.Empty` disables the extra delimiter; single and double quotes remain active.
+Nested brace expressions retain their syntax until their own parser handles it. Remaining scalar arguments use `ReplaceNewlinesWithSpace`. Setting `ArgumentDelimiter = string.Empty` disables the extra delimiter; single and double quotes remain active. Choose custom delimiters without whitespace. A matching delimiter takes precedence over commas, pipes, and braces; for example, `ArgumentDelimiter = "||"` parses `||a | b||` as one value.
 
 ### Pre-split Argument Arrays
 
@@ -244,6 +245,8 @@ foreach (var line in "greet Ada | greet Grace".SplitCommandLines())
 }
 ```
 
+`SplitCommandLines()` preserves empty segments, including the final segment after a trailing separator. For example, `"a||"` produces `["a", "", ""]`; blank input produces an empty array. Skip empty segments in the loop if they should not invoke the default command.
+
 ## Parser Options
 
 Use `SimpleParserOptions.Standard with { ... }` to customize parsing. `StrictCommandName` and `StrictOptionName` are presets that enable their respective flags independently.
@@ -259,7 +262,7 @@ Use `SimpleParserOptions.Standard with { ... }` to customize parsing. `StrictCom
 | `AutoAlias` | `false` | Creates nonconflicting command initials and enables the help alias `h`. |
 | `ReadCommandFromEnvironment` | `true` | Uses the `Command` variable when no command/help/version request is recognized. |
 | `ArgumentDelimiter` | `"""` | Extra raw-value delimiter; an empty string disables it. |
-| `SuppressConsoleOutput` | `false` | Suppresses parser output through both the console and `IConsoleService`. Command output is unaffected. |
+| `SuppressConsoleOutput` | `false` | Skips parser output and help/version/list formatting, including help-only instance creation. Command output is unaffected. |
 
 ## Parser API and State
 
@@ -447,7 +450,7 @@ The constructor taking a standalone `SimpleParserBuilder` remains available. The
 | `ExtractArguments(commandLine)` | Removes an executable path from Environment.CommandLine-style text. |
 | `PeekCommand(commandLine)` | First whitespace-delimited word, or empty for blank input or a word starting with `-`; does not parse syntax. |
 | `SplitArguments(commandLine, delimiter)` | Raw tokens with enclosing quotes/braces retained. An empty delimiter argument selects triple quotes. |
-| `SplitCommandLines(commandLine, delimiter)` | Splits at unenclosed `\|` and rejoins each command's tokens with spaces. |
+| `SplitCommandLines(commandLine, delimiter)` | Splits at unenclosed `\|` and rejoins tokens with spaces. Preserves empty segments; blank input returns an empty array. |
 | `SplitAtSpace(text)` | Splits at whitespace without interpreting quotes or braces. |
 | `JoinWithSpace(values)` | Joins with spaces without quoting; reparsing may lose argument boundaries. |
 | `TrimQuotes(text)` / `TrimQuotesAndBraces(text)` | Trims surrounding whitespace and removes recognized wrappers; does not unescape values. |
@@ -457,6 +460,20 @@ The constructor taking a standalone `SimpleParserBuilder` remains available. The
 | `CreateAliasFromCommand(commandName)` | Hyphen-separated initials without checking registration conflicts. |
 | `TryGetAndRemoveArgument(ref args, name, out value)` | Removes a matching option/value pair before the first command separator. |
 | `AppendEnvironmentVariable(ref args, name)` | Appends one literal array element or unescaped text to a command-line string. |
+
+## Performance
+
+Build once and reuse the parser sequentially. Prefer `Parse(string[])` when arguments are already split: it keeps value strings unchanged and avoids tokenizing raw text. It still joins the array for `OriginalCommandLine` diagnostics. Each command parse creates fresh options, and returned remaining-argument arrays stay independent of later parses.
+
+Raw parsing stops tokenization at the first command separator. Quoted numeric and enum values that only need unwrapping are converted from spans without allocating an unquoted string. Tokenization uses stack buffers, renting larger buffers for long inputs or deep nesting. Remaining-argument scratch capacity is reused and its string references are cleared after normal completion. Primitive values other than booleans still require boxing for reflection-based member assignment.
+
+Run the dependency-free measurement harness in Release mode:
+
+```shell
+dotnet run --project Benchmarks/Benchmarks.csproj -c Release
+```
+
+It reports elapsed nanoseconds and managed bytes per operation after warmup. Parser construction is excluded, and environment command lookup and console output are disabled. Timings depend on the runtime and machine; compare repeated runs on the same host. This measures allocations, not retained memory or total application performance. See [measurement results and methodology](Benchmarks/README.md).
 
 ## Tests and Coverage
 

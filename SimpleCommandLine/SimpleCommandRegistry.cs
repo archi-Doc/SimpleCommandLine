@@ -32,7 +32,7 @@ public sealed class SimpleCommandRegistry
         ArgumentNullException.ThrowIfNull(commandTypes);
         var registrations = commandTypes.Select(type => this.commands.TryGetValue(type, out var registration)
             ? registration
-            : throw new InvalidOperationException($"Command type '{type}' is not registered. Use SimpleParserBuilder.AddCommand or the generic IUnitConfigurationContext.AddCommand/AddSubcommand methods during configuration.")).ToArray();
+            : throw new InvalidOperationException($"Command type '{type}' is not registered. Use SimpleParserBuilder.AddCommand or the generic IUnitConfigurationContext.AddCommand/AddSubcommand methods during configuration."));
         return new SimpleParser(registrations, parserOptions, this.ResolveType);
     }
 
