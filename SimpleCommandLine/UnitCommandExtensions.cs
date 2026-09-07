@@ -154,6 +154,6 @@ public static class UnitCommandExtensions
     private static SimpleParserOptions WithServiceProvider(UnitContext context, SimpleParserOptions? options)
     {
         options ??= SimpleParserOptions.Standard;
-        return options with { ServiceProvider = options.ServiceProvider ?? context.ServiceProvider };
+        return options.ServiceProvider is not null ? options : options with { ServiceProvider = context.ServiceProvider };
     }
 }

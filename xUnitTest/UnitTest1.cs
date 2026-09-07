@@ -100,7 +100,8 @@ public class UnitTest1
         options.B.Is(0);
 
         "".SplitCommandLines().SequenceEqual([]).IsTrue();
-        "| ".SplitCommandLines().SequenceEqual([string.Empty]).IsTrue();
+        // A separator preserves both empty command segments, including the trailing one.
+        "| ".SplitCommandLines().SequenceEqual([string.Empty, string.Empty]).IsTrue();
         "-A 1 | -B 2".SplitCommandLines().SequenceEqual(["-A 1", "-B 2"]).IsTrue();
     }
 

@@ -79,6 +79,7 @@ public record SimpleParserOptions
     /// Gets the delimiter that encloses an argument containing spaces or newlines (for example, <c>"""a b"""</c>).<br/>
     /// Defaults to triple quotes. An empty string disables this delimiter; single and double quotes remain active.
     /// </summary>
+    /// <remarks>Use a delimiter without whitespace. It takes precedence over commas, pipes, and braces when it matches.</remarks>
     public string ArgumentDelimiter
     {
         get => this.argumentDelimiter;
@@ -94,6 +95,7 @@ public record SimpleParserOptions
     /// <summary>
     /// Gets a value indicating whether parser output, including console-service output, is suppressed. The default is false.
     /// </summary>
+    /// <remarks>Skips help/version/list formatting and help-only instance creation. Command execution and command output are unaffected.</remarks>
     public bool SuppressConsoleOutput { get; init; } = false;
 
     /// <summary>

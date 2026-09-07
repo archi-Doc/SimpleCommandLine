@@ -390,7 +390,7 @@ public class SimpleParser : ISimpleParser
         /// Arguments which are not consumed as an option are stored in <see cref="RemainingArguments"/>.
         /// </summary>
         /// <param name="args">Raw tokens, such as those returned by <see cref="SimpleParserHelper.SplitArguments"/>.</param>
-        /// <param name="startIndex">The index at which parsing starts.</param>
+        /// <param name="startIndex">The index at which parsing starts, from zero through the array length.</param>
         /// <param name="acceptUnknownOptionName">
         /// <see langword="true"/> to ignore an unknown option name even when <see cref="SimpleParserOptions.RequireStrictOptionName"/> is enabled.
         /// </param>
@@ -399,15 +399,24 @@ public class SimpleParser : ISimpleParser
         /// Normalizes token values and updates the existing options instance; unspecified values are retained.
         /// For already processed arguments, use <see cref="SimpleParser.Parse(string[])"/> instead.
         /// </remarks>
+        /// <exception cref="ArgumentNullException"><paramref name="args"/> is null.</exception>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="startIndex"/> is outside the array bounds.</exception>
         public bool Parse(string[] args, int startIndex, bool acceptUnknownOptionName)
-            => this.ParseCore(args, startIndex, acceptUnknownOptionName, true);
+        {
+            ArgumentNullException.ThrowIfNull(args);
+            ArgumentOutOfRangeException.ThrowIfNegative(startIndex);
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(startIndex, args.Length);
+            return this.ParseCore(args, startIndex, acceptUnknownOptionName, true);
+        }
 
         internal bool ParseCore(string[] args, int startIndex, bool acceptUnknownOptionName, bool processArguments)
         {
             this.FatalError = false;
             this.RemainingArguments = null;
             var errorFlag = false;
+            var nextRequiredOption = 0;
             List<string>? remaining = null;
+            this.remainingBuffer?.Clear();
             var options = CollectionsMarshal.AsSpan(this.Options);
             var longLookup = this.LongNameToOption.GetAlternateLookup<ReadOnlySpan<char>>();
             var shortLookup = this.ShortNameToOption.GetAlternateLookup<ReadOnlySpan<char>>();
@@ -428,7 +437,7 @@ public class SimpleParser : ISimpleParser
             {
                 if (args[n].IsOptionName())
                 {// -option
-                    var name = args[n].AsSpan().Trim(SimpleParser.OptionPrefix);
+                    var name = args[n].AsSpan().TrimStart(SimpleParser.OptionPrefix);
                     if (!longLookup.TryGetValue(name, out var option))
                     {
                         shortLookup.TryGetValue(name, out option);
@@ -465,7 +474,7 @@ public class SimpleParser : ISimpleParser
                     }
                     else
                     {// Option not found
-                        (remaining ??= new()).Add(args[n]);
+                        (remaining ??= this.remainingBuffer ??= new()).Add(args[n]);
 
                         if (this.Parser.ParserOptions.RequireStrictOptionName && !acceptUnknownOptionName)
                         {
@@ -490,7 +499,7 @@ public class SimpleParser : ISimpleParser
                 {
                     if (this.hasRequiredOption &&
                         this.Parser.ParserOptions.OmitOptionNamesForRequiredOptions &&
-                        FindUnsetRequiredOption(options) is { } option)
+                        FindUnsetRequiredOption(options, ref nextRequiredOption) is { } option)
                     {
                         if (option.ParseCore(args[n], this.OptionInstance, acceptUnknownOptionName, processArguments))
                         {
@@ -505,7 +514,7 @@ public class SimpleParser : ISimpleParser
                         continue;
                     }
 
-                    (remaining ??= new()).Add(args[n]);
+                    (remaining ??= this.remainingBuffer ??= new()).Add(args[n]);
                 }
             }
 
@@ -545,6 +554,7 @@ public class SimpleParser : ISimpleParser
 
             if (errorFlag)
             {
+                remaining?.Clear();
                 return false;
             }
 
@@ -564,12 +574,14 @@ public class SimpleParser : ISimpleParser
             }
 
             this.RemainingArguments = remainingArguments;
+            remaining.Clear();
             return true;
 
-            static Option? FindUnsetRequiredOption(ReadOnlySpan<Option> options)
+            static Option? FindUnsetRequiredOption(ReadOnlySpan<Option> options, ref int index)
             {
-                foreach (var x in options)
+                for (; index < options.Length; index++)
                 {
+                    var x = options[index];
                     if (x.Required && !x.ValueIsSet)
                     {
                         return x;
@@ -592,7 +604,7 @@ public class SimpleParser : ISimpleParser
         public uint OptionTypeIdentifier { get; }
 
         /// <summary>
-        /// Gets the options in base-to-derived declaration order, with overrides replacing their base member.
+        /// Gets options in base-to-derived reflection order, with overrides replacing their base member.
         /// </summary>
         public List<Option> Options { get; }
 
@@ -839,6 +851,7 @@ public class SimpleParser : ISimpleParser
         private readonly ConstructorInvoker? constructorInvoker;
         private readonly bool hasRequiredOption;
         private readonly bool hasEnvironmentOption;
+        private List<string>? remainingBuffer;
         private object? defaultInstance;
     }
 
@@ -955,14 +968,18 @@ public class SimpleParser : ISimpleParser
                 return false;
             }
 
+            var span = argument.AsSpan();
+            string? normalized = null;
             if (processArguments && (this.OptionClass is null || !argument.StartsWith(SimpleParser.OpenBrace)))
             {
-                argument = SimpleParserHelper.ProcessArgument(argument, this.Parser.ParserOptions, this.ArgumentProcessing);
+                span = SimpleParserHelper.ProcessArgument(span, this.Parser.ParserOptions, this.ArgumentProcessing, out normalized);
             }
 
             object value;
             if (this.OptionClass is not null)
             {
+                argument = normalized ?? (span.Length == argument.Length ? argument : span.ToString());
+
                 // Each occurrence supplies a fresh nested value; never reuse a previous parse result.
                 this.OptionClass.optionInstance = null;
                 var typeIdentifier = this.OptionClass.OptionTypeIdentifier;
@@ -977,12 +994,13 @@ public class SimpleParser : ISimpleParser
 
                 if (this.OptionClass.optionInstance is null)
                 {
+                    var nestedArguments = argument.AsSpan();
                     if (argument.Length >= 2 && argument.StartsWith(SimpleParser.OpenBrace) && argument.EndsWith(SimpleParser.CloseBrace))
                     {
-                        argument = argument.Substring(1, argument.Length - 2);
+                        nestedArguments = nestedArguments.Slice(1, nestedArguments.Length - 2);
                     }
 
-                    var ret = this.OptionClass.Parse(SimpleParserHelper.SplitParserArguments(argument, this.Parser.ParserOptions), 0, acceptUnknownOptionName);
+                    var ret = this.OptionClass.Parse(SimpleParserHelper.SplitParserArguments(nestedArguments, this.Parser.ParserOptions), 0, acceptUnknownOptionName);
                     if (!ret || this.OptionClass.OptionInstance == null)
                     {
                         return false;
@@ -993,7 +1011,7 @@ public class SimpleParser : ISimpleParser
             }
             else if (this.enumType is not null)
             {// Enum
-                if (!Enum.TryParse(this.enumType, argument, true, out var result) || result is null)
+                if (!Enum.TryParse(this.enumType, span, true, out var result) || result is null)
                 {
                     return false;
                 }
@@ -1002,7 +1020,7 @@ public class SimpleParser : ISimpleParser
             }
             else if (this.converter is not null)
             {// Primitive types
-                if (this.converter(argument) is not { } converted)
+                if (this.converter(span) is not { } converted)
                 {
                     return false;
                 }
@@ -1011,7 +1029,7 @@ public class SimpleParser : ISimpleParser
             }
             else
             {// String
-                value = argument;
+                value = normalized ?? (span.Length == argument.Length ? argument : span.ToString());
             }
 
             this.SetValue(instance, value);
@@ -1401,8 +1419,14 @@ public class SimpleParser : ISimpleParser
     /// The name of the command to describe. Use <see cref="string.Empty"/> to target all commands,
     /// or <see langword="null"/> to use <see cref="HelpCommandName"/>. An unknown name also targets all commands.
     /// </param>
+    /// <remarks>When output is suppressed, returns without formatting help or creating command and default-options instances.</remarks>
     public void ShowHelp(string? commandName = null)
     {
+        if (this.ParserOptions.SuppressConsoleOutput)
+        {
+            return;
+        }
+
         commandName ??= this.HelpCommandName;
         var sb = new StringBuilder();
         this.OptionClassUsage.Clear();
@@ -1467,6 +1491,11 @@ public class SimpleParser : ISimpleParser
     /// <param name="prefix">An optional prefix displayed before the version string.</param>
     public void ShowVersion(string? prefix = default)
     {
+        if (this.ParserOptions.SuppressConsoleOutput)
+        {
+            return;
+        }
+
         var st = VersionHelper.VersionString;
         this.WriteLine(string.IsNullOrEmpty(prefix) ? st : $"{prefix} {st}");
     }
@@ -1480,6 +1509,11 @@ public class SimpleParser : ISimpleParser
     public void ShowCommandList(int maxColumnWidth = 19)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(maxColumnWidth);
+        if (this.ParserOptions.SuppressConsoleOutput)
+        {
+            return;
+        }
+
         var array = this.NameToCommand.Keys.ToArray();
         if (array.Length == 0)
         {
@@ -1654,13 +1688,13 @@ public class SimpleParser : ISimpleParser
     private List<OptionClass> OptionClassUsage { get; }
 
     /// <summary>
-    /// Determines whether the argument matches the specified name, ignoring case and any leading or trailing '-'.
+    /// Determines whether the argument matches the specified name, ignoring case and leading '-'.
     /// </summary>
     /// <param name="arg">The argument.</param>
     /// <param name="command">The name to compare with.</param>
     /// <returns><see langword="true"/> if they match.</returns>
     internal static bool OptionEquals(ReadOnlySpan<char> arg, ReadOnlySpan<char> command)
-            => arg.Trim(SimpleParser.OptionPrefix).Equals(command, StringComparison.OrdinalIgnoreCase);
+            => arg.TrimStart(SimpleParser.OptionPrefix).Equals(command, StringComparison.OrdinalIgnoreCase);
 
     private void AppendList(StringBuilder sb)
     {
@@ -1838,11 +1872,6 @@ public class SimpleParser : ISimpleParser
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void WriteLine(ReadOnlySpan<char> message)
     {
-        if (this.ParserOptions.SuppressConsoleOutput)
-        {
-            return;
-        }
-
         if (this.consoleService is null)
         {
             Console.Out.WriteLine(message);
@@ -1856,11 +1885,6 @@ public class SimpleParser : ISimpleParser
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void WriteLine(string? message = default)
     {
-        if (this.ParserOptions.SuppressConsoleOutput)
-        {
-            return;
-        }
-
         if (this.consoleService is null)
         {
             Console.Out.WriteLine(message);

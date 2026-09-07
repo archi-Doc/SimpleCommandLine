@@ -41,9 +41,10 @@ public class SimpleOptionAttribute : Attribute
 
     /// <summary>
     /// Gets or sets a value indicating whether the value is read from the environment variable
-    /// named after <see cref="ShortName"/> or <see cref="LongName"/> when the option is not specified
+    /// named after <see cref="ShortName"/> or <see cref="LongName"/> when no input value was successfully parsed
     /// [the default is <see langword="false"/>].
     /// </summary>
+    /// <remarks>The short-name variable takes precedence when present. Its invalid value does not fall back to the long-name variable.</remarks>
     public bool ReadFromEnvironment { get; set; }
 
     /// <summary>
