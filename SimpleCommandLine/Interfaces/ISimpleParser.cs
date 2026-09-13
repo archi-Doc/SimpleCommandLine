@@ -3,7 +3,7 @@
 namespace SimpleCommandLine;
 
 /// <summary>
-/// The part of <see cref="SimpleParser"/> that <see cref="SimpleParser.OptionClass"/> and <see cref="SimpleParser.Option"/> depend on,
+/// The part of <see cref="SimpleParser"/> that <see cref="SimpleParser.OptionSet"/> and <see cref="SimpleParser.Option"/> depend on,
 /// so that options can also be parsed without a parser instance (see <see cref="SimpleParser.TryParseOptions{TOptions}(string, out TOptions, TOptions)"/>).
 /// </summary>
 internal interface ISimpleParser
@@ -22,10 +22,10 @@ internal interface ISimpleParser
     void AddErrorMessage(string message);
 
     /// <summary>
-    /// Registers a nested options class so that its options are described once at the end of a help message.
+    /// Registers a nested option set so that its options are described once at the end of a help message.
     /// </summary>
-    /// <param name="optionClass">The nested options class.</param>
-    void AddOptionClassUsage(SimpleParser.OptionClass optionClass);
+    /// <param name="optionSet">The nested option set.</param>
+    void AddOptionSetUsage(SimpleParser.OptionSet optionSet);
 
     /// <summary>
     /// Gets the parser options.

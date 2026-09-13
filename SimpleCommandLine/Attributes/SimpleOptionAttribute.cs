@@ -34,10 +34,10 @@ public class SimpleOptionAttribute : Attribute
 
     /// <summary>
     /// Gets or sets a value indicating whether a value is required for this option [the default is <see langword="false"/>].<br/>
-    /// The option name may be omitted unless <see cref="SimpleParserOptions.OmitOptionNamesForRequiredOptions"/> is disabled.
+    /// The option name may be omitted unless <see cref="SimpleParserOptions.AllowPositionalRequiredOptions"/> is disabled.
     /// </summary>
     /// <remarks>A default member value does not satisfy this requirement; supply a value in the input or environment.</remarks>
-    public bool Required { get; set; }
+    public bool IsRequired { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether the value is read from the environment variable

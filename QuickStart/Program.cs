@@ -12,7 +12,7 @@ public class TestOptions
     [SimpleOption("number", ShortName = "n", Description = "test number")] // Annotate SimpleOptionAttribute and specify a long/short option name and description.
     public int Number { get; set; } = 10; // Set a default value.
 
-    [SimpleOption("text", ShortName = "t", Description = "test text", Required = true)] // Set Required property to true if you want to make the option required.
+    [SimpleOption("text", ShortName = "t", Description = "test text", IsRequired = true)] // Set IsRequired to true if you want to make the option required.
     public string Text { get; set; } = string.Empty;
 }
 

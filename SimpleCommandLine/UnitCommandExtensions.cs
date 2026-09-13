@@ -26,7 +26,7 @@ public static class UnitCommandExtensions
         => GetConfigurationGroup(context, false).AddCommand<TCommand>(lifetime);
 
     /// <summary>
-    /// Registers a top-level command and its root options metadata. Register nested options with AddOptionType.
+    /// Registers a top-level command and its root options metadata. Register nested options with AddOptionsType.
     /// </summary>
     /// <typeparam name="TCommand">The command type.</typeparam>
     /// <typeparam name="TOptions">The root options type.</typeparam>
@@ -75,27 +75,27 @@ public static class UnitCommandExtensions
     /// <typeparam name="TOptions">The options type.</typeparam>
     /// <param name="context">The configuration context.</param>
     /// <remarks>Registers parser metadata only; it does not add an options instance to DI.</remarks>
-    public static void AddOptionType<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TOptions>(this IUnitConfigurationContext context)
+    public static void AddOptionsType<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TOptions>(this IUnitConfigurationContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        context.GetCustomContext<SimpleCommandConfiguration>().Builder.AddOptions<TOptions>();
+        context.GetCustomContext<SimpleCommandConfiguration>().Builder.AddOptionsType<TOptions>();
     }
 
     /// <summary>
     /// Gets a child group for combined Arc.Unit and parser registration.
     /// </summary>
-    /// <typeparam name="TCommand">The parent command type.</typeparam>
+    /// <typeparam name="TParentCommand">The parent command type.</typeparam>
     /// <param name="context">The configuration context.</param>
     /// <returns>A builder for the parent's child commands.</returns>
     /// <remarks>Register the parent separately with AddCommand or AddSubcommand to choose its command list.</remarks>
     [UnconditionalSuppressMessage("Trimming", "IL2087", Justification = "Arc.Unit 0.46 GetCommandGroup uses the type as a dictionary key and registers it with DI. The public constructors required by DI are preserved.")]
-    public static SimpleCommandGroupBuilder GetSimpleCommandGroup<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TCommand>(this IUnitConfigurationContext context)
-        where TCommand : ISimpleCommand
+    public static SimpleCommandGroupBuilder GetSimpleCommandGroup<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TParentCommand>(this IUnitConfigurationContext context)
+        where TParentCommand : ISimpleCommand
     {
         ArgumentNullException.ThrowIfNull(context);
         var configuration = context.GetCustomContext<SimpleCommandConfiguration>();
         _ = configuration.Builder; // Reject late configuration before modifying Arc.Unit's groups.
-        return new SimpleCommandGroupBuilder(configuration, context.GetCommandGroup(typeof(TCommand)));
+        return new SimpleCommandGroupBuilder(configuration, context.GetCommandGroup(typeof(TParentCommand)));
     }
 
     /// <summary>
@@ -108,22 +108,22 @@ public static class UnitCommandExtensions
     public static SimpleParser CreateSimpleParser(this UnitContext context, SimpleParserOptions? parserOptions = null)
     {
         ArgumentNullException.ThrowIfNull(context);
-        return GetRegistry(context).CreateParser(context.Commands, WithServiceProvider(context, parserOptions));
+        return GetRegistry(context).CreateParser(context.CommandTypes, WithServiceProvider(context, parserOptions));
     }
 
     /// <summary>
     /// Creates an independent parser for the children of the specified command using the shared registry.
     /// </summary>
-    /// <typeparam name="TCommand">The parent command type.</typeparam>
+    /// <typeparam name="TParentCommand">The parent command type.</typeparam>
     /// <param name="context">The built unit context.</param>
     /// <param name="parserOptions">Parser options. ServiceProvider defaults to the unit's provider.</param>
     /// <returns>A new parser for this group only.</returns>
-    /// <remarks>Uses standard parser options by default, not the defaults of <see cref="SimpleCommandGroup{TCommand}"/>.</remarks>
+    /// <remarks>Uses standard parser options by default, not the defaults of <see cref="SimpleCommandGroup{TSelf}"/>.</remarks>
     /// <exception cref="InvalidOperationException">The shared registry is missing, a type is unregistered, or a registration is invalid.</exception>
-    public static SimpleParser CreateSimpleParser<TCommand>(this UnitContext context, SimpleParserOptions? parserOptions = null)
+    public static SimpleParser CreateSimpleParser<TParentCommand>(this UnitContext context, SimpleParserOptions? parserOptions = null)
     {
         ArgumentNullException.ThrowIfNull(context);
-        return GetRegistry(context).CreateParser(context.GetCommandTypes(typeof(TCommand)), WithServiceProvider(context, parserOptions));
+        return GetRegistry(context).CreateParser(context.GetCommandTypes(typeof(TParentCommand)), WithServiceProvider(context, parserOptions));
     }
 
     /// <summary>
@@ -136,7 +136,7 @@ public static class UnitCommandExtensions
     public static SimpleParser CreateSimpleSubcommandParser(this UnitContext context, SimpleParserOptions? parserOptions = null)
     {
         ArgumentNullException.ThrowIfNull(context);
-        return GetRegistry(context).CreateParser(context.Subcommands, WithServiceProvider(context, parserOptions));
+        return GetRegistry(context).CreateParser(context.SubcommandTypes, WithServiceProvider(context, parserOptions));
     }
 
     private static SimpleCommandGroupBuilder GetConfigurationGroup(IUnitConfigurationContext context, bool subcommands)
@@ -144,7 +144,7 @@ public static class UnitCommandExtensions
         ArgumentNullException.ThrowIfNull(context);
         var configuration = context.GetCustomContext<SimpleCommandConfiguration>();
         _ = configuration.Builder;
-        return new SimpleCommandGroupBuilder(configuration, subcommands ? context.GetSubcommandGroup() : context.GetCommandGroup());
+        return new SimpleCommandGroupBuilder(configuration, subcommands ? context.GetSubcommandGroup() : context.GetTopLevelCommandGroup());
     }
 
     private static SimpleCommandRegistry GetRegistry(UnitContext context)

@@ -89,7 +89,7 @@ public class EnvironmentTest
         GetOptions(parser).Text.Is("default");
 
         static EnvOptions GetOptions(SimpleParser parser)
-            => (EnvOptions)parser.CurrentCommand!.OptionClass.OptionInstance!;
+            => (EnvOptions)parser.CurrentCommand!.OptionSet.Instance!;
     }
 
     [Fact]
@@ -99,51 +99,51 @@ public class EnvironmentTest
         try
         {
             // The command name comes from the environment variable.
-            Environment.SetEnvironmentVariable(SimpleParser.CommandEnvironmentVariable, "env-command");
+            Environment.SetEnvironmentVariable(SimpleParser.CommandEnvironmentVariableName, "env-command");
             parser.Parse(string.Empty).IsTrue();
             parser.CurrentCommand!.CommandName.Is("env-command");
 
             // An alias in the environment variable (empty arguments must not throw).
-            Environment.SetEnvironmentVariable(SimpleParser.CommandEnvironmentVariable, "ea");
+            Environment.SetEnvironmentVariable(SimpleParser.CommandEnvironmentVariableName, "ea");
             parser.Parse(string.Empty).IsTrue();
             parser.CurrentCommand!.CommandName.Is("env-alias");
 
             // An unknown value falls back to the default command.
-            Environment.SetEnvironmentVariable(SimpleParser.CommandEnvironmentVariable, "no-such-command");
+            Environment.SetEnvironmentVariable(SimpleParser.CommandEnvironmentVariableName, "no-such-command");
             parser.Parse(string.Empty).IsTrue();
             parser.CurrentCommand!.CommandName.Is("env-plain");
 
             // A command name on the command line wins over the environment.
-            Environment.SetEnvironmentVariable(SimpleParser.CommandEnvironmentVariable, "env-command");
+            Environment.SetEnvironmentVariable(SimpleParser.CommandEnvironmentVariableName, "env-command");
             parser.Parse("env-alias").IsTrue();
             parser.CurrentCommand!.CommandName.Is("env-alias");
         }
         finally
         {
-            Environment.SetEnvironmentVariable(SimpleParser.CommandEnvironmentVariable, null);
+            Environment.SetEnvironmentVariable(SimpleParser.CommandEnvironmentVariableName, null);
         }
     }
 
     [Fact]
     public void ExplicitHelpAndVersionTakePriorityOverEnvironment()
     {
-        var previous = Environment.GetEnvironmentVariable(SimpleParser.CommandEnvironmentVariable);
+        var previous = Environment.GetEnvironmentVariable(SimpleParser.CommandEnvironmentVariableName);
         try
         {
-            Environment.SetEnvironmentVariable(SimpleParser.CommandEnvironmentVariable, "env-command");
+            Environment.SetEnvironmentVariable(SimpleParser.CommandEnvironmentVariableName, "env-command");
             var parser = new SimpleParser(CommandTypes, Options);
             Assert.True(parser.Parse("help env-alias"));
             Assert.Equal("env-alias", parser.HelpCommandName);
             Assert.Null(parser.CurrentCommand);
             Assert.True(parser.Parse("version"));
-            Assert.True(parser.VersionRequested);
+            Assert.True(parser.IsVersionRequested);
             Assert.Null(parser.CurrentCommand);
             Assert.True(parser.Parse(string.Empty));
             Assert.Equal("env-command", parser.CurrentCommand!.CommandName);
         }
         finally
         {
-            Environment.SetEnvironmentVariable(SimpleParser.CommandEnvironmentVariable, previous);
+            Environment.SetEnvironmentVariable(SimpleParser.CommandEnvironmentVariableName, previous);
         }
     }
 
@@ -160,7 +160,7 @@ public class EnvironmentTest
             Assert.False(parser.Parse("number"));
             Assert.Null(parser.CurrentCommand);
             Assert.True(parser.Parse($"number -{Name} 7"));
-            Assert.Equal(7, ((EnvironmentNumberOptions)parser.CurrentCommand!.OptionClass.OptionInstance!).Number);
+            Assert.Equal(7, ((EnvironmentNumberOptions)parser.CurrentCommand!.OptionSet.Instance!).Number);
 
             // The standalone API intentionally tolerates invalid optional values.
             Assert.True(new SimpleParserBuilder().TryParseOptions<EnvironmentNumberOptions>(string.Empty, out var relaxed));
@@ -191,7 +191,7 @@ public class SubOptions
     public int Known { get; set; }
 }
 
-[SimpleCommand("sub", IsSubcommand = true)]
+[SimpleCommand("sub", IsCommandGroup = true)]
 public class SubCommand : ISimpleCommand<SubOptions>
 {
     public static string[]? ReceivedArgs { get; set; }
@@ -231,16 +231,16 @@ public class IntegrationTest
     };
 
     [Fact]
-    public async Task SubcommandTest()
+    public async Task CommandGroupTest()
     {
-        // A subcommand accepts unknown option names even with RequireStrictOptionName.
-        var parser = new SimpleParser([typeof(SubCommand)], Options with { RequireStrictOptionName = true });
+        // A command group accepts unknown option names even with RejectUnknownOptionNames.
+        var parser = new SimpleParser([typeof(SubCommand)], Options with { RejectUnknownOptionNames = true });
 
         parser.Parse("sub -known 1 -unknown 2").IsTrue();
         await parser.Execute(TestContext.Current.CancellationToken);
         SubCommand.ReceivedArgs!.SequenceEqual(["-unknown", "2"]).IsTrue();
 
-        // 'help' is not intercepted for a subcommand (it is forwarded instead).
+        // 'help' is not intercepted for a command group (it is forwarded instead).
         parser.Parse("sub help").IsTrue();
         parser.HelpCommandName.IsNull();
     }
@@ -261,10 +261,10 @@ public class IntegrationTest
     [Fact]
     public void StaticPresetTest()
     {
-        SimpleParserOptions.Standard.RequireStrictCommandName.IsFalse();
-        SimpleParserOptions.Standard.RequireStrictOptionName.IsFalse();
-        SimpleParserOptions.StrictCommandName.RequireStrictCommandName.IsTrue();
-        SimpleParserOptions.StrictOptionName.RequireStrictOptionName.IsTrue();
+        SimpleParserOptions.Standard.RequireCommandName.IsFalse();
+        SimpleParserOptions.Standard.RejectUnknownOptionNames.IsFalse();
+        SimpleParserOptions.CommandNameRequired.RequireCommandName.IsTrue();
+        SimpleParserOptions.UnknownOptionNamesRejected.RejectUnknownOptionNames.IsTrue();
 
         // The delimiter length is carried over correctly by 'with'.
         var options = SimpleParserOptions.Standard with { ArgumentDelimiter = "###", };

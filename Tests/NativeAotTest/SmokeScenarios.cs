@@ -21,8 +21,8 @@ public static class SmokeScenarios
             .AddCommand<OptionsCommand, Options>()
             .AddCommand<PlainCommand>()
             .AddCommand<InjectedCommand>()
-            .AddOptions<NestedOptions>()
-            .AddOptions<SerializedOptions>();
+            .AddOptionsType<NestedOptions>()
+            .AddOptionsType<SerializedOptions>();
         var services = new ServiceCollection();
         var injected = new InjectedCommand("injected");
         services.AddSingleton(injected);
@@ -30,19 +30,19 @@ public static class SmokeScenarios
         var parser = builder.Build(settings with { ServiceProvider = provider });
 
         Check(parser.Parse("run -name first -number 12 -field 3 -day friday -mode second -base 7 -hidden secret -nested {-value 9}"), "parse options");
-        var options = (Options)parser.CurrentCommand!.OptionClass.OptionInstance!;
+        var options = (Options)parser.CurrentCommand!.OptionSet.Instance!;
         Check(options.Number == 12 && options.Field == 3 && options.Day == DayOfWeek.Friday, "nullable and enum");
         Check(options.Mode == Mode.Second, "application enum metadata");
         Check(options.BaseValue == 7 && options.HiddenValue == "secret", "inherited private members and getter-only backing field");
         Check(options.Nested.Value == 9, "nested options");
-        Check(parser.CurrentCommand.OptionClass.Options.Find(x => x.LongName == "hidden")!.PropertyInfo is not null, "private property metadata");
+        Check(parser.CurrentCommand.OptionSet.Options.Find(x => x.LongName == "hidden")!.PropertyInfo is not null, "private property metadata");
         using var cancellation = new CancellationTokenSource();
         await parser.Execute(cancellation.Token);
         var command = (OptionsCommand)parser.CurrentCommand.CommandInstance;
         Check(ReferenceEquals(command.Received, options) && command.Token == cancellation.Token, "explicit interface execution and token");
 
         Check(parser.Parse("run -name second -nested {-value 1} -nested {-value 2}"), "repeated nested option");
-        options = (Options)parser.CurrentCommand!.OptionClass.OptionInstance!;
+        options = (Options)parser.CurrentCommand!.OptionSet.Instance!;
         Check(options.Nested.Value == 2, "last nested value wins");
         Check(options.Number is null && options.Day is null && options.BaseValue == 1, "new parse resets defaults");
         Check(!parser.Parse("run -name third -nested {-value 1} -nested {-value invalid}"), "invalid repeated nested value");
@@ -53,7 +53,7 @@ public static class SmokeScenarios
         Check(!parser.Parse("run -name x -day invalid"), "invalid enum value");
         Check(parser.Parse("run -name x -number -5"), "negative number");
         Check(parser.Parse("run -name x -serialized {Value=42}"), "Tinyhand serialized value");
-        options = (Options)parser.CurrentCommand!.OptionClass.OptionInstance!;
+        options = (Options)parser.CurrentCommand!.OptionSet.Instance!;
         Check(options.Serialized.Value == 42, "Tinyhand generated formatter");
 
         Check(parser.Parse("plain extra"), "command without options");
@@ -65,7 +65,7 @@ public static class SmokeScenarios
         Check(injected.Executed && injected.Tag == "injected", "DI command without default constructor");
 
         Check(parser.Parse("help run") && parser.HelpCommandName == "run", "help dispatch");
-        Check(parser.Parse("version") && parser.VersionRequested, "version dispatch");
+        Check(parser.Parse("version") && parser.IsVersionRequested, "version dispatch");
         var oldOutput = Console.Out;
         using var output = new StringWriter();
         try
@@ -90,17 +90,17 @@ public static class SmokeScenarios
         Check(updated!.Number == 4 && updated.Nested.Value == 8, "update preserves unspecified nested value");
 
         Check(parser.Parse(["run", "-name", "two words", "-number", "42", "", "\"literal\""]), "pre-split native arguments");
-        options = (Options)parser.CurrentCommand!.OptionClass.OptionInstance!;
+        options = (Options)parser.CurrentCommand!.OptionSet.Instance!;
         Check(options.Name == "two words" && options.Number == 42, "array values retain their boundaries");
-        Check(parser.CurrentCommand.OptionClass.RemainingArguments is ["", "\"literal\""], "array literals are not normalized again");
+        Check(parser.CurrentCommand.OptionSet.RemainingArguments is ["", "\"literal\""], "array literals are not normalized again");
         Check(builder.TryParseOptions<Options>(["-name", ""], out var emptyName) && emptyName.Name.Length == 0, "standalone native array overload");
         Check(parser.Parse("run -name quoted -number '5' -mode \"Second\""), "quoted scalar native conversion");
         Check(parser.Parse("run -name 'a\nb' -number '42' | ignored -number invalid"), "first command and normalized value");
-        options = (Options)parser.CurrentCommand!.OptionClass.OptionInstance!;
+        options = (Options)parser.CurrentCommand!.OptionSet.Instance!;
         Check(options.Name == "a b" && options.Number == 42, "span scalar conversion preserves values");
         var delimitedParser = builder.Build(settings with { ServiceProvider = provider, ArgumentDelimiter = "||" });
         Check(delimitedParser.Parse("run -name ||a | b||"), "separator-prefixed custom delimiter");
-        Check(((Options)delimitedParser.CurrentCommand!.OptionClass.OptionInstance!).Name == "a | b", "custom delimiter content");
+        Check(((Options)delimitedParser.CurrentCommand!.OptionSet.Instance!).Name == "a | b", "custom delimiter content");
         var deep = new string('{', 100) + "a | b" + new string('}', 100);
         Check(deep.SplitArguments() is [var nestedToken] && nestedToken == deep, "pooled nesting stack");
         Check("||".SplitCommandLines() is ["", "", ""], "empty command segments");
@@ -108,7 +108,7 @@ public static class SmokeScenarios
         Check(new SimpleParserBuilder().Build(settings).Parse("help"), "empty native parser help");
 
         var unregistered = new SimpleParserBuilder().AddCommand<OptionsCommand, Options>();
-        ExpectInvalid(() => unregistered.Build(), "AddOptions", "unregistered nested options fail clearly");
+        ExpectInvalid(() => unregistered.Build(), "AddOptionsType", "unregistered nested options fail clearly");
         Check(new SimpleParserBuilder().AddCommand<PlainCommand>().AddCommand<PlainCommand>().Build(settings).NameToCommand.Count == 1, "idempotent command registration");
         var snapshotBuilder = new SimpleParserBuilder().AddCommand<PlainCommand>();
         var snapshot = snapshotBuilder.Build(settings);
@@ -125,7 +125,7 @@ public static class SmokeScenarios
         Check(primitives.Bool && primitives.Float == 1.5f && primitives.Double == -2.25 && primitives.Decimal == 3.75m && primitives.Char == 'x', "other primitive values");
 
         var unitBuilder = new UnitBuilder();
-        unitBuilder.Configure(context => GroupCommand.ConfigureGroup(context).AddCommand(typeof(PlainCommand)));
+        unitBuilder.Configure(context => GroupCommand.RegisterAndGetChildGroup(context).AddCommand(typeof(PlainCommand)));
         var unit = unitBuilder.Build();
         var group = new GroupCommand(unit.Context);
         await group.Execute([], cancellation.Token);
@@ -195,7 +195,7 @@ public static class SmokeScenarios
 
     private sealed class Options : BaseOptions
     {
-        [SimpleOption("name", Required = true)]
+        [SimpleOption("name", IsRequired = true)]
         public string Name { get; set; } = string.Empty;
 
         [SimpleOption("number")]
@@ -269,7 +269,7 @@ public static class SmokeScenarios
         }
     }
 
-    [SimpleCommand("group", IsSubcommand = true)]
+    [SimpleCommand("group", IsCommandGroup = true)]
     private sealed class GroupCommand : SimpleCommandGroup<GroupCommand>
     {
         public GroupCommand(UnitContext context)

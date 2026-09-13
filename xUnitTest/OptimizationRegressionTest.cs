@@ -24,9 +24,9 @@ public class OptimizationRegressionTest
     {
         var parser = new SimpleParserBuilder().AddCommand<HyphenCommand, HyphenOptions>().Build(Settings);
         Assert.True(parser.Parse(["hyphen", token, "value"]));
-        Assert.Equal("value", ((HyphenOptions)parser.CurrentCommand!.OptionClass.OptionInstance!).Name);
+        Assert.Equal("value", ((HyphenOptions)parser.CurrentCommand!.OptionSet.Instance!).Name);
         string[] args = [token, "value", "tail"];
-        Assert.True(SimpleParserHelper.TryGetAndRemoveArgument(ref args, name, out var value));
+        Assert.True(SimpleParserHelper.TryGetAndRemoveOptionValue(ref args, name, out var value));
         Assert.Equal("value", value);
         Assert.Equal(["tail"], args);
     }
@@ -41,8 +41,8 @@ public class OptimizationRegressionTest
         Assert.True(parser.Parse(argument));
         Assert.NotNull(parser.CurrentCommand);
         Assert.Null(parser.HelpCommandName);
-        Assert.False(parser.VersionRequested);
-        Assert.Equal([argument], parser.CurrentCommand.OptionClass.RemainingArguments!);
+        Assert.False(parser.IsVersionRequested);
+        Assert.Equal([argument], parser.CurrentCommand.OptionSet.RemainingArguments!);
     }
 
     [Theory]
@@ -56,13 +56,13 @@ public class OptimizationRegressionTest
         var parser = new SimpleParserBuilder().AddCommand<ReviewRegressionTest.TextCommand, ReviewRegressionTest.TextOptions>()
             .Build(Settings with { ArgumentDelimiter = delimiter });
         Assert.True(parser.Parse("text -text " + wrapped));
-        Assert.Equal("a | b", ((ReviewRegressionTest.TextOptions)parser.CurrentCommand!.OptionClass.OptionInstance!).Text);
+        Assert.Equal("a | b", ((ReviewRegressionTest.TextOptions)parser.CurrentCommand!.OptionSet.Instance!).Text);
     }
 
     [Fact]
     public void FailedNestedValuesDoNotReplaceExistingDefaults()
     {
-        var builder = new SimpleParserBuilder().AddOptions<ReviewRegressionTest.ScalarOptions>();
+        var builder = new SimpleParserBuilder().AddOptionsType<ReviewRegressionTest.ScalarOptions>();
         Assert.True(builder.TryParseOptions<NestedOptions>("-nested {-number 7 -day invalid}", out var options));
         Assert.Equal(11, options.Nested.Number);
     }
@@ -72,14 +72,14 @@ public class OptimizationRegressionTest
     {
         var parser = new SimpleParserBuilder().AddCommand<ReviewRegressionTest.TextCommand, ReviewRegressionTest.TextOptions>().Build(Settings);
         Assert.True(parser.Parse("text first -text value second"));
-        var first = parser.CurrentCommand!.OptionClass.RemainingArguments!;
+        var first = parser.CurrentCommand!.OptionSet.RemainingArguments!;
         Assert.True(parser.Parse("text third"));
         Assert.Equal(["first", "second"], first);
-        Assert.Equal(["third"], parser.CurrentCommand!.OptionClass.RemainingArguments!);
+        Assert.Equal(["third"], parser.CurrentCommand!.OptionSet.RemainingArguments!);
         Assert.False(parser.Parse("text stale -text"));
-        Assert.Null(parser.NameToCommand["text"].OptionClass.RemainingArguments);
+        Assert.Null(parser.NameToCommand["text"].OptionSet.RemainingArguments);
         Assert.True(parser.Parse("text"));
-        Assert.Empty(parser.CurrentCommand!.OptionClass.RemainingArguments!);
+        Assert.Empty(parser.CurrentCommand!.OptionSet.RemainingArguments!);
     }
 
     [Fact]
@@ -93,9 +93,9 @@ public class OptimizationRegressionTest
             Assert.Equal(tokens, string.Join(' ', tokens).SplitArguments());
             Assert.Equal([deep, "tail"], (deep + " tail").SplitArguments());
             Assert.True(parser.Parse("forward 'a | b' | " + deep));
-            Assert.Equal(["a | b"], parser.CurrentCommand!.OptionClass.RemainingArguments!);
+            Assert.Equal(["a | b"], parser.CurrentCommand!.OptionSet.RemainingArguments!);
             Assert.True(parser.Parse("forward |"));
-            Assert.Empty(parser.CurrentCommand!.OptionClass.RemainingArguments!);
+            Assert.Empty(parser.CurrentCommand!.OptionSet.RemainingArguments!);
         }
     }
 
@@ -120,7 +120,7 @@ public class OptimizationRegressionTest
     public void LowLevelParsingRejectsInvalidOffsets(int offset)
     {
         var parser = new SimpleParserBuilder().AddCommand<ReviewRegressionTest.TextCommand, ReviewRegressionTest.TextOptions>().Build(Settings);
-        var options = parser.NameToCommand["text"].OptionClass;
+        var options = parser.NameToCommand["text"].OptionSet;
         Assert.Throws<ArgumentOutOfRangeException>(() => options.Parse(["value"], offset, false));
         Assert.Throws<ArgumentNullException>(() => options.Parse(null!, 0, false));
         Assert.True(options.Parse(["ignored"], 1, false));
@@ -135,7 +135,7 @@ public class OptimizationRegressionTest
     {
         var parser = new SimpleParserBuilder().AddCommand<ReviewRegressionTest.TextCommand, ReviewRegressionTest.TextOptions>().Build(Settings);
         Assert.True(parser.Parse("text -text " + raw));
-        Assert.Equal(expected, ((ReviewRegressionTest.TextOptions)parser.CurrentCommand!.OptionClass.OptionInstance!).Text);
+        Assert.Equal(expected, ((ReviewRegressionTest.TextOptions)parser.CurrentCommand!.OptionSet.Instance!).Text);
     }
 
     [Fact]
@@ -166,7 +166,7 @@ public class OptimizationRegressionTest
         Assert.False(parser.Parse("number invalid"));
         Assert.Null(parser.CurrentCommand);
         Assert.True(parser.Parse("number '42'"));
-        Assert.Equal(42, ((RequiredNumberOptions)parser.CurrentCommand!.OptionClass.OptionInstance!).Number);
+        Assert.Equal(42, ((RequiredNumberOptions)parser.CurrentCommand!.OptionSet.Instance!).Number);
     }
 
     [Theory]
@@ -220,22 +220,22 @@ public class OptimizationRegressionTest
 
     public class RequiredNumberOptions
     {
-        [SimpleOption("number", Required = true)]
+        [SimpleOption("number", IsRequired = true)]
         public int Number { get; set; }
     }
 
     public class OrderedOptions
     {
-        [SimpleOption("first", Required = true)]
+        [SimpleOption("first", IsRequired = true)]
         public string First { get; set; } = string.Empty;
 
         [SimpleOption("optional")]
         public string Optional { get; set; } = "optional";
 
-        [SimpleOption("second", Required = true)]
+        [SimpleOption("second", IsRequired = true)]
         public string Second { get; set; } = string.Empty;
 
-        [SimpleOption("third", Required = true)]
+        [SimpleOption("third", IsRequired = true)]
         public string Third { get; set; } = string.Empty;
     }
 

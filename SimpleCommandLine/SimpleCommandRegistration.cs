@@ -12,12 +12,12 @@ internal sealed class SimpleCommandRegistration
 {
     public SimpleCommandRegistration(
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type commandType,
-        Type? optionType,
+        Type? optionsType,
         Type commandInterface,
         Func<object, object?, string[], CancellationToken, Task> execute)
     {
         this.CommandType = commandType;
-        this.OptionType = optionType;
+        this.OptionsType = optionsType;
         this.CommandInterface = commandInterface;
         this.Execute = execute;
     }
@@ -25,7 +25,7 @@ internal sealed class SimpleCommandRegistration
     [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
     public Type CommandType { get; }
 
-    public Type? OptionType { get; }
+    public Type? OptionsType { get; }
 
     public Type CommandInterface { get; }
 
@@ -35,7 +35,7 @@ internal sealed class SimpleCommandRegistration
     internal static SimpleCommandRegistration FromReflection(Type commandType)
     {
         Type? commandInterface = null;
-        Type? optionType = null;
+        Type? optionsType = null;
         foreach (var candidate in commandType.GetInterfaces())
         {
             if (candidate != typeof(ISimpleCommand) &&
@@ -50,7 +50,7 @@ internal sealed class SimpleCommandRegistration
             }
 
             commandInterface = candidate;
-            optionType = candidate.IsGenericType ? candidate.GetGenericArguments()[0] : null;
+            optionsType = candidate.IsGenericType ? candidate.GetGenericArguments()[0] : null;
         }
 
         if (commandInterface is null)
@@ -63,9 +63,9 @@ internal sealed class SimpleCommandRegistration
         var invoker = MethodInvoker.Create(method);
         return new SimpleCommandRegistration(
             commandType,
-            optionType,
-            optionType is null ? typeof(ISimpleCommand) : typeof(ISimpleCommand<>),
-            (command, options, args, cancellationToken) => (Task?)(optionType is null
+            optionsType,
+            optionsType is null ? typeof(ISimpleCommand) : typeof(ISimpleCommand<>),
+            (command, options, args, cancellationToken) => (Task?)(optionsType is null
                 ? invoker.Invoke(command, args, cancellationToken)
                 : invoker.Invoke(command, options, args, cancellationToken)) ?? Task.CompletedTask);
     }

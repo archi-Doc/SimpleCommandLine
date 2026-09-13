@@ -73,10 +73,10 @@ public class OutputTest
     public void HelpDisplaysDefaultsAndDescribesEachNestedTypeOnce()
     {
         var parser = new SimpleParserBuilder().AddCommand<DisplayCommand, DisplayOptions>()
-            .AddOptions<ReviewRegressionTest.TextOptions>()
+            .AddOptionsType<ReviewRegressionTest.TextOptions>()
             .Build(SimpleParserOptions.Standard with { ReadCommandFromEnvironment = false });
         Assert.True(parser.Parse("display -required supplied -write written"));
-        var options = (DisplayOptions)parser.CurrentCommand!.OptionClass.OptionInstance!;
+        var options = (DisplayOptions)parser.CurrentCommand!.OptionSet.Instance!;
         Assert.Equal("written", options.Written);
         Assert.NotNull(options.First);
         Assert.NotNull(options.Second);
@@ -107,7 +107,7 @@ public class OutputTest
 
     public class DisplayOptions
     {
-        [SimpleOption("required", Required = true, DefaultValueText = "a value")]
+        [SimpleOption("required", IsRequired = true, DefaultValueText = "a value")]
         public string Required { get; set; } = string.Empty;
 
         [SimpleOption("number", DefaultValueText = "3")]

@@ -93,8 +93,8 @@ namespace ConsoleApp1
             var parserOptions = SimpleParserOptions.Standard with
             {
                 ServiceProvider = container,
-                RequireStrictCommandName = false,
-                RequireStrictOptionName = true,
+                RequireCommandName = false,
+                RejectUnknownOptionNames = true,
             };
 
             await SimpleParser.ParseAndExecute(commandTypes, args, parserOptions);

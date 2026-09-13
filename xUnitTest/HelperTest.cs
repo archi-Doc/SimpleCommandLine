@@ -35,50 +35,50 @@ public class HelperTest
     [InlineData("abc", "abc")]
     [InlineData("\"abc", "\"abc")]
     [InlineData("\"", "\"")]
-    public void TryUnwrapDoubleQuoteTest(string input, string expected)
-        => SimpleParserHelper.UnwrapDoubleQuote(input).Is(expected);
+    public void TryUnwrapDoubleQuotesTest(string input, string expected)
+        => SimpleParserHelper.UnwrapDoubleQuotes(input).Is(expected);
 
     [Fact]
-    public void TryUnwrapDoubleQuoteNullTest()
-        => SimpleParserHelper.UnwrapDoubleQuote(null).IsNull();
+    public void TryUnwrapDoubleQuotesNullTest()
+        => SimpleParserHelper.UnwrapDoubleQuotes(null).IsNull();
 
     [Fact]
     public void SplitAndJoinTest()
     {
-        "a b  c".SplitAtSpace().SequenceEqual(["a", "b", "c"]).IsTrue();
-        "  ".SplitAtSpace().SequenceEqual([]).IsTrue();
+        "a b  c".SplitAtWhitespace().SequenceEqual(["a", "b", "c"]).IsTrue();
+        "  ".SplitAtWhitespace().SequenceEqual([]).IsTrue();
         new[] { "a", "b" }.JoinWithSpace().Is("a b");
         Array.Empty<string>().JoinWithSpace().Is(string.Empty);
     }
 
     [Fact]
-    public void TryGetAndRemoveArgumentTest()
+    public void TryGetAndRemoveOptionValueTest()
     {
         // The name/value pair is removed from the array.
         string[] args = ["-a", "1", "-b", "2"];
-        SimpleParserHelper.TryGetAndRemoveArgument(ref args, "a", out var value).IsTrue();
+        SimpleParserHelper.TryGetAndRemoveOptionValue(ref args, "a", out var value).IsTrue();
         value.Is("1");
         args.SequenceEqual(["-b", "2"]).IsTrue();
 
         // The last pair.
         args = ["-b", "2", "-a", "1"];
-        SimpleParserHelper.TryGetAndRemoveArgument(ref args, "A", out value).IsTrue(); // Case insensitive
+        SimpleParserHelper.TryGetAndRemoveOptionValue(ref args, "A", out value).IsTrue(); // Case insensitive
         value.Is("1");
         args.SequenceEqual(["-b", "2"]).IsTrue();
 
         // Not found.
         args = ["-b", "2"];
-        SimpleParserHelper.TryGetAndRemoveArgument(ref args, "a", out value).IsFalse();
+        SimpleParserHelper.TryGetAndRemoveOptionValue(ref args, "a", out value).IsFalse();
         value.Is(string.Empty);
         args.SequenceEqual(["-b", "2"]).IsTrue();
 
         // No value.
         args = ["-b", "2", "-a"];
-        SimpleParserHelper.TryGetAndRemoveArgument(ref args, "a", out value).IsFalse();
+        SimpleParserHelper.TryGetAndRemoveOptionValue(ref args, "a", out value).IsFalse();
 
         // The next argument is an option.
         args = ["-a", "-b", "2"];
-        SimpleParserHelper.TryGetAndRemoveArgument(ref args, "a", out value).IsFalse();
+        SimpleParserHelper.TryGetAndRemoveOptionValue(ref args, "a", out value).IsFalse();
     }
 
     [Fact]

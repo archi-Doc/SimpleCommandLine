@@ -32,9 +32,10 @@ public class SimpleCommandAttribute : Attribute
     public string Description { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets a value indicating whether this command forwards unknown options and help to its own parser. The default is false.
+    /// Gets or sets a value indicating whether this command is a command group, such as <see cref="SimpleCommandGroup{TSelf}"/>,
+    /// which forwards unknown options and help to its own parser. The default is false.
     /// </summary>
-    public bool IsSubcommand { get; set; } = false;
+    public bool IsCommandGroup { get; set; } = false;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SimpleCommandAttribute"/> class.

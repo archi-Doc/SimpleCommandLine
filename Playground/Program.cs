@@ -49,7 +49,7 @@ public record class TestOptions
     [SimpleOption("mode", Description = "mode(receive, transfer)")]
     public string Mode { get; private set; } = "receive";
 
-    [SimpleOption("port", Description = "local port number to transfer packets", Required = true, ReadFromEnvironment = true)]
+    [SimpleOption("port", Description = "local port number to transfer packets", IsRequired = true, ReadFromEnvironment = true)]
     public int Port { get; } = 2000;
 
     [SimpleOption("targetip", Description = "target ip address", ReadFromEnvironment = true)]
@@ -64,7 +64,7 @@ public record class TestOptions
     [SimpleOption("n", Description = "test N")]
     public int N { get; init; } = 4;
 
-    [SimpleOption("enum", Description = "test enum", Required = true)]
+    [SimpleOption("enum", Description = "test enum", IsRequired = true)]
     public TestEnum Enum { get; } = TestEnum.Yes;
 
     [SimpleOption("sub", Description = "sub option")]
@@ -80,7 +80,7 @@ public partial record TestSubOptions
     }
 
     [Key(0)]
-    [SimpleOption("name", ShortName = "n", Required = true)]
+    [SimpleOption("name", ShortName = "n", IsRequired = true)]
     public string Name { get; set; } = string.Empty;
 }
 
@@ -168,7 +168,7 @@ public class DerivedCommand : TestCommand
     }
 }
 
-[SimpleCommand("nested-command", IsSubcommand = true)]
+[SimpleCommand("nested-command", IsCommandGroup = true)]
 public class SyncCommand : ISimpleCommand
 {
     public async Task Execute(string[] args, CancellationToken cancellationToken)
@@ -263,10 +263,10 @@ public class Program
         var parserOptions = SimpleParserOptions.Standard with
         {
             ServiceProvider = unit.Context.ServiceProvider,
-            RequireStrictCommandName = true,
-            RequireStrictOptionName = true,
+            RequireCommandName = true,
+            RejectUnknownOptionNames = true,
             DisplayUsage = false,
-            AutoAlias = true,
+            GenerateAliases = true,
         };
 
         // var b = SimpleParser.TryParseOptions<TestOptions>("test  -targetip '127.0.0.1' \"testdir\" -targetport 123 -enum hanbun", out options);

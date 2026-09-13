@@ -67,10 +67,10 @@ public class PlainCommand : ISimpleCommand
 
 public class RequiredOptions
 {
-    [SimpleOption("first", Required = true)]
+    [SimpleOption("first", IsRequired = true)]
     public string First { get; set; } = string.Empty;
 
-    [SimpleOption("second", Required = true)]
+    [SimpleOption("second", IsRequired = true)]
     public int Second { get; set; }
 
     [SimpleOption("third")]
@@ -139,9 +139,9 @@ public class ParserTest
     }
 
     [Fact]
-    public void AutoAliasTest()
+    public void GenerateAliasesTest()
     {
-        var parser = new SimpleParser([typeof(PlainCommand)], StandardOptions with { AutoAlias = true });
+        var parser = new SimpleParser([typeof(PlainCommand)], StandardOptions with { GenerateAliases = true });
 
         // 'plain-command' -> 'pc'
         parser.Parse("pc").IsTrue();
@@ -223,7 +223,7 @@ public class ParserTest
         parser.Parse("required-command").IsFalse();
         parser.CurrentCommand.IsNull();
 
-        // Required options can omit their names (OmitOptionNamesForRequiredOptions).
+        // Required options can omit their names (AllowPositionalRequiredOptions).
         parser.Parse("required-command abc 5").IsTrue();
         await parser.Execute(TestContext.Current.CancellationToken);
         RequiredCommand.ReceivedOptions!.First.Is("abc");
@@ -236,23 +236,23 @@ public class ParserTest
         RequiredCommand.ReceivedOptions.Second.Is(6);
 
         // Omitting the names can be disabled.
-        var strict = new SimpleParser(CommandTypes, StandardOptions with { OmitOptionNamesForRequiredOptions = false });
+        var strict = new SimpleParser(CommandTypes, StandardOptions with { AllowPositionalRequiredOptions = false });
         strict.Parse("required-command abc 5").IsFalse();
     }
 
     [Fact]
-    public void StrictOptionNameTest()
+    public void RejectUnknownOptionNamesTest()
     {
-        var parser = new SimpleParser(CommandTypes, StandardOptions with { RequireStrictOptionName = true });
+        var parser = new SimpleParser(CommandTypes, StandardOptions with { RejectUnknownOptionNames = true });
 
         parser.Parse("parser-command -number 1").IsTrue();
         parser.Parse("parser-command -unknown 1").IsFalse();
     }
 
     [Fact]
-    public void StrictCommandNameTest()
+    public void RequireCommandNameTest()
     {
-        var parser = new SimpleParser(CommandTypes, StandardOptions with { RequireStrictCommandName = true });
+        var parser = new SimpleParser(CommandTypes, StandardOptions with { RequireCommandName = true });
 
         parser.DefaultCommandName.IsNull();
         parser.Parse("-number 1").IsFalse(); // No command name.
@@ -274,12 +274,12 @@ public class ParserTest
         parser.HelpCommandName.Is("parser-command");
 
         parser.Parse("version").IsTrue();
-        parser.VersionRequested.IsTrue();
+        parser.IsVersionRequested.IsTrue();
 
         // The state is reset for every Parse() call.
         parser.Parse("parser-command").IsTrue();
         parser.HelpCommandName.IsNull();
-        parser.VersionRequested.IsFalse();
+        parser.IsVersionRequested.IsFalse();
 
         // ShowHelp()/ShowVersion() do not throw (the output is suppressed).
         parser.ShowHelp();
@@ -316,7 +316,7 @@ public class ParserTest
 
         // Arguments after '|' belong to the next command.
         parser.Parse("parser-command -number 4 | -number 9").IsTrue();
-        ((ParserOptions)parser.CurrentCommand!.OptionClass.OptionInstance!).Number.Is(4);
+        ((ParserOptions)parser.CurrentCommand!.OptionSet.Instance!).Number.Is(4);
     }
 
     [Fact]

@@ -10,7 +10,7 @@ namespace SimpleCommandLine;
 /// <summary>
 /// Registers a group's commands with Arc.Unit, dependency injection, and the shared parser registry.
 /// </summary>
-/// <remarks>Obtain this builder with <see cref="UnitCommandExtensions.GetSimpleCommandGroup{TCommand}"/> and finish registration during unit configuration.</remarks>
+/// <remarks>Obtain this builder with <see cref="UnitCommandExtensions.GetSimpleCommandGroup{TParentCommand}"/> and finish registration during unit configuration.</remarks>
 public sealed class SimpleCommandGroupBuilder
 {
     internal SimpleCommandGroupBuilder(SimpleCommandConfiguration configuration, CommandGroup group)

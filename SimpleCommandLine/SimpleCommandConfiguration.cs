@@ -15,7 +15,7 @@ internal sealed class SimpleCommandConfiguration : IUnitCustomContext
     public SimpleParserBuilder Builder => !this.processed ? this.builder
         : throw new InvalidOperationException("SimpleCommandLine registration is complete. Register commands and options during UnitBuilder.Configure, before the service provider is built.");
 
-    public void ProcessContext(IUnitConfigurationContext context)
+    public void Configure(IUnitConfigurationContext context)
     {
         context.Services.AddSingleton(this.Builder.CreateRegistry());
         this.processed = true;

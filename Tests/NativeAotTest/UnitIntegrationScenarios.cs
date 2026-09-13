@@ -35,7 +35,7 @@ public static class UnitIntegrationScenarios
         // Registration from another module/configuration delegate shares the same metadata.
         builder.Configure(context =>
         {
-            context.AddOptionType<NestedOptions>();
+            context.AddOptionsType<NestedOptions>();
             retainedGroup = context.GetSimpleCommandGroup<DatabaseCommand>();
             Check(retainedGroup.AddCommand<RunCommand, RunOptions>(), "same command in a group");
             Check(retainedGroup.AddCommand<InnerCommand>(), "nested group registration");
@@ -55,7 +55,7 @@ public static class UnitIntegrationScenarios
         using var cancellation = new CancellationTokenSource();
         await parser.Execute(cancellation.Token);
         var run = (RunCommand)parser.CurrentCommand!.CommandInstance;
-        var parsedOptions = (RunOptions)parser.CurrentCommand.OptionClass.OptionInstance!;
+        var parsedOptions = (RunOptions)parser.CurrentCommand.OptionSet.Instance!;
         Check(ReferenceEquals(run, scope.ServiceProvider.GetRequiredService<RunCommand>()), "command uses scoped DI registration");
         Check(run.Received?.Value == 10 && run.Received.Nested.Text == "example" && run.Token == cancellation.Token, "typed command execution");
         Check(ReferenceEquals(run.State, scope.ServiceProvider.GetRequiredService<ScopeState>()), "scoped constructor dependency");
@@ -104,10 +104,10 @@ public static class UnitIntegrationScenarios
         Check(!ReferenceEquals(scope.ServiceProvider.GetRequiredService<TransientCommand>(), scope.ServiceProvider.GetRequiredService<TransientCommand>()), "transient lifetime");
 
         ExpectInvalid(() => retainedContext!.AddCommand<LateCommand>(), "registration is complete", "late command registration rejected");
-        ExpectInvalid(() => retainedContext!.AddOptionType<UnregisteredOptions>(), "registration is complete", "late options registration rejected");
+        ExpectInvalid(() => retainedContext!.AddOptionsType<UnregisteredOptions>(), "registration is complete", "late options registration rejected");
         ExpectInvalid(() => retainedGroup!.AddCommand<LateCommand>(), "registration is complete", "retained group cannot modify frozen registry");
         ExpectInvalid(() => retainedContext!.GetSimpleCommandGroup<LateCommand>(), "registration is complete", "late group creation rejected");
-        Check(registry.CreateParser(unit.Context.Commands, scopedSettings).NameToCommand.Count == 4, "frozen registry is unchanged");
+        Check(registry.CreateParser(unit.Context.CommandTypes, scopedSettings).NameToCommand.Count == 4, "frozen registry is unchanged");
 
         var otherBuilder = new UnitBuilder();
         otherBuilder.Configure(context => context.AddCommand<Subcommand>());
@@ -203,7 +203,7 @@ public static class UnitIntegrationScenarios
         }
     }
 
-    [SimpleCommand("db", IsSubcommand = true)]
+    [SimpleCommand("db", IsCommandGroup = true)]
     private sealed class DatabaseCommand : SimpleCommandGroup<DatabaseCommand>
     {
         public DatabaseCommand(SimpleCommandRegistry registry, UnitContext context, IServiceProvider serviceProvider)
@@ -215,7 +215,7 @@ public static class UnitIntegrationScenarios
         public SimpleCommandRegistry Registry { get; }
     }
 
-    [SimpleCommand("inner", IsSubcommand = true)]
+    [SimpleCommand("inner", IsCommandGroup = true)]
     private sealed class InnerCommand : SimpleCommandGroup<InnerCommand>
     {
         public InnerCommand(SimpleCommandRegistry registry, UnitContext context, IServiceProvider serviceProvider)

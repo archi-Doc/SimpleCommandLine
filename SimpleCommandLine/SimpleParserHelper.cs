@@ -157,7 +157,7 @@ public static class SimpleParserHelper
     /// </summary>
     /// <param name="text">The text to unwrap.</param>
     /// <returns>The unwrapped text, the original text if it is not double-quoted, or <see langword="null"/> if the input is <see langword="null"/>.</returns>
-    public static string? UnwrapDoubleQuote(string? text)
+    public static string? UnwrapDoubleQuotes(string? text)
     {
         if (text is null)
         {
@@ -179,7 +179,7 @@ public static class SimpleParserHelper
     /// </summary>
     /// <param name="commandLine">The command line.</param>
     /// <returns>The first word, or <see cref="string.Empty"/> if the input is blank or the word starts with <c>-</c>.</returns>
-    public static string PeekCommand(ReadOnlySpan<char> commandLine)
+    public static string PeekCommandName(ReadOnlySpan<char> commandLine)
     {
         if (commandLine.Length == 0)
         {
@@ -262,7 +262,7 @@ public static class SimpleParserHelper
     /// </summary>
     /// <param name="commandName">The command name.</param>
     /// <returns>The alias.</returns>
-    public static string CreateAliasFromCommand(string commandName)
+    public static string CreateAliasFromCommandName(string commandName)
     {
         var span = commandName.AsSpan();
         if (span.IsEmpty)
@@ -336,18 +336,18 @@ public static class SimpleParserHelper
     /// Appends the value of the specified environment variable to the command line, separated by a space.<br/>
     /// The command line is left unchanged if the variable is not set.
     /// </summary>
-    /// <param name="args">The command line to append to.</param>
+    /// <param name="commandLine">The command line to append to.</param>
     /// <param name="variableName">The name of the environment variable.</param>
     /// <returns>The variable's value, or <see cref="string.Empty"/> if it is unset or cannot be read.</returns>
     /// <remarks>The appended text is not quoted or escaped and may contain multiple arguments.</remarks>
-    public static string AppendEnvironmentVariable(ref string args, string variableName)
+    public static string AppendEnvironmentVariable(ref string commandLine, string variableName)
     {
         try
         {
             var v = Environment.GetEnvironmentVariable(variableName);
             if (v != null)
             {
-                args += " " + v;
+                commandLine += " " + v;
                 return v;
             }
         }
@@ -366,7 +366,7 @@ public static class SimpleParserHelper
     /// <param name="value">When this method returns, contains the value of the option; otherwise, <see cref="string.Empty"/>.</param>
     /// <returns><see langword="true"/> if the option and its value are found.</returns>
     /// <remarks>Accepts <c>-name</c>, <c>--name</c>, and negative numeric values. Does not normalize the returned value.</remarks>
-    public static bool TryGetAndRemoveArgument(ref string[] args, string optionName, out string value)
+    public static bool TryGetAndRemoveOptionValue(ref string[] args, string optionName, out string value)
     {
         value = string.Empty;
         var nameSpan = optionName.AsSpan();
@@ -427,7 +427,7 @@ public static class SimpleParserHelper
     /// </summary>
     /// <param name="text">The input string.</param>
     /// <returns>An array of the separated strings.</returns>
-    public static string[] SplitAtSpace(this string text) => text.Split((char[])null!, StringSplitOptions.RemoveEmptyEntries);
+    public static string[] SplitAtWhitespace(this string text) => text.Split((char[])null!, StringSplitOptions.RemoveEmptyEntries);
 
     /// <summary>
     /// Determines whether the text is an option name (starts with '-').<br/>

@@ -30,7 +30,7 @@ public class RegistrationAndOptionsTest
     public void AutomaticAliasCannotHideACommandName()
     {
         var parser = new SimpleParserBuilder().AddCommand<ReviewRegressionTest.TextCommand, ReviewRegressionTest.TextOptions>()
-            .AddCommand<ShortCommand>().Build(Settings with { AutoAlias = true });
+            .AddCommand<ShortCommand>().Build(Settings with { GenerateAliases = true });
         Assert.True(parser.Parse("t"));
         Assert.IsType<ShortCommand>(parser.CurrentCommand!.CommandInstance);
         Assert.Equal(string.Empty, parser.NameToCommand["text"].Alias);
@@ -84,8 +84,8 @@ public class RegistrationAndOptionsTest
     [Fact]
     public void StrictPlainCommandRejectsUnknownOptions()
     {
-        var parser = new SimpleParserBuilder().AddCommand<ShortCommand>().Build(Settings with { RequireStrictOptionName = true });
-        Assert.True(parser.RequireStrictOptionName);
+        var parser = new SimpleParserBuilder().AddCommand<ShortCommand>().Build(Settings with { RejectUnknownOptionNames = true });
+        Assert.True(parser.RejectUnknownOptionNames);
         Assert.False(parser.Parse("t -unknown"));
         Assert.Null(parser.CurrentCommand);
     }
@@ -94,13 +94,13 @@ public class RegistrationAndOptionsTest
     public async Task LegacyGroupSupportsAFullDefaultCommandLine()
     {
         var builder = new UnitBuilder();
-        builder.Configure(context => LegacyGroup.ConfigureGroup(context, typeof(ParentGroup))
+        builder.Configure(context => LegacyGroup.RegisterAndGetChildGroup(context, typeof(ParentGroup))
             .AddCommand(typeof(ReviewRegressionTest.TextCommand)));
         var unit = builder.Build();
         using var provider = (IDisposable)unit.Context.ServiceProvider;
         var group = new LegacyGroup(unit.Context);
         await group.Execute([], TestContext.Current.CancellationToken);
-        Assert.Equal("two words", ((ReviewRegressionTest.TextOptions)group.Parser.CurrentCommand!.OptionClass.OptionInstance!).Text);
+        Assert.Equal("two words", ((ReviewRegressionTest.TextOptions)group.Parser.CurrentCommand!.OptionSet.Instance!).Text);
         Assert.Single(unit.Context.GetCommandTypes(typeof(ParentGroup)));
     }
 
@@ -150,7 +150,7 @@ public class RegistrationAndOptionsTest
         public string Second { get; set; } = string.Empty;
     }
 
-    [SimpleCommand("parent", IsSubcommand = true)]
+    [SimpleCommand("parent", IsCommandGroup = true)]
     public class ParentGroup : SimpleCommandGroup<ParentGroup>
     {
         public ParentGroup(UnitContext context)
@@ -159,7 +159,7 @@ public class RegistrationAndOptionsTest
         }
     }
 
-    [SimpleCommand("legacy", IsSubcommand = true)]
+    [SimpleCommand("legacy", IsCommandGroup = true)]
     public class LegacyGroup : SimpleCommandGroup<LegacyGroup>
     {
         public LegacyGroup(UnitContext context)
