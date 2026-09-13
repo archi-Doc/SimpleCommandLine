@@ -17,13 +17,13 @@ namespace ConsoleApp1
 
     public class TestOptions : BaseOptions
     {
-        [SimpleOption("name", Required = true, Description = "Desc")]
+        [SimpleOption("name", IsRequired = true, Description = "Desc")]
         public string Name { get; set; } = string.Empty;
 
         [SimpleOption("number", ShortName = "n")]
         public int Number { get; set; } = 10;
 
-        [SimpleOption("op5", Required = false)]
+        [SimpleOption("op5", IsRequired = false)]
         public TestOptions5 Options5 { get; set; } = new TestOptions5() with { File = "A1", };
     }
 
@@ -48,7 +48,7 @@ namespace ConsoleApp1
 
     public class TestOptions3 : BaseOptions
     {
-        [SimpleOption("text", ShortName = "t", Required = true)]
+        [SimpleOption("text", ShortName = "t", IsRequired = true)]
         public string Text { get; set; } = string.Empty;
 
         [SimpleOption("options")]
@@ -60,7 +60,7 @@ namespace ConsoleApp1
 
     public class TestOptions3b
     {
-        [SimpleOption("name", ShortName = "n", Required = true)]
+        [SimpleOption("name", ShortName = "n", IsRequired = true)]
         public string Name { get; set; } = string.Empty;
     }
 
@@ -78,19 +78,19 @@ namespace ConsoleApp1
 
     public record TestOptions4
     {
-        [SimpleOption("name", ShortName = "n", Required = false)]
+        [SimpleOption("name", ShortName = "n", IsRequired = false)]
         public string Name { get; set; } = string.Empty;
 
-        [SimpleOption("id", Required = false)]
+        [SimpleOption("id", IsRequired = false)]
         public int Id { get; init; } = 99;
 
-        [SimpleOption("op5", Required = false)]
+        [SimpleOption("op5", IsRequired = false)]
         public TestOptions5 Options5 { get; set; } = new TestOptions5() with { File = "A", };
     }
 
     public record TestOptions5
     {
-        [SimpleOption("file", ShortName = "f", Required = false)]
+        [SimpleOption("file", ShortName = "f", IsRequired = false)]
         public string File { get; set; } = string.Empty;
     }
 

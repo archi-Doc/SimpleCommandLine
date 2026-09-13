@@ -40,7 +40,7 @@ public class NativeAotTest
     {
         var parser = new SimpleParser([typeof(ParserCommand)], SimpleParserOptions.Standard with { ReadCommandFromEnvironment = false, SuppressConsoleOutput = true });
         Assert.True(parser.Parse("-nested {-value 1} -nested {-value 2}"));
-        Assert.Equal(2, ((ParserOptions)parser.CurrentCommand!.OptionClass.OptionInstance!).Nested.Value);
+        Assert.Equal(2, ((ParserOptions)parser.CurrentCommand!.OptionSet.Instance!).Nested.Value);
         Assert.False(parser.Parse("-nested {-value 1} -nested {-value invalid}"));
     }
 

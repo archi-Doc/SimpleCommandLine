@@ -7,7 +7,7 @@ namespace SimpleCommandLine;
 /// <summary>
 /// Configures argument parsing, command resolution, and parser output.
 /// </summary>
-/// <remarks>Create a variant with <c>SimpleParserOptions.Standard with { AutoAlias = true }</c>.</remarks>
+/// <remarks>Create a variant with <c>SimpleParserOptions.Standard with { GenerateAliases = true }</c>.</remarks>
 public record SimpleParserOptions
 {
     /// <summary>
@@ -16,14 +16,14 @@ public record SimpleParserOptions
     public static SimpleParserOptions Standard { get; } = new SimpleParserOptions();
 
     /// <summary>
-    /// Gets the options which require the command name to be specified (no default command).
+    /// Gets the standard options with <see cref="RequireCommandName"/> enabled (no default command).
     /// </summary>
-    public static SimpleParserOptions StrictCommandName { get; } = Standard with { RequireStrictCommandName = true };
+    public static SimpleParserOptions CommandNameRequired { get; } = Standard with { RequireCommandName = true };
 
     /// <summary>
-    /// Gets the options which require a valid option name (an unregistered option results in an error).
+    /// Gets the standard options with <see cref="RejectUnknownOptionNames"/> enabled (an unregistered option results in an error).
     /// </summary>
-    public static SimpleParserOptions StrictOptionName { get; } = Standard with { RequireStrictOptionName = true };
+    public static SimpleParserOptions UnknownOptionNamesRejected { get; } = Standard with { RejectUnknownOptionNames = true };
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SimpleParserOptions"/> class.
@@ -40,12 +40,12 @@ public record SimpleParserOptions
     /// <summary>
     /// Gets a value indicating whether the command name is required (no default command) [the default is <see langword="false"/>].
     /// </summary>
-    public bool RequireStrictCommandName { get; init; } = false;
+    public bool RequireCommandName { get; init; } = false;
 
     /// <summary>
-    /// Gets a value indicating whether unknown option names cause errors, except for subcommands. The default is false.
+    /// Gets a value indicating whether unknown option names cause errors, except for command groups (<see cref="SimpleCommandAttribute.IsCommandGroup"/>). The default is false.
     /// </summary>
-    public bool RequireStrictOptionName { get; init; } = false;
+    public bool RejectUnknownOptionNames { get; init; } = false;
 
     /// <summary>
     /// Gets a value indicating whether the usage text is displayed in a help message [the default is <see langword="true"/>].
@@ -61,17 +61,17 @@ public record SimpleParserOptions
     /// Gets a value indicating whether the name of a required option may be omitted [the default is <see langword="true"/>].<br/>
     /// A value without an option name is assigned to the first required option that is not set yet.
     /// </summary>
-    public bool OmitOptionNamesForRequiredOptions { get; init; } = true;
+    public bool AllowPositionalRequiredOptions { get; init; } = true;
 
     /// <summary>
     /// Gets a value indicating whether an alias is created automatically from the command name [the default is <see langword="false"/>].<br/>
     /// Uses hyphen-separated initials, such as <c>remove-file</c> to <c>rf</c>; conflicting names or aliases are skipped.
     /// </summary>
-    public bool AutoAlias { get; init; } = false;
+    public bool GenerateAliases { get; init; } = false;
 
     /// <summary>
     /// Gets a value indicating whether the command name is read from the environment variable
-    /// <see cref="SimpleParser.CommandEnvironmentVariable"/> when no command, help, or version request is recognized. The default is true.
+    /// <see cref="SimpleParser.CommandEnvironmentVariableName"/> when no command, help, or version request is recognized. The default is true.
     /// </summary>
     public bool ReadCommandFromEnvironment { get; init; } = true;
 

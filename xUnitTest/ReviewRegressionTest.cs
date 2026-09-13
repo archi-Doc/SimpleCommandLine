@@ -27,8 +27,8 @@ public class ReviewRegressionTest
     {
         var parser = new SimpleParserBuilder().AddCommand<TextCommand, TextOptions>().Build(Settings);
         Assert.True(parser.Parse(["text", "-text", value]));
-        Assert.Equal(value, ((TextOptions)parser.CurrentCommand!.OptionClass.OptionInstance!).Text);
-        Assert.Empty(parser.CurrentCommand.OptionClass.RemainingArguments!);
+        Assert.Equal(value, ((TextOptions)parser.CurrentCommand!.OptionSet.Instance!).Text);
+        Assert.Empty(parser.CurrentCommand.OptionSet.RemainingArguments!);
 
         Assert.True(SimpleParser.TryParseOptions<TextOptions>(["-text", value], out var options));
         Assert.Equal(value, options.Text);
@@ -37,15 +37,15 @@ public class ReviewRegressionTest
     }
 
     [Fact]
-    public async Task SubcommandsPreserveArgumentBoundaries()
+    public async Task CommandGroupsPreserveArgumentBoundaries()
     {
         var parent = new SimpleParserBuilder().AddCommand<ForwardCommand>().Build(Settings);
         var child = new SimpleParserBuilder().AddCommand<TextCommand, TextOptions>().Build(Settings);
         Assert.True(parent.Parse("forward text -text 'two words' '' '\"quoted\"'"));
-        var args = parent.CurrentCommand!.OptionClass.RemainingArguments!;
+        var args = parent.CurrentCommand!.OptionSet.RemainingArguments!;
         await child.ParseAndExecute(args, TestContext.Current.CancellationToken);
-        Assert.Equal("two words", ((TextOptions)child.CurrentCommand!.OptionClass.OptionInstance!).Text);
-        Assert.Equal([string.Empty, "\"quoted\""], child.CurrentCommand.OptionClass.RemainingArguments!);
+        Assert.Equal("two words", ((TextOptions)child.CurrentCommand!.OptionSet.Instance!).Text);
+        Assert.Equal([string.Empty, "\"quoted\""], child.CurrentCommand.OptionSet.RemainingArguments!);
     }
 
     [Theory]
@@ -69,7 +69,7 @@ public class ReviewRegressionTest
     {
         var parser = new SimpleParserBuilder().AddCommand<ScalarCommand, ScalarOptions>().Build(Settings);
         Assert.True(parser.Parse("scalar -number '42' -day \"Friday\" -flag 'true' -letter 'x'"));
-        var options = (ScalarOptions)parser.CurrentCommand!.OptionClass.OptionInstance!;
+        var options = (ScalarOptions)parser.CurrentCommand!.OptionSet.Instance!;
         Assert.Equal(42, options.Number);
         Assert.Equal(DayOfWeek.Friday, options.Day);
         Assert.True(options.Flag);
@@ -82,7 +82,7 @@ public class ReviewRegressionTest
         var parser = new SimpleParserBuilder().AddCommand<ForwardCommand>()
             .Build(Settings with { ArgumentDelimiter = string.Empty });
         Assert.True(parser.Parse("forward \"\"\"value\"\"\""));
-        Assert.Equal([string.Empty, "value", string.Empty], parser.CurrentCommand!.OptionClass.RemainingArguments!);
+        Assert.Equal([string.Empty, "value", string.Empty], parser.CurrentCommand!.OptionSet.RemainingArguments!);
     }
 
     [Fact]
@@ -92,7 +92,7 @@ public class ReviewRegressionTest
         Assert.False(parser.Parse("text -text | -text second"));
         Assert.Null(parser.CurrentCommand);
         Assert.True(parser.Parse("text -text '|'"));
-        Assert.Equal("|", ((TextOptions)parser.CurrentCommand!.OptionClass.OptionInstance!).Text);
+        Assert.Equal("|", ((TextOptions)parser.CurrentCommand!.OptionSet.Instance!).Text);
     }
 
     [Fact]
@@ -116,7 +116,7 @@ public class ReviewRegressionTest
     [Fact]
     public void AutomaticAliasMetadataMatchesDispatch()
     {
-        var parser = new SimpleParserBuilder().AddCommand<TextCommand, TextOptions>().Build(Settings with { AutoAlias = true });
+        var parser = new SimpleParserBuilder().AddCommand<TextCommand, TextOptions>().Build(Settings with { GenerateAliases = true });
         Assert.True(parser.Parse("t"));
         Assert.Equal("t", parser.CurrentCommand!.Alias);
     }
@@ -128,7 +128,7 @@ public class ReviewRegressionTest
         var parser = builder.Build(Settings);
         Assert.Equal("first", parser.DefaultCommandName);
         Assert.Single(parser.NameToCommand.Values, x => x.IsDefault);
-        parser = builder.Build(Settings with { RequireStrictCommandName = true });
+        parser = builder.Build(Settings with { RequireCommandName = true });
         Assert.DoesNotContain(parser.NameToCommand.Values, x => x.IsDefault);
     }
 
@@ -146,7 +146,7 @@ public class ReviewRegressionTest
     public void ArgumentRemovalAcceptsNegativeValues(string name, string value)
     {
         string[] args = ["unrelated", name, value, "tail"];
-        Assert.True(SimpleParserHelper.TryGetAndRemoveArgument(ref args, "count", out var result));
+        Assert.True(SimpleParserHelper.TryGetAndRemoveOptionValue(ref args, "count", out var result));
         Assert.Equal(value, result);
         Assert.Equal(["unrelated", "tail"], args);
     }
@@ -155,10 +155,10 @@ public class ReviewRegressionTest
     public void ArgumentRemovalStopsAtCommandSeparator()
     {
         string[] args = ["-text", "|", "-text", "second"];
-        Assert.False(SimpleParserHelper.TryGetAndRemoveArgument(ref args, "text", out _));
+        Assert.False(SimpleParserHelper.TryGetAndRemoveOptionValue(ref args, "text", out _));
         Assert.Equal(["-text", "|", "-text", "second"], args);
         args = ["first", "|", "-text", "second"];
-        Assert.False(SimpleParserHelper.TryGetAndRemoveArgument(ref args, "text", out _));
+        Assert.False(SimpleParserHelper.TryGetAndRemoveOptionValue(ref args, "text", out _));
     }
 
     public class TextOptions
@@ -184,7 +184,7 @@ public class ReviewRegressionTest
 
     public class BaseOptions
     {
-        [SimpleOption("text", Required = true)]
+        [SimpleOption("text", IsRequired = true)]
         public virtual string Text { get; set; } = string.Empty;
     }
 
@@ -195,7 +195,7 @@ public class ReviewRegressionTest
 
     public class RenamedOptions : BaseOptions
     {
-        [SimpleOption("renamed", Required = true)]
+        [SimpleOption("renamed", IsRequired = true)]
         public override string Text { get; set; } = string.Empty;
     }
 
@@ -222,7 +222,7 @@ public class ReviewRegressionTest
         public Task Execute(BrokenOptions options, string[] args, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
-    [SimpleCommand("forward", IsSubcommand = true)]
+    [SimpleCommand("forward", IsCommandGroup = true)]
     public class ForwardCommand : ISimpleCommand
     {
         public Task Execute(string[] args, CancellationToken cancellationToken) => Task.CompletedTask;

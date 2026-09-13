@@ -34,7 +34,7 @@ public class SimpleParser : ISimpleParser
     public const string HelpName = "help";
 
     /// <summary>
-    /// The alias of <see cref="HelpName"/>, available when <see cref="SimpleParserOptions.AutoAlias"/> is enabled.
+    /// The alias of <see cref="HelpName"/>, available when <see cref="SimpleParserOptions.GenerateAliases"/> is enabled.
     /// </summary>
     public const string HelpAlias = "h";
 
@@ -61,7 +61,7 @@ public class SimpleParser : ISimpleParser
     /// <summary>
     /// The name of the environment variable which holds the command name (see <see cref="SimpleParserOptions.ReadCommandFromEnvironment"/>).
     /// </summary>
-    public const string CommandEnvironmentVariable = "Command";
+    public const string CommandEnvironmentVariableName = "Command";
 
     /// <summary>
     /// Gets the default argument delimiter (a triple quote).
@@ -98,7 +98,7 @@ public class SimpleParser : ISimpleParser
         {
         }
 
-        public void AddOptionClassUsage(OptionClass optionClass)
+        public void AddOptionSetUsage(OptionSet optionSet)
         {
         }
 
@@ -142,20 +142,20 @@ public class SimpleParser : ISimpleParser
     {
         var parser = new HollowParser(SimpleParserOptions.Standard, resolveType);
 
-        var optionClass = new OptionClass(parser, typeof(TOptions), null);
+        var optionSet = new OptionSet(parser, typeof(TOptions), null);
         if (instanceToUpdate != null)
         {
-            optionClass.optionInstance = instanceToUpdate;
+            optionSet.instance = instanceToUpdate;
         }
 
-        optionClass.ParseCore(args, 0, true, processArguments);
-        if (optionClass.FatalError)
+        optionSet.ParseCore(args, 0, true, processArguments);
+        if (optionSet.FatalError)
         {
             options = default;
             return false;
         }
 
-        options = (TOptions)optionClass.OptionInstance!;
+        options = (TOptions)optionSet.Instance!;
         return options != null;
     }
 
@@ -183,13 +183,13 @@ public class SimpleParser : ISimpleParser
             this.Parser = parser;
             this.CommandType = commandType;
             this.CommandInterface = registration.CommandInterface;
-            this.OptionType = registration.OptionType;
+            this.OptionsType = registration.OptionsType;
             this.execute = registration.Execute;
             this.CommandName = attribute.CommandName;
             this.Alias = attribute.Alias;
             this.IsDefault = attribute.IsDefault;
             this.Description = attribute.Description;
-            this.IsSubcommand = attribute.IsSubcommand;
+            this.IsCommandGroup = attribute.IsCommandGroup;
 
             if (this.CommandName == string.Empty)
             {
@@ -204,7 +204,7 @@ public class SimpleParser : ISimpleParser
 
             this.constructorInvoker = constructor is null ? null : ConstructorInvoker.Create(constructor);
 
-            this.OptionClass = new OptionClass(this.Parser, this.OptionType, null);
+            this.OptionSet = new OptionSet(this.Parser, this.OptionsType, null);
         }
 
         /// <summary>
@@ -214,8 +214,8 @@ public class SimpleParser : ISimpleParser
         /// <returns>A task that represents the command execution.</returns>
         public Task Execute(CancellationToken cancellationToken)
         {
-            var args = this.OptionClass.RemainingArguments ?? Array.Empty<string>();
-            return this.execute(this.CommandInstance, this.OptionClass.OptionInstance, args, cancellationToken);
+            var args = this.OptionSet.RemainingArguments ?? Array.Empty<string>();
+            return this.execute(this.CommandInstance, this.OptionSet.Instance, args, cancellationToken);
         }
 
         /// <summary>
@@ -237,7 +237,7 @@ public class SimpleParser : ISimpleParser
         /// <summary>
         /// Gets the type of the options class, or <see langword="null"/> if the command has no options.
         /// </summary>
-        public Type? OptionType { get; }
+        public Type? OptionsType { get; }
 
         /// <summary>
         /// Gets the name of the command.
@@ -260,14 +260,14 @@ public class SimpleParser : ISimpleParser
         public string Description { get; set; }
 
         /// <summary>
-        /// Gets a value indicating whether this command is a subcommand (it accepts unknown option names).
+        /// Gets a value indicating whether this command is a command group (it accepts unknown option names and forwards help to its own parser).
         /// </summary>
-        public bool IsSubcommand { get; }
+        public bool IsCommandGroup { get; }
 
         /// <summary>
         /// Gets the options of this command.
         /// </summary>
-        public OptionClass OptionClass { get; }
+        public OptionSet OptionSet { get; }
 
         /// <summary>
         /// Gets the cached command instance, resolving it from the service provider or its parameterless constructor on first access.
@@ -298,7 +298,7 @@ public class SimpleParser : ISimpleParser
         {
             sb.AppendLine($"{this.CommandName} {this.Description}");
 
-            this.OptionClass.AppendOption(sb, false);
+            this.OptionSet.AppendOption(sb, false);
         }
 
         private readonly ConstructorInvoker? constructorInvoker;
@@ -309,90 +309,90 @@ public class SimpleParser : ISimpleParser
     /// <summary>
     /// Holds an options type's members, parsed instance, and remaining arguments.
     /// </summary>
-    public class OptionClass
+    public class OptionSet
     {
         /// <summary>
-        /// Initializes a new instance of the <see cref="OptionClass"/> class.
+        /// Initializes a new instance of the <see cref="OptionSet"/> class.
         /// </summary>
         /// <param name="parser">The parser which collects error messages.</param>
-        /// <param name="optionType">The type of the options class. Use <see langword="null"/> for a command without options.</param>
+        /// <param name="optionsType">The type of the options class. Use <see langword="null"/> for a command without options.</param>
         /// <param name="optionStack">The types being processed, used to detect a circular dependency.</param>
         /// <exception cref="InvalidOperationException">The options type is not valid (circular dependency, duplicate option name, and so on).</exception>
-        internal OptionClass(ISimpleParser parser, Type? optionType, Stack<Type>? optionStack)
+        internal OptionSet(ISimpleParser parser, Type? optionsType, Stack<Type>? optionStack)
         {
             optionStack ??= new();
-            if (optionType != null)
+            if (optionsType != null)
             {
-                if (optionStack.Contains(optionType))
+                if (optionStack.Contains(optionsType))
                 {
                     var s = string.Join(SimpleParser.OptionPrefix, optionStack.Select(x => x.Name));
                     throw new InvalidOperationException($"Circular dependency of option classes is detected ({s}).");
                 }
                 else
                 {
-                    optionStack.Push(optionType);
+                    optionStack.Push(optionsType);
                 }
             }
 
             this.Parser = parser;
-            if (optionType is not null)
+            if (optionsType is not null)
             {
-                this.OptionType = parser.ResolveType(optionType).Type;
-                this.OptionTypeIdentifier = TinyhandTypeIdentifier.GetTypeIdentifier(optionType);
+                this.OptionsType = parser.ResolveType(optionsType).Type;
+                this.OptionsTypeIdentifier = TinyhandTypeIdentifier.GetTypeIdentifier(optionsType);
             }
 
             this.LongNameToOption = new(StringComparer.OrdinalIgnoreCase);
             this.ShortNameToOption = new(StringComparer.OrdinalIgnoreCase);
-            if (this.OptionType is null)
+            if (this.OptionsType is null)
             {
                 this.Options = new(0);
             }
             else
             {
-                var constructor = this.OptionType.GetConstructor(Type.EmptyTypes);
-                if (constructor is null && !TinyhandTypeIdentifier.IsRegistered(this.OptionTypeIdentifier))
+                var constructor = this.OptionsType.GetConstructor(Type.EmptyTypes);
+                if (constructor is null && !TinyhandTypeIdentifier.IsRegistered(this.OptionsTypeIdentifier))
                 {
-                    throw new InvalidOperationException($"Default constructor (parameterless constructor) is required for type '{this.OptionType.ToString()}'.");
+                    throw new InvalidOperationException($"Default constructor (parameterless constructor) is required for type '{this.OptionsType.ToString()}'.");
                 }
 
-                this.constructorInvoker = constructor is null || this.OptionType.IsAbstract ? null : ConstructorInvoker.Create(constructor);
+                this.constructorInvoker = constructor is null || this.OptionsType.IsAbstract ? null : ConstructorInvoker.Create(constructor);
 
-                var members = GetOptionMembers(this.OptionType);
+                var members = GetOptionMembers(this.OptionsType);
                 this.Options = new(members.Length);
                 foreach (var (memberInfo, optionAttribute) in members)
                 {
-                    var option = new Option(this.Parser, this.OptionType, memberInfo, optionAttribute, optionStack);
+                    var option = new Option(this.Parser, this.OptionsType, memberInfo, optionAttribute, optionStack);
                     this.Options.Add(option);
 
                     if (!this.LongNameToOption.TryAdd(option.LongName, option))
                     {
-                        throw new InvalidOperationException($"Long option name '{option.LongName}' ({this.OptionType.ToString()}) already exists.");
+                        throw new InvalidOperationException($"Long option name '{option.LongName}' ({this.OptionsType.ToString()}) already exists.");
                     }
 
                     if (option.ShortName != null && !this.ShortNameToOption.TryAdd(option.ShortName, option))
                     {
-                        throw new InvalidOperationException($"Short option name '{option.ShortName}' ({this.OptionType.ToString()}) already exists.");
+                        throw new InvalidOperationException($"Short option name '{option.ShortName}' ({this.OptionsType.ToString()}) already exists.");
                     }
 
-                    this.hasRequiredOption |= option.Required;
+                    this.hasRequiredOption |= option.IsRequired;
                     this.hasEnvironmentOption |= option.ReadFromEnvironment;
                 }
             }
 
-            if (optionType != null)
+            if (optionsType != null)
             {
                 optionStack.Pop();
             }
         }
 
         /// <summary>
-        /// Parses the arguments and sets the values of <see cref="OptionInstance"/>.<br/>
+        /// Parses the arguments and sets the values of <see cref="Instance"/>.<br/>
         /// Arguments which are not consumed as an option are stored in <see cref="RemainingArguments"/>.
         /// </summary>
         /// <param name="args">Raw tokens, such as those returned by <see cref="SimpleParserHelper.SplitArguments"/>.</param>
         /// <param name="startIndex">The index at which parsing starts, from zero through the array length.</param>
         /// <param name="acceptUnknownOptionName">
-        /// <see langword="true"/> to ignore an unknown option name even when <see cref="SimpleParserOptions.RequireStrictOptionName"/> is enabled.
+        /// <see langword="true"/> to ignore an unknown option name even when <see cref="SimpleParserOptions.RejectUnknownOptionNames"/> is enabled.
         /// </param>
         /// <returns><see langword="true"/> if the arguments are successfully parsed.</returns>
         /// <remarks>
@@ -426,9 +426,9 @@ public class SimpleParser : ISimpleParser
                 x.Reset();
             }
 
-            if (this.OptionType is not null && this.OptionInstance is null)
+            if (this.OptionsType is not null && this.Instance is null)
             {
-                this.Parser.AddErrorMessage($"Could not create options of Type '{this.OptionType}'.");
+                this.Parser.AddErrorMessage($"Could not create options of Type '{this.OptionsType}'.");
                 this.FatalError = true;
                 return false;
             }
@@ -450,13 +450,13 @@ public class SimpleParser : ISimpleParser
                             if (!args[n + 1].IsOptionName() && args[n + 1] != SimpleParser.CommandSeparatorString)
                             {
                                 n++;
-                                if (option.ParseCore(args[n], this.OptionInstance, acceptUnknownOptionName, processArguments))
+                                if (option.ParseCore(args[n], this.Instance, acceptUnknownOptionName, processArguments))
                                 {
-                                    option.ValueIsSet = true;
+                                    option.IsValueSet = true;
                                 }
                                 else
                                 {// Parse error
-                                    this.Parser.AddErrorMessage($"Could not convert '{args[n]}' to Type '{option.OptionType.Name}' ({args[n - 1]} {args[n]})");
+                                    this.Parser.AddErrorMessage($"Could not convert '{args[n]}' to Type '{option.DeclaredType.Name}' ({args[n - 1]} {args[n]})");
                                     errorFlag = true;
                                 }
                             }
@@ -476,15 +476,15 @@ public class SimpleParser : ISimpleParser
                     {// Option not found
                         (remaining ??= this.remainingBuffer ??= new()).Add(args[n]);
 
-                        if (this.Parser.ParserOptions.RequireStrictOptionName && !acceptUnknownOptionName)
+                        if (this.Parser.ParserOptions.RejectUnknownOptionNames && !acceptUnknownOptionName)
                         {
-                            if (this.OptionType == null)
+                            if (this.OptionsType == null)
                             {
                                 this.Parser.AddErrorMessage($"Option '{name}' is invalid");
                             }
                             else
                             {
-                                this.Parser.AddErrorMessage($"Option '{name}' is not found in Type: {this.OptionType.ToString()}");
+                                this.Parser.AddErrorMessage($"Option '{name}' is not found in Type: {this.OptionsType.ToString()}");
                             }
 
                             errorFlag = true;
@@ -498,16 +498,16 @@ public class SimpleParser : ISimpleParser
                 else
                 {
                     if (this.hasRequiredOption &&
-                        this.Parser.ParserOptions.OmitOptionNamesForRequiredOptions &&
+                        this.Parser.ParserOptions.AllowPositionalRequiredOptions &&
                         FindUnsetRequiredOption(options, ref nextRequiredOption) is { } option)
                     {
-                        if (option.ParseCore(args[n], this.OptionInstance, acceptUnknownOptionName, processArguments))
+                        if (option.ParseCore(args[n], this.Instance, acceptUnknownOptionName, processArguments))
                         {
-                            option.ValueIsSet = true;
+                            option.IsValueSet = true;
                         }
                         else
                         {// Parse error
-                            this.Parser.AddErrorMessage($"Could not convert '{args[n]}' to Type '{option.OptionType.Name}' ({option.LongName})");
+                            this.Parser.AddErrorMessage($"Could not convert '{args[n]}' to Type '{option.DeclaredType.Name}' ({option.LongName})");
                             errorFlag = true;
                         }
 
@@ -525,29 +525,29 @@ public class SimpleParser : ISimpleParser
 
             foreach (var x in options)
             {
-                if (x.ValueIsSet)
+                if (x.IsValueSet)
                 {
                     continue;
                 }
 
-                if (x.Required)
+                if (x.IsRequired)
                 {// Value required.
-                    this.Parser.AddErrorMessage($"Value is required for option '{x.LongName}' <{this.OptionType?.Name}>");
+                    this.Parser.AddErrorMessage($"Value is required for option '{x.LongName}' <{this.OptionsType?.Name}>");
                     errorFlag = true;
                     this.FatalError = true;
                 }
 
-                if (x.OptionClass != null && this.OptionInstance is { } instance)
+                if (x.NestedOptionSet != null && this.Instance is { } instance)
                 {// Set instance.
-                    x.OptionClass.optionInstance ??= x.GetValue(instance);
-                    if (x.OptionClass.optionInstance != null)
+                    x.NestedOptionSet.instance ??= x.GetValue(instance);
+                    if (x.NestedOptionSet.instance != null)
                     {
-                        x.ValueIsSet = true;
+                        x.IsValueSet = true;
                     }
-                    else if (x.OptionClass.OptionInstance is { } nested)
+                    else if (x.NestedOptionSet.Instance is { } nested)
                     {
                         x.SetValue(instance, nested);
-                        x.ValueIsSet = true;
+                        x.IsValueSet = true;
                     }
                 }
             }
@@ -582,7 +582,7 @@ public class SimpleParser : ISimpleParser
                 for (; index < options.Length; index++)
                 {
                     var x = options[index];
-                    if (x.Required && !x.ValueIsSet)
+                    if (x.IsRequired && !x.IsValueSet)
                     {
                         return x;
                     }
@@ -596,12 +596,12 @@ public class SimpleParser : ISimpleParser
         /// Gets the type of the options class, or <see langword="null"/> if the command has no options.
         /// </summary>
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
-        public Type? OptionType { get; }
+        public Type? OptionsType { get; }
 
         /// <summary>
         /// Gets the Tinyhand type identifier used for serialization and reconstruction.
         /// </summary>
-        public uint OptionTypeIdentifier { get; }
+        public uint OptionsTypeIdentifier { get; }
 
         /// <summary>
         /// Gets options in base-to-derived reflection order, with overrides replacing their base member.
@@ -621,7 +621,7 @@ public class SimpleParser : ISimpleParser
         /// <summary>
         /// Gets the parsed instance, creating it on first access, or null if no options type or instance is available.
         /// </summary>
-        public object? OptionInstance => this.optionInstance ??= this.CreateInstance();
+        public object? Instance => this.instance ??= this.CreateInstance();
 
         /// <summary>
         /// Gets a separate cached instance for help defaults, or null if no options type or instance is available.
@@ -652,7 +652,7 @@ public class SimpleParser : ISimpleParser
         {
             if (addName)
             {
-                sb.AppendLine($"{{{this.OptionType?.Name}}}");
+                sb.AppendLine($"{{{this.OptionsType?.Name}}}");
             }
 
             var options = CollectionsMarshal.AsSpan(this.Options);
@@ -681,7 +681,7 @@ public class SimpleParser : ISimpleParser
                 sb.Append(SimpleParser.IndentString2);
                 sb.Append(x.Description);
 
-                if (x.Required)
+                if (x.IsRequired)
                 {
                     if (x.DefaultValueText is not null)
                     {
@@ -694,7 +694,7 @@ public class SimpleParser : ISimpleParser
                 }
                 else if (x.DefaultValueText is not null)
                 {
-                    if (x.OptionType == typeof(string))
+                    if (x.DeclaredType == typeof(string))
                     {
                         sb.Append($" (Default: \"{x.DefaultValueText}\")");
                     }
@@ -710,7 +710,7 @@ public class SimpleParser : ISimpleParser
                     {
                         sb.Append(" (Optional)");
                     }
-                    else if (x.OptionClass is null)
+                    else if (x.NestedOptionSet is null)
                     {
                         if (value is string)
                         {
@@ -725,9 +725,9 @@ public class SimpleParser : ISimpleParser
 
                 sb.AppendLine();
 
-                if (x.OptionClass != null)
+                if (x.NestedOptionSet != null)
                 {
-                    this.Parser.AddOptionClassUsage(x.OptionClass);
+                    this.Parser.AddOptionSetUsage(x.NestedOptionSet);
                 }
             }
 
@@ -737,28 +737,28 @@ public class SimpleParser : ISimpleParser
         /// <summary>
         /// Discards the previous options instance. A fresh instance is created by the next parse or access.
         /// </summary>
-        internal void ResetOptionInstance() => this.optionInstance = null;
+        internal void ResetInstance() => this.instance = null;
 
         /// <summary>
         /// Gets the members annotated with <see cref="SimpleOptionAttribute"/> (base type -> derived type).<br/>
         /// The result is cached since reflection is relatively expensive.
         /// </summary>
-        /// <param name="optionType">The option type.</param>
+        /// <param name="optionsType">The options type.</param>
         /// <returns>An array of members and their attributes.</returns>
-        private static (MemberInfo MemberInfo, SimpleOptionAttribute Attribute)[] GetOptionMembers([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] Type optionType)
+        private static (MemberInfo MemberInfo, SimpleOptionAttribute Attribute)[] GetOptionMembers([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] Type optionsType)
         {
-            if (OptionMembersCache.TryGetValue(optionType, out var cached))
+            if (OptionMembersCache.TryGetValue(optionsType, out var cached))
             {
                 return cached;
             }
 
             var list = new List<(MemberInfo, SimpleOptionAttribute)>();
-            if (optionType.BaseType is { } baseType && baseType != typeof(object))
+            if (optionsType.BaseType is { } baseType && baseType != typeof(object))
             {
                 list.AddRange(GetOptionMembers(baseType));
             }
 
-            foreach (var member in optionType.GetMembers(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly))
+            foreach (var member in optionsType.GetMembers(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly))
             {
                 if ((member.MemberType == MemberTypes.Field || member.MemberType == MemberTypes.Property) &&
                     member.GetCustomAttribute<SimpleOptionAttribute>(true) is { } attribute)
@@ -781,7 +781,7 @@ public class SimpleParser : ISimpleParser
                 }
             }
 
-            return OptionMembersCache.GetOrAdd(optionType, list.ToArray());
+            return OptionMembersCache.GetOrAdd(optionsType, list.ToArray());
         }
 
         /// <summary>
@@ -790,7 +790,7 @@ public class SimpleParser : ISimpleParser
         /// <returns>A new instance, or <see langword="null"/> if the instance could not be created.</returns>
         private object? CreateInstance()
         {
-            if (this.OptionType is null)
+            if (this.OptionsType is null)
             {
                 return null;
             }
@@ -806,7 +806,7 @@ public class SimpleParser : ISimpleParser
                 }
             }
 
-            return TinyhandTypeIdentifier.TryReconstruct(this.OptionTypeIdentifier);
+            return TinyhandTypeIdentifier.TryReconstruct(this.OptionsTypeIdentifier);
         }
 
         private bool ReadFromEnvironment(ReadOnlySpan<Option> options, bool acceptUnknownOptionName)
@@ -814,7 +814,7 @@ public class SimpleParser : ISimpleParser
             var success = true;
             foreach (var x in options)
             {
-                if (x.ValueIsSet || !x.ReadFromEnvironment)
+                if (x.IsValueSet || !x.ReadFromEnvironment)
                 {
                     continue;
                 }
@@ -826,13 +826,13 @@ public class SimpleParser : ISimpleParser
                     continue;
                 }
 
-                if (x.Parse(env, this.OptionInstance, acceptUnknownOptionName))
+                if (x.Parse(env, this.Instance, acceptUnknownOptionName))
                 {
-                    x.ValueIsSet = true;
+                    x.IsValueSet = true;
                 }
                 else
                 {
-                    this.Parser.AddErrorMessage($"Could not convert the environment value for option '{x.LongName}' to Type '{x.OptionType.Name}'.");
+                    this.Parser.AddErrorMessage($"Could not convert the environment value for option '{x.LongName}' to Type '{x.DeclaredType.Name}'.");
                     success = false;
                 }
             }
@@ -842,7 +842,7 @@ public class SimpleParser : ISimpleParser
 
 #pragma warning disable SA1307 // Accessible fields should begin with upper-case letter
 #pragma warning disable SA1401
-        internal object? optionInstance;
+        internal object? instance;
 #pragma warning restore SA1401
 #pragma warning restore SA1307 // Accessible fields should begin with upper-case letter
 
@@ -864,12 +864,12 @@ public class SimpleParser : ISimpleParser
         /// Initializes a new instance of the <see cref="Option"/> class.
         /// </summary>
         /// <param name="parser">The parser which collects error messages.</param>
-        /// <param name="optionType">The type which declares the member.</param>
+        /// <param name="optionsType">The type which declares the member.</param>
         /// <param name="memberInfo">The field or property annotated with <see cref="SimpleOptionAttribute"/>.</param>
         /// <param name="attribute">The <see cref="SimpleOptionAttribute"/> of the member.</param>
         /// <param name="optionStack">The types being processed, used to detect a circular dependency.</param>
         /// <exception cref="InvalidOperationException">The member is not a settable field or property.</exception>
-        internal Option(ISimpleParser parser, Type optionType, MemberInfo memberInfo, SimpleOptionAttribute attribute, Stack<Type> optionStack)
+        internal Option(ISimpleParser parser, Type optionsType, MemberInfo memberInfo, SimpleOptionAttribute attribute, Stack<Type> optionStack)
         {
             this.Parser = parser;
             this.LongName = attribute.LongName.Trim();
@@ -879,10 +879,10 @@ public class SimpleParser : ISimpleParser
             {
                 if (propertyInfo.GetIndexParameters().Length != 0)
                 {
-                    throw new InvalidOperationException($"{optionType.Name}.{propertyInfo.Name} is an indexer and cannot be an option.");
+                    throw new InvalidOperationException($"{optionsType.Name}.{propertyInfo.Name} is an indexer and cannot be an option.");
                 }
 
-                this.optionType = propertyInfo.PropertyType;
+                this.declaredType = propertyInfo.PropertyType;
                 var declaringType = parser.ResolveType(propertyInfo.DeclaringType!).Type;
                 this.FieldInfo = declaringType.GetField($"<{propertyInfo.Name}>k__BackingField", BindingFlags.Instance | BindingFlags.NonPublic);
                 if (propertyInfo.GetSetMethod(true) is { } setMethod)
@@ -897,20 +897,20 @@ public class SimpleParser : ISimpleParser
 
                 if (this.setInvoker is null && this.FieldInfo is null)
                 {
-                    throw new InvalidOperationException($"{optionType.Name}.{propertyInfo.Name} is a getter-only property and inaccessible.");
+                    throw new InvalidOperationException($"{optionsType.Name}.{propertyInfo.Name} is a getter-only property and inaccessible.");
                 }
             }
             else if (this.FieldInfo is { } fieldInfo)
             {
-                this.optionType = fieldInfo.FieldType;
+                this.declaredType = fieldInfo.FieldType;
             }
             else
             {
-                throw new InvalidOperationException($"'{memberInfo.Name}' ({optionType.Name}) must be a field or a property.");
+                throw new InvalidOperationException($"'{memberInfo.Name}' ({optionsType.Name}) must be a field or a property.");
             }
 
             // Nullable value types (int?, TestEnum?, ...) are handled as their underlying type.
-            var underlyingType = Nullable.GetUnderlyingType(this.optionType) ?? this.optionType;
+            var underlyingType = Nullable.GetUnderlyingType(this.declaredType) ?? this.declaredType;
             if (underlyingType.IsEnum)
             {// Enum
                 this.enumType = underlyingType;
@@ -924,7 +924,7 @@ public class SimpleParser : ISimpleParser
             }
             else
             {// Option class
-                this.OptionClass = new OptionClass(this.Parser, this.optionType, optionStack);
+                this.NestedOptionSet = new OptionSet(this.Parser, this.declaredType, optionStack);
             }
 
             if (attribute.ShortName != null)
@@ -937,13 +937,13 @@ public class SimpleParser : ISimpleParser
             }
 
             this.Description = attribute.Description;
-            this.Required = attribute.Required;
+            this.IsRequired = attribute.IsRequired;
             this.ReadFromEnvironment = attribute.ReadFromEnvironment;
             this.DefaultValueText = attribute.DefaultValueText;
             this.ArgumentProcessing = attribute.ArgumentProcessing;
 
-            var typeName = underlyingType == this.optionType ? underlyingType.Name : underlyingType.Name + "?";
-            this.OptionText = this.OptionClass is null ?
+            var typeName = underlyingType == this.declaredType ? underlyingType.Name : underlyingType.Name + "?";
+            this.OptionText = this.NestedOptionSet is null ?
                 $"-{this.LongName}{(this.ShortName is null ? string.Empty : ", -" + this.ShortName)} <{typeName}>" :
                 $"-{this.LongName}{(this.ShortName is null ? string.Empty : ", -" + this.ShortName)} {{{typeName}}}";
         }
@@ -957,7 +957,7 @@ public class SimpleParser : ISimpleParser
         /// <see langword="true"/> to ignore an unknown option name while parsing a nested options class.
         /// </param>
         /// <returns><see langword="true"/> if the value is assigned; false if the instance is null or conversion fails.</returns>
-        /// <remarks>This low-level call does not update <see cref="ValueIsSet"/>. Member-access exceptions propagate to the caller.</remarks>
+        /// <remarks>This low-level call does not update <see cref="IsValueSet"/>. Member-access exceptions propagate to the caller.</remarks>
         public bool Parse(string argument, object? instance, bool acceptUnknownOptionName)
             => this.ParseCore(argument, instance, acceptUnknownOptionName, true);
 
@@ -970,29 +970,29 @@ public class SimpleParser : ISimpleParser
 
             var span = argument.AsSpan();
             string? normalized = null;
-            if (processArguments && (this.OptionClass is null || !argument.StartsWith(SimpleParser.OpenBrace)))
+            if (processArguments && (this.NestedOptionSet is null || !argument.StartsWith(SimpleParser.OpenBrace)))
             {
                 span = SimpleParserHelper.ProcessArgument(span, this.Parser.ParserOptions, this.ArgumentProcessing, out normalized);
             }
 
             object value;
-            if (this.OptionClass is not null)
+            if (this.NestedOptionSet is not null)
             {
                 argument = normalized ?? (span.Length == argument.Length ? argument : span.ToString());
 
                 // Each occurrence supplies a fresh nested value; never reuse a previous parse result.
-                this.OptionClass.optionInstance = null;
-                var typeIdentifier = this.OptionClass.OptionTypeIdentifier;
+                this.NestedOptionSet.instance = null;
+                var typeIdentifier = this.NestedOptionSet.OptionsTypeIdentifier;
                 if (typeIdentifier != 0 && TinyhandTypeIdentifier.IsRegistered(typeIdentifier))
                 {
                     var obj = TinyhandTypeIdentifier.TryParseOrDeserializeFromString(typeIdentifier, argument, SerializerOptions);
                     if (obj is not null)
                     {
-                        this.OptionClass.optionInstance = obj;
+                        this.NestedOptionSet.instance = obj;
                     }
                 }
 
-                if (this.OptionClass.optionInstance is null)
+                if (this.NestedOptionSet.instance is null)
                 {
                     var nestedArguments = argument.AsSpan();
                     if (argument.Length >= 2 && argument.StartsWith(SimpleParser.OpenBrace) && argument.EndsWith(SimpleParser.CloseBrace))
@@ -1000,14 +1000,14 @@ public class SimpleParser : ISimpleParser
                         nestedArguments = nestedArguments.Slice(1, nestedArguments.Length - 2);
                     }
 
-                    var ret = this.OptionClass.Parse(SimpleParserHelper.SplitParserArguments(nestedArguments, this.Parser.ParserOptions), 0, acceptUnknownOptionName);
-                    if (!ret || this.OptionClass.OptionInstance == null)
+                    var ret = this.NestedOptionSet.Parse(SimpleParserHelper.SplitParserArguments(nestedArguments, this.Parser.ParserOptions), 0, acceptUnknownOptionName);
+                    if (!ret || this.NestedOptionSet.Instance == null)
                     {
                         return false;
                     }
                 }
 
-                value = this.OptionClass.OptionInstance!;
+                value = this.NestedOptionSet.Instance!;
             }
             else if (this.enumType is not null)
             {// Enum
@@ -1093,7 +1093,7 @@ public class SimpleParser : ISimpleParser
         /// <summary>
         /// Gets a value indicating whether a value is required for this option.
         /// </summary>
-        public bool Required { get; }
+        public bool IsRequired { get; }
 
         /// <summary>
         /// Gets a value indicating whether the value is read from the environment variable
@@ -1109,17 +1109,17 @@ public class SimpleParser : ISimpleParser
         /// <summary>
         /// Gets a value indicating whether parsing supplied a value or retained a nested options instance.
         /// </summary>
-        public bool ValueIsSet { get; internal set; }
+        public bool IsValueSet { get; internal set; }
 
         /// <summary>
         /// Gets the declared type of the field or property (<see cref="Nullable{T}"/> included).
         /// </summary>
-        public Type OptionType => this.optionType;
+        public Type DeclaredType => this.declaredType;
 
         /// <summary>
-        /// Gets the nested options class when <see cref="OptionType"/> is a class with its own options; otherwise, <see langword="null"/>.
+        /// Gets the nested option set when <see cref="DeclaredType"/> is a class with its own options; otherwise, <see langword="null"/>.
         /// </summary>
-        public OptionClass? OptionClass { get; }
+        public OptionSet? NestedOptionSet { get; }
 
         /// <summary>
         /// Gets the parser which provides the parser options.
@@ -1152,15 +1152,15 @@ public class SimpleParser : ISimpleParser
         }
 
         /// <summary>
-        /// Clears the state of the previous parse (called at the beginning of <see cref="OptionClass.Parse"/>).
+        /// Clears the state of the previous parse (called at the beginning of <see cref="OptionSet.Parse"/>).
         /// </summary>
         internal void Reset()
         {
-            this.ValueIsSet = false;
-            this.OptionClass?.optionInstance = default;
+            this.IsValueSet = false;
+            this.NestedOptionSet?.instance = default;
         }
 
-        private readonly Type optionType;
+        private readonly Type declaredType;
         private readonly Type? enumType;
         private readonly Func<ReadOnlySpan<char>, object?>? converter;
         private readonly MethodInvoker? setInvoker;
@@ -1175,7 +1175,7 @@ public class SimpleParser : ISimpleParser
     /// <exception cref="InvalidOperationException">A command type is not valid, or a command name or alias is duplicated.</exception>
     /// <remarks>
     /// The first command marked as default or with an empty name is selected; otherwise, the first registered command is used.
-    /// <see cref="SimpleParserOptions.RequireStrictCommandName"/> disables the default. Use <see cref="SimpleParserBuilder"/> for trimming or NativeAOT.
+    /// <see cref="SimpleParserOptions.RequireCommandName"/> disables the default. Use <see cref="SimpleParserBuilder"/> for trimming or NativeAOT.
     /// </remarks>
     [RequiresUnreferencedCode(PreservedType.ReflectionWarning)]
     public SimpleParser(IEnumerable<Type> commandTypes, SimpleParserOptions? parserOptions = null)
@@ -1193,7 +1193,7 @@ public class SimpleParser : ISimpleParser
         this.NameToCommand = new(StringComparer.OrdinalIgnoreCase);
         this.AliasToCommand = new(StringComparer.OrdinalIgnoreCase);
         this.ErrorMessage = new();
-        this.OptionClassUsage = new();
+        this.OptionSetUsage = new();
         foreach (var registration in registrations)
         {
             var x = registration.CommandType;
@@ -1243,13 +1243,13 @@ public class SimpleParser : ISimpleParser
         }
 
         // Auto-alias
-        if (this.ParserOptions.AutoAlias)
+        if (this.ParserOptions.GenerateAliases)
         {
             foreach (var x in this.NameToCommand.Values)
             {
                 if (string.IsNullOrEmpty(x.Alias))
                 {
-                    var alias = SimpleParserHelper.CreateAliasFromCommand(x.CommandName);
+                    var alias = SimpleParserHelper.CreateAliasFromCommandName(x.CommandName);
                     if (alias.Length > 0 && !this.NameToCommand.ContainsKey(alias) && this.AliasToCommand.TryAdd(alias, x))
                     {
                         x.Alias = alias;
@@ -1264,7 +1264,7 @@ public class SimpleParser : ISimpleParser
             this.DefaultCommandName = firstOrDefault.CommandName;
         }
 
-        if (this.ParserOptions.RequireStrictCommandName)
+        if (this.ParserOptions.RequireCommandName)
         {// No default command
             this.DefaultCommandName = null;
         }
@@ -1320,7 +1320,7 @@ public class SimpleParser : ISimpleParser
 
     /// <summary>
     /// Parses the arguments and stores the result in <see cref="CurrentCommand"/>.<br/>
-    /// When help or version is requested, <see cref="HelpCommandName"/> or <see cref="VersionRequested"/> is set instead.
+    /// When help or version is requested, <see cref="HelpCommandName"/> or <see cref="IsVersionRequested"/> is set instead.
     /// </summary>
     /// <param name="commandLine">The command line specifying the command and its options.</param>
     /// <returns><see langword="true"/> for a valid command, help, or version request; otherwise, <see langword="false"/>.</returns>
@@ -1340,7 +1340,7 @@ public class SimpleParser : ISimpleParser
         {
             this.ShowHelp(this.HelpCommandName);
         }
-        else if (this.VersionRequested)
+        else if (this.IsVersionRequested)
         {
             this.ShowVersion();
         }
@@ -1393,7 +1393,7 @@ public class SimpleParser : ISimpleParser
     /// Looks up an option by the full command name and long option name.
     /// </summary>
     /// <param name="commandName">The name of the command to search for (case insensitive).</param>
-    /// <param name="optionName">The long name of the option to search for within the command (case insensitive).</param>
+    /// <param name="longOptionName">The long name of the option to search for within the command (case insensitive).</param>
     /// <param name="option">
     /// When this method returns, contains the <see cref="Option"/> associated with the specified option name,
     /// if the option is found; otherwise, <see langword="null"/>.
@@ -1401,11 +1401,11 @@ public class SimpleParser : ISimpleParser
     /// <returns>
     /// <see langword="true"/> if the option is found; otherwise, <see langword="false"/>.
     /// </returns>
-    public bool TryGetOption(string commandName, string optionName, [MaybeNullWhen(false)] out Option option)
+    public bool TryGetOption(string commandName, string longOptionName, [MaybeNullWhen(false)] out Option option)
     {
         if (this.NameToCommand.TryGetValue(commandName, out var command))
         {
-            return command.OptionClass.LongNameToOption.TryGetValue(optionName, out option);
+            return command.OptionSet.LongNameToOption.TryGetValue(longOptionName, out option);
         }
 
         option = default;
@@ -1429,7 +1429,7 @@ public class SimpleParser : ISimpleParser
 
         commandName ??= this.HelpCommandName;
         var sb = new StringBuilder();
-        this.OptionClassUsage.Clear();
+        this.OptionSetUsage.Clear();
         if (this.ErrorMessage.Count > 0)
         {
             sb.Append("Error: ");
@@ -1477,9 +1477,9 @@ public class SimpleParser : ISimpleParser
         }
 
         // AppendOption() may add a nested option class to the list, so the count is evaluated on each iteration.
-        for (var i = 0; i < this.OptionClassUsage.Count; i++)
+        for (var i = 0; i < this.OptionSetUsage.Count; i++)
         {
-            this.OptionClassUsage[i].AppendOption(sb, true);
+            this.OptionSetUsage[i].AppendOption(sb, true);
         }
 
         this.WriteLine(sb.ToString());
@@ -1619,7 +1619,7 @@ public class SimpleParser : ISimpleParser
 
     /// <summary>
     /// Gets the name of the command executed when the command name is not specified,
-    /// or <see langword="null"/> if no commands are registered or <see cref="SimpleParserOptions.RequireStrictCommandName"/> is enabled.
+    /// or <see langword="null"/> if no commands are registered or <see cref="SimpleParserOptions.RequireCommandName"/> is enabled.
     /// </summary>
     public string? DefaultCommandName { get; }
 
@@ -1637,7 +1637,7 @@ public class SimpleParser : ISimpleParser
     /// <summary>
     /// Gets a value indicating whether the version command is specified.
     /// </summary>
-    public bool VersionRequested { get; private set; }
+    public bool IsVersionRequested { get; private set; }
 
     /// <summary>
     /// Gets the registered commands keyed by their command name (case insensitive).
@@ -1656,26 +1656,26 @@ public class SimpleParser : ISimpleParser
     public void AddErrorMessage(string message) => this.ErrorMessage.Add(message);
 
     /// <summary>
-    /// Gets a value indicating whether an unregistered option name results in an error.
+    /// Gets a value indicating whether an unregistered option name results in an error (see <see cref="SimpleParserOptions.RejectUnknownOptionNames"/>).
     /// </summary>
-    public bool RequireStrictOptionName => this.ParserOptions.RequireStrictOptionName;
+    public bool RejectUnknownOptionNames => this.ParserOptions.RejectUnknownOptionNames;
 
     /// <summary>
-    /// Registers a nested options class so that its options are described once at the end of a help message.<br/>
-    /// The options class is ignored if another one of the same type is already registered.
+    /// Registers a nested option set so that its options are described once at the end of a help message.<br/>
+    /// The option set is ignored if another one of the same options type is already registered.
     /// </summary>
-    /// <param name="optionClass">The nested options class.</param>
-    public void AddOptionClassUsage(OptionClass optionClass)
+    /// <param name="optionSet">The nested option set.</param>
+    public void AddOptionSetUsage(OptionSet optionSet)
     {
-        foreach (var x in CollectionsMarshal.AsSpan(this.OptionClassUsage))
+        foreach (var x in CollectionsMarshal.AsSpan(this.OptionSetUsage))
         {
-            if (x.OptionType == optionClass.OptionType)
+            if (x.OptionsType == optionSet.OptionsType)
             {
                 return;
             }
         }
 
-        this.OptionClassUsage.Add(optionClass);
+        this.OptionSetUsage.Add(optionSet);
     }
 
     PreservedType ISimpleParser.ResolveType(Type type) => this.resolveType(type);
@@ -1685,7 +1685,7 @@ public class SimpleParser : ISimpleParser
 
     private List<string> ErrorMessage { get; }
 
-    private List<OptionClass> OptionClassUsage { get; }
+    private List<OptionSet> OptionSetUsage { get; }
 
     /// <summary>
     /// Determines whether the argument matches the specified name, ignoring case and leading '-'.
@@ -1730,7 +1730,7 @@ public class SimpleParser : ISimpleParser
         var ret = true;
         this.OriginalCommandLine = commandLine;
         this.HelpCommandName = null;
-        this.VersionRequested = false;
+        this.IsVersionRequested = false;
         this.CurrentCommand = null;
         this.ErrorMessage.Clear();
 
@@ -1758,7 +1758,7 @@ public class SimpleParser : ISimpleParser
             TryProcessHelpAndVersion(); // "app.exe help", "app.exe version"
         }
 
-        if (this.HelpCommandName != null || this.VersionRequested)
+        if (this.HelpCommandName != null || this.IsVersionRequested)
         {
             return ret;
         }
@@ -1766,7 +1766,7 @@ public class SimpleParser : ISimpleParser
         // Not found. Try to load the command from environment variables.
         if (start == 0 &&
             this.ParserOptions.ReadCommandFromEnvironment &&
-            Environment.GetEnvironmentVariable(SimpleParser.CommandEnvironmentVariable) is { } env)
+            Environment.GetEnvironmentVariable(SimpleParser.CommandEnvironmentVariableName) is { } env)
         {
             if (this.NameToCommand.ContainsKey(env))
             {// CommandName Found
@@ -1789,11 +1789,11 @@ public class SimpleParser : ISimpleParser
 
         if (this.NameToCommand.TryGetValue(commandName, out var command))
         {
-            if (commandSpecified && !command.IsSubcommand &&
+            if (commandSpecified && !command.IsCommandGroup &&
                 arguments.Length > start && OptionEquals(arguments[start], HelpName))
             {
                 if (arguments[start].IsOptionName() &&
-                    (command.OptionClass.LongNameToOption.ContainsKey(HelpName) || command.OptionClass.ShortNameToOption.ContainsKey(HelpName)))
+                    (command.OptionSet.LongNameToOption.ContainsKey(HelpName) || command.OptionSet.ShortNameToOption.ContainsKey(HelpName)))
                 {// "app.exe command -help"
                 }
                 else
@@ -1803,8 +1803,8 @@ public class SimpleParser : ISimpleParser
                 }
             }
 
-            command.OptionClass.ResetOptionInstance();
-            if (command.OptionClass.ParseCore(arguments, start, command.IsSubcommand, processArguments))
+            command.OptionSet.ResetInstance();
+            if (command.OptionSet.ParseCore(arguments, start, command.IsCommandGroup, processArguments))
             {// Success
                 this.CurrentCommand = command;
             }
@@ -1831,7 +1831,7 @@ public class SimpleParser : ISimpleParser
             }
 
             if (OptionEquals(arguments[0], HelpName) ||
-                (this.ParserOptions.AutoAlias && OptionEquals(arguments[0], HelpAlias)))
+                (this.ParserOptions.GenerateAliases && OptionEquals(arguments[0], HelpAlias)))
             {// Help
                 if (arguments.Length >= 2 && !arguments[1].IsOptionName() && this.NameToCommand.ContainsKey(arguments[1]))
                 {// help command
@@ -1844,7 +1844,7 @@ public class SimpleParser : ISimpleParser
             }
             else if (OptionEquals(arguments[0], VersionName))
             {// Version
-                this.VersionRequested = true;
+                this.IsVersionRequested = true;
             }
         }
     }

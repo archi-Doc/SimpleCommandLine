@@ -147,20 +147,20 @@ public class UnitTest1
     [InlineData("-remove--file-", "rf")]
     [InlineData("a-b-c-d", "abcd")]
     public void CreateAliasTest(string command, string expected)
-        => SimpleParserHelper.CreateAliasFromCommand(command).Is(expected);
+        => SimpleParserHelper.CreateAliasFromCommandName(command).Is(expected);
 
     [Fact]
-    public void PeekCommandTest()
+    public void PeekCommandNameTest()
     {
-        SimpleParserHelper.PeekCommand("").Is("");
-        SimpleParserHelper.PeekCommand(" ").Is("");
-        SimpleParserHelper.PeekCommand("cmd").Is("cmd");
-        SimpleParserHelper.PeekCommand(" cmd  ").Is("cmd");
-        SimpleParserHelper.PeekCommand("1").Is("1");
-        SimpleParserHelper.PeekCommand("-option").Is("");
-        SimpleParserHelper.PeekCommand("-option 123").Is("");
-        SimpleParserHelper.PeekCommand("cmd -option 123").Is("cmd");
-        SimpleParserHelper.PeekCommand(" cmd -option 123").Is("cmd");
+        SimpleParserHelper.PeekCommandName("").Is("");
+        SimpleParserHelper.PeekCommandName(" ").Is("");
+        SimpleParserHelper.PeekCommandName("cmd").Is("cmd");
+        SimpleParserHelper.PeekCommandName(" cmd  ").Is("cmd");
+        SimpleParserHelper.PeekCommandName("1").Is("1");
+        SimpleParserHelper.PeekCommandName("-option").Is("");
+        SimpleParserHelper.PeekCommandName("-option 123").Is("");
+        SimpleParserHelper.PeekCommandName("cmd -option 123").Is("cmd");
+        SimpleParserHelper.PeekCommandName(" cmd -option 123").Is("cmd");
     }
 
     [Fact]

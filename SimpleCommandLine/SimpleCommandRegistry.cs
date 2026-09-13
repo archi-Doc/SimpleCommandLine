@@ -13,10 +13,10 @@ namespace SimpleCommandLine;
 /// <remarks>Arc.Unit registers one instance per unit. Parsers have separate parse state; their command instances may be shared by DI.</remarks>
 public sealed class SimpleCommandRegistry
 {
-    internal SimpleCommandRegistry(Dictionary<Type, SimpleCommandRegistration> commands, Dictionary<Type, PreservedType> optionTypes)
+    internal SimpleCommandRegistry(Dictionary<Type, SimpleCommandRegistration> commands, Dictionary<Type, PreservedType> optionsTypes)
     {
         this.commands = commands.ToFrozenDictionary();
-        this.optionTypes = optionTypes.ToFrozenDictionary();
+        this.optionsTypes = optionsTypes.ToFrozenDictionary();
     }
 
     /// <summary>
@@ -37,10 +37,10 @@ public sealed class SimpleCommandRegistry
     }
 
     private PreservedType ResolveType(Type type)
-        => this.optionTypes.TryGetValue(type, out var preserved)
+        => this.optionsTypes.TryGetValue(type, out var preserved)
             ? preserved
-            : throw new InvalidOperationException($"Options type '{type}' is not registered. Call SimpleParserBuilder.AddOptions<{type.Name}>() or IUnitConfigurationContext.AddOptionType<{type.Name}>() during configuration.");
+            : throw new InvalidOperationException($"Options type '{type}' is not registered. Call SimpleParserBuilder.AddOptionsType<{type.Name}>() or IUnitConfigurationContext.AddOptionsType<{type.Name}>() during configuration.");
 
     private readonly FrozenDictionary<Type, SimpleCommandRegistration> commands;
-    private readonly FrozenDictionary<Type, PreservedType> optionTypes;
+    private readonly FrozenDictionary<Type, PreservedType> optionsTypes;
 }
