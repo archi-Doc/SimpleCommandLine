@@ -107,7 +107,7 @@ public static class UnitIntegrationScenarios
         ExpectInvalid(() => retainedContext!.AddOptionType<UnregisteredOptions>(), "registration is complete", "late options registration rejected");
         ExpectInvalid(() => retainedGroup!.AddCommand<LateCommand>(), "registration is complete", "retained group cannot modify frozen registry");
         ExpectInvalid(() => retainedContext!.GetSimpleCommandGroup<LateCommand>(), "registration is complete", "late group creation rejected");
-        Check(registry.CreateParser(unit.Context.Commands, scopedSettings).NameToCommand.Count == 4, "frozen registry is unchanged");
+        Check(registry.CreateParser(unit.Context.CommandTypes, scopedSettings).NameToCommand.Count == 4, "frozen registry is unchanged");
 
         var otherBuilder = new UnitBuilder();
         otherBuilder.Configure(context => context.AddCommand<Subcommand>());

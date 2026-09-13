@@ -108,7 +108,7 @@ public static class UnitCommandExtensions
     public static SimpleParser CreateSimpleParser(this UnitContext context, SimpleParserOptions? parserOptions = null)
     {
         ArgumentNullException.ThrowIfNull(context);
-        return GetRegistry(context).CreateParser(context.Commands, WithServiceProvider(context, parserOptions));
+        return GetRegistry(context).CreateParser(context.CommandTypes, WithServiceProvider(context, parserOptions));
     }
 
     /// <summary>
@@ -136,7 +136,7 @@ public static class UnitCommandExtensions
     public static SimpleParser CreateSimpleSubcommandParser(this UnitContext context, SimpleParserOptions? parserOptions = null)
     {
         ArgumentNullException.ThrowIfNull(context);
-        return GetRegistry(context).CreateParser(context.Subcommands, WithServiceProvider(context, parserOptions));
+        return GetRegistry(context).CreateParser(context.SubcommandTypes, WithServiceProvider(context, parserOptions));
     }
 
     private static SimpleCommandGroupBuilder GetConfigurationGroup(IUnitConfigurationContext context, bool subcommands)
@@ -144,7 +144,7 @@ public static class UnitCommandExtensions
         ArgumentNullException.ThrowIfNull(context);
         var configuration = context.GetCustomContext<SimpleCommandConfiguration>();
         _ = configuration.Builder;
-        return new SimpleCommandGroupBuilder(configuration, subcommands ? context.GetSubcommandGroup() : context.GetCommandGroup());
+        return new SimpleCommandGroupBuilder(configuration, subcommands ? context.GetSubcommandGroup() : context.GetTopLevelCommandGroup());
     }
 
     private static SimpleCommandRegistry GetRegistry(UnitContext context)
