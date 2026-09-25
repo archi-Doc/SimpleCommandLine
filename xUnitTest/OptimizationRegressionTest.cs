@@ -68,6 +68,22 @@ public class OptimizationRegressionTest
     }
 
     [Fact]
+    public void FailedNestedValuesKeepTheNestedInstanceInSyncWithTheMember()
+    {
+        var builder = new SimpleParserBuilder().AddOptionsType<ReviewRegressionTest.ScalarOptions>();
+        Assert.True(builder.TryParseOptions<NullableNestedOptions>("-nested {-number 7 -day invalid}", out var initialized));
+        Assert.NotNull(initialized.Nested); // Treated as unspecified: initialized like an omitted nested option.
+        Assert.Equal(0, initialized.Nested.Number);
+
+        var parser = builder.AddCommand<NestedCommand, NestedOptions>().Build(Settings);
+        Assert.False(parser.Parse("nested -nested {-number 5} -nested {-number invalid}"));
+        var optionSet = parser.NameToCommand["nested"].OptionSet;
+        var nested = ((NestedOptions)optionSet.Instance!).Nested;
+        Assert.Equal(5, nested.Number);
+        Assert.Same(nested, optionSet.Options[0].NestedOptionSet!.Instance);
+    }
+
+    [Fact]
     public void RemainingArgumentsAreIndependentAcrossParses()
     {
         var parser = new SimpleParserBuilder().AddCommand<ReviewRegressionTest.TextCommand, ReviewRegressionTest.TextOptions>().Build(Settings);
@@ -255,6 +271,18 @@ public class OptimizationRegressionTest
     {
         [SimpleOption("nested")]
         public ReviewRegressionTest.ScalarOptions Nested { get; set; } = new() { Number = 11 };
+    }
+
+    public class NullableNestedOptions
+    {
+        [SimpleOption("nested")]
+        public ReviewRegressionTest.ScalarOptions? Nested { get; set; }
+    }
+
+    [SimpleCommand("nested")]
+    public class NestedCommand : ISimpleCommand<NestedOptions>
+    {
+        public Task Execute(NestedOptions options, string[] args, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     [SimpleCommand("hyphen")]

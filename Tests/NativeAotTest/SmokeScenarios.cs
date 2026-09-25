@@ -105,6 +105,7 @@ public static class SmokeScenarios
         Check(deep.SplitArguments() is [var nestedToken] && nestedToken == deep, "pooled nesting stack");
         Check("||".SplitCommandLines() is ["", "", ""], "empty command segments");
         Check(builder.TryParseOptions<OverriddenOptions>("-value 17", out var overridden) && overridden.Value == 17, "virtual option override metadata");
+        Check(builder.TryParseOptions<SetterOverriddenOptions>("-value 5", out var setterOverridden) && setterOverridden.Value == 10, "setter-only override dispatches virtually");
         Check(new SimpleParserBuilder().Build(settings).Parse("help"), "empty native parser help");
 
         var unregistered = new SimpleParserBuilder().AddCommand<OptionsCommand, Options>();
@@ -174,6 +175,14 @@ public static class SmokeScenarios
     private sealed class OverriddenOptions : VirtualOptions
     {
         public override int Value { get; set; }
+    }
+
+    private sealed class SetterOverriddenOptions : VirtualOptions
+    {
+        public override int Value
+        {
+            set => base.Value = value * 2;
+        }
     }
 
     private class BaseOptions

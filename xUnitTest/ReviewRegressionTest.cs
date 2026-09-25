@@ -106,6 +106,64 @@ public class ReviewRegressionTest
     }
 
     [Fact]
+    public void PartialOverridesReplaceTheBaseOption()
+    {
+        var builder = new SimpleParserBuilder();
+        Assert.True(builder.TryParseOptions<SetterOverrideOptions>("-text value", out var setter));
+        Assert.Equal("VALUE", setter.Text);
+        Assert.True(builder.TryParseOptions<GetterOverrideOptions>("value", out var getter));
+        Assert.Equal("value!", getter.Text);
+        Assert.True(builder.TryParseOptions<AbstractOverrideOptions>("-text value", out var concrete));
+        Assert.Equal("value", concrete.Text);
+
+        Assert.True(builder.TryParseOptions<RenamedSetterOptions>("-renamed value -text ignored", out var renamed));
+        Assert.Equal("value?", renamed.Text);
+        var parser = builder.AddCommand<RenamedSetterCommand, RenamedSetterOptions>().Build(Settings);
+        var option = Assert.Single(parser.NameToCommand["renamed-setter"].OptionSet.Options);
+        Assert.Equal("renamed", option.LongName);
+        Assert.Equal(typeof(BaseOptions), option.PropertyInfo!.DeclaringType);
+
+        Assert.True(SimpleParser.TryParseOptions<SetterOverrideOptions>("-text reflection", out var reflected));
+        Assert.Equal("REFLECTION", reflected.Text);
+    }
+
+    [Fact]
+    public void HelpRequestsUseCanonicalCommandNames()
+    {
+        var parser = new SimpleParserBuilder().AddCommand<TextCommand, TextOptions>().Build(Settings);
+        Assert.True(parser.Parse("TEXT help"));
+        Assert.Equal("text", parser.HelpCommandName);
+        Assert.True(parser.Parse("help TEXT"));
+        Assert.Equal("text", parser.HelpCommandName);
+        Assert.False(parser.Parse("TEXT -text"));
+        Assert.Equal("text", parser.HelpCommandName);
+    }
+
+    [Fact]
+    public void RemovedDefaultCommandIsReported()
+    {
+        var parser = new SimpleParserBuilder().AddCommand<FirstDefault>().AddCommand<TextCommand, TextOptions>().Build(Settings);
+        Assert.True(parser.NameToCommand.Remove("first"));
+        Assert.False(parser.Parse(string.Empty));
+        Assert.Equal(string.Empty, parser.HelpCommandName);
+        Assert.True(parser.Parse("text"));
+    }
+
+    [Fact]
+    public void OriginalCommandLineReflectsTheLatestInput()
+    {
+        var parser = new SimpleParserBuilder().AddCommand<TextCommand, TextOptions>().Build(Settings);
+        Assert.Equal(string.Empty, parser.OriginalCommandLine);
+        Assert.True(parser.Parse(["text", "-text", "two words"]));
+        Assert.Equal("text -text two words", parser.OriginalCommandLine);
+        Assert.True(parser.Parse("text  -text 'raw'"));
+        Assert.Equal("text  -text 'raw'", parser.OriginalCommandLine);
+        Assert.True(parser.Parse(Array.Empty<string>()));
+        Assert.Equal(string.Empty, parser.OriginalCommandLine);
+        Assert.Throws<ArgumentNullException>(() => parser.Parse((string[])null!));
+    }
+
+    [Fact]
     public void RepeatedReflectionRegistrationIsIdempotentWithAliases()
     {
         var parser = new SimpleParser([typeof(AliasCommand), typeof(AliasCommand)], Settings);
@@ -197,6 +255,45 @@ public class ReviewRegressionTest
     {
         [SimpleOption("renamed", IsRequired = true)]
         public override string Text { get; set; } = string.Empty;
+    }
+
+    public class SetterOverrideOptions : BaseOptions
+    {
+        public override string Text
+        {
+            set => base.Text = value.ToUpperInvariant();
+        }
+    }
+
+    public class GetterOverrideOptions : BaseOptions
+    {
+        public override string Text => base.Text + "!";
+    }
+
+    public class RenamedSetterOptions : BaseOptions
+    {
+        [SimpleOption("renamed", IsRequired = true)]
+        public override string Text
+        {
+            set => base.Text = value + "?";
+        }
+    }
+
+    public abstract class AbstractTextOptions
+    {
+        [SimpleOption("text")]
+        public abstract string Text { get; set; }
+    }
+
+    public class AbstractOverrideOptions : AbstractTextOptions
+    {
+        public override string Text { get; set; } = string.Empty;
+    }
+
+    [SimpleCommand("renamed-setter")]
+    public class RenamedSetterCommand : ISimpleCommand<RenamedSetterOptions>
+    {
+        public Task Execute(RenamedSetterOptions options, string[] args, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     public class BrokenOptions

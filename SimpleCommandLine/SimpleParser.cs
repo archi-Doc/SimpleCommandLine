@@ -4,6 +4,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -82,7 +83,7 @@ public class SimpleParser : ISimpleParser
 
     private static readonly TinyhandSerializerOptions SerializerOptions = TinyhandSerializerOptions.ConvertToStrictString;
 
-    private class HollowParser : ISimpleParser
+    private sealed class HollowParser : ISimpleParser
     {
         public HollowParser(SimpleParserOptions parserOptions, Func<Type, PreservedType> resolveType)
         {
@@ -717,8 +718,8 @@ public class SimpleParser : ISimpleParser
                             sb.Append($" (Default: \"{value}\")");
                         }
                         else
-                        {
-                            sb.Append($" (Default: {value})");
+                        {// Values are parsed with the invariant culture, so display them the same way.
+                            sb.Append(CultureInfo.InvariantCulture, $" (Default: {value})");
                         }
                     }
                 }
@@ -764,15 +765,14 @@ public class SimpleParser : ISimpleParser
                     member.GetCustomAttribute<SimpleOptionAttribute>(true) is { } attribute)
                 {
                     if (member is PropertyInfo property &&
-                        (property.GetGetMethod(true) ?? property.GetSetMethod(true)) is { IsVirtual: true } accessor)
+                        (property.GetGetMethod(true) ?? property.GetSetMethod(true)) is { IsVirtual: true })
                     {
-                        var baseDefinition = accessor.GetBaseDefinition();
-                        var index = list.FindIndex(x => x.Item1 is PropertyInfo inherited &&
-                            (inherited.GetGetMethod(true) ?? inherited.GetSetMethod(true))?.GetBaseDefinition() == baseDefinition);
+                        var index = list.FindIndex(x => x.Item1 is PropertyInfo inherited && Overrides(property, inherited));
                         if (index >= 0)
                         {
                             // Keep positional required options in base declaration order while using the override's metadata.
-                            list[index] = (member, attribute);
+                            // The base declaration has every accessor (an override may omit one) and dispatches virtually.
+                            list[index] = (list[index].Item1, attribute);
                             continue;
                         }
                     }
@@ -782,6 +782,13 @@ public class SimpleParser : ISimpleParser
             }
 
             return OptionMembersCache.GetOrAdd(optionsType, list.ToArray());
+
+            static bool Overrides(PropertyInfo property, PropertyInfo inherited)
+                => OverridesAccessor(property.GetGetMethod(true), inherited.GetGetMethod(true)) ||
+                    OverridesAccessor(property.GetSetMethod(true), inherited.GetSetMethod(true));
+
+            static bool OverridesAccessor(MethodInfo? accessor, MethodInfo? inherited)
+                => accessor is { IsVirtual: true } && inherited is not null && accessor.GetBaseDefinition() == inherited.GetBaseDefinition();
         }
 
         /// <summary>
@@ -981,6 +988,7 @@ public class SimpleParser : ISimpleParser
                 argument = normalized ?? (span.Length == argument.Length ? argument : span.ToString());
 
                 // Each occurrence supplies a fresh nested value; never reuse a previous parse result.
+                var previous = this.NestedOptionSet.instance;
                 this.NestedOptionSet.instance = null;
                 var typeIdentifier = this.NestedOptionSet.OptionsTypeIdentifier;
                 if (typeIdentifier != 0 && TinyhandTypeIdentifier.IsRegistered(typeIdentifier))
@@ -1002,7 +1010,8 @@ public class SimpleParser : ISimpleParser
 
                     var ret = this.NestedOptionSet.Parse(SimpleParserHelper.SplitParserArguments(nestedArguments, this.Parser.ParserOptions), 0, acceptUnknownOptionName);
                     if (!ret || this.NestedOptionSet.Instance == null)
-                    {
+                    {// Discard the partial value so that the nested instance stays in sync with the member.
+                        this.NestedOptionSet.instance = previous;
                         return false;
                     }
                 }
@@ -1258,20 +1267,15 @@ public class SimpleParser : ISimpleParser
             }
         }
 
-        if (firstOrDefault != null)
-        {
-            firstOrDefault.IsDefault = true;
-            this.DefaultCommandName = firstOrDefault.CommandName;
-        }
-
         if (this.ParserOptions.RequireCommandName)
         {// No default command
-            this.DefaultCommandName = null;
+            firstOrDefault = null;
         }
 
+        this.DefaultCommandName = firstOrDefault?.CommandName;
         foreach (var command in this.NameToCommand.Values)
         {
-            command.IsDefault = command.CommandName == this.DefaultCommandName;
+            command.IsDefault = command == firstOrDefault;
         }
     }
 
@@ -1316,7 +1320,11 @@ public class SimpleParser : ISimpleParser
     /// <param name="args">The arguments specifying the command and its options.</param>
     /// <returns><see langword="true"/> for a valid command, help, or version request; otherwise, <see langword="false"/>.</returns>
     /// <remarks>Clears the previous result. A standalone <c>|</c> ends parsing; recognized options still require a value.</remarks>
-    public bool Parse(string[] args) => this.ParseCore(args, string.Join(' ', args), false);
+    public bool Parse(string[] args)
+    {
+        ArgumentNullException.ThrowIfNull(args);
+        return this.ParseCore(args, null, false);
+    }
 
     /// <summary>
     /// Parses the arguments and stores the result in <see cref="CurrentCommand"/>.<br/>
@@ -1428,6 +1436,12 @@ public class SimpleParser : ISimpleParser
         }
 
         commandName ??= this.HelpCommandName;
+        Command? c = null;
+        if (!string.IsNullOrEmpty(commandName))
+        {// An empty name targets all commands, even if a command is registered with an empty name.
+            this.NameToCommand.TryGetValue(commandName, out c);
+        }
+
         var sb = new StringBuilder();
         this.OptionSetUsage.Clear();
         if (this.ErrorMessage.Count > 0)
@@ -1445,28 +1459,22 @@ public class SimpleParser : ISimpleParser
 
         if (this.ParserOptions.DisplayUsage)
         {
-            this.AppendUsage(sb, commandName);
-        }
-
-        if (string.IsNullOrEmpty(commandName) && this.ParserOptions.DisplayCommandListAsHelp)
-        {
-            this.AppendList(sb);
-            this.WriteLine(sb.ToString());
-            return;
-        }
-
-        Command? c = null;
-        if (commandName != null)
-        {
-            this.NameToCommand.TryGetValue(commandName, out c);
+            AppendUsage(sb, c?.CommandName);
         }
 
         if (c == null)
         {
-            this.AppendCommandList(sb);
-            foreach (var x in this.NameToCommand)
+            if (this.ParserOptions.DisplayCommandListAsHelp)
             {
-                x.Value.AppendCommand(sb);
+                this.AppendList(sb);
+                this.WriteLine(sb.ToString());
+                return;
+            }
+
+            this.AppendCommandList(sb);
+            foreach (var x in this.NameToCommand.Values)
+            {
+                x.AppendCommand(sb);
             }
         }
         else
@@ -1615,7 +1623,8 @@ public class SimpleParser : ISimpleParser
     /// <summary>
     /// Gets the latest raw command line, or array elements joined with spaces for diagnostics.
     /// </summary>
-    public string OriginalCommandLine { get; private set; } = string.Empty;
+    /// <remarks>Array elements are joined on first access, since the text is only needed for error output.</remarks>
+    public string OriginalCommandLine => this.originalCommandLine ??= string.Join(' ', this.originalArguments);
 
     /// <summary>
     /// Gets the name of the command executed when the command name is not specified,
@@ -1682,6 +1691,8 @@ public class SimpleParser : ISimpleParser
 
     private readonly Func<Type, PreservedType> resolveType;
     private readonly IConsoleService? consoleService;
+    private string? originalCommandLine = string.Empty;
+    private string[] originalArguments = [];
 
     private List<string> ErrorMessage { get; }
 
@@ -1696,18 +1707,7 @@ public class SimpleParser : ISimpleParser
     internal static bool OptionEquals(ReadOnlySpan<char> arg, ReadOnlySpan<char> command)
             => arg.TrimStart(SimpleParser.OptionPrefix).Equals(command, StringComparison.OrdinalIgnoreCase);
 
-    private void AppendList(StringBuilder sb)
-    {
-        var array = this.NameToCommand.Keys.ToArray();
-        Array.Sort(array);
-        foreach (var x in array)
-        {
-            sb.Append(x);
-            sb.Append(' ');
-        }
-    }
-
-    private void AppendUsage(StringBuilder sb, string? commandName)
+    private static void AppendUsage(StringBuilder sb, string? commandName)
     {
         commandName ??= "<Command>";
         sb.AppendLine($"Usage: {GetEntryName()} {commandName} -option value...");
@@ -1725,128 +1725,105 @@ public class SimpleParser : ISimpleParser
         }
     }
 
-    private bool ParseCore(string[] arguments, string commandLine, bool processArguments)
+    private bool ParseCore(string[] arguments, string? commandLine, bool processArguments)
     {
-        var ret = true;
-        this.OriginalCommandLine = commandLine;
+        this.originalCommandLine = commandLine;
+        this.originalArguments = arguments;
         this.HelpCommandName = null;
         this.IsVersionRequested = false;
         this.CurrentCommand = null;
         this.ErrorMessage.Clear();
 
-        var commandName = this.DefaultCommandName;
-        var commandSpecified = false;
+        Command? command = null;
         var start = 0;
-        if (arguments.Length >= 1 && !arguments[0].IsOptionName())
-        {// Command
-            if (this.NameToCommand.ContainsKey(arguments[0]))
-            {// CommandName Found
-                commandName = arguments[0];
-                commandSpecified = true;
-                start = 1;
-            }
-            else if (this.AliasToCommand.TryGetValue(arguments[0], out var cmd))
-            {// Alias Found
-                commandName = cmd.CommandName;
-                commandSpecified = true;
-                start = 1;
-            }
+        if (arguments.Length >= 1 && !arguments[0].IsOptionName() && this.TryGetCommandOrAlias(arguments[0], out command))
+        {// Command name or alias
+            start = 1;
         }
-
-        if (!commandSpecified)
-        {
-            TryProcessHelpAndVersion(); // "app.exe help", "app.exe version"
+        else if (this.TryProcessHelpAndVersion(arguments))
+        {// "app.exe help", "app.exe version"
+            return true;
         }
-
-        if (this.HelpCommandName != null || this.IsVersionRequested)
-        {
-            return ret;
-        }
-
-        // Not found. Try to load the command from environment variables.
-        if (start == 0 &&
-            this.ParserOptions.ReadCommandFromEnvironment &&
+        else if (this.ParserOptions.ReadCommandFromEnvironment &&
             Environment.GetEnvironmentVariable(SimpleParser.CommandEnvironmentVariableName) is { } env)
+        {// Not found. Try to load the command from environment variables.
+            this.TryGetCommandOrAlias(env, out command);
+        }
+
+        var commandSpecified = command is not null;
+        if (command is null)
         {
-            if (this.NameToCommand.ContainsKey(env))
-            {// CommandName Found
-                commandName = env;
-                commandSpecified = true;
+            if (this.DefaultCommandName is null)
+            {
+                this.AddErrorMessage("Specify the command name");
+                this.HelpCommandName = string.Empty;
+                return false;
             }
-            else if (this.AliasToCommand.TryGetValue(env, out var cmd2))
-            {// Alias Found
-                commandName = cmd2.CommandName;
-                commandSpecified = true;
+            else if (!this.NameToCommand.TryGetValue(this.DefaultCommandName, out command))
+            {// The default command was removed from NameToCommand.
+                this.AddErrorMessage($"Command '{this.DefaultCommandName}' is not found");
+                this.HelpCommandName = string.Empty;
+                return false;
             }
         }
 
-        if (commandName == null)
+        if (start > 0 && !command.IsCommandGroup &&
+            arguments.Length > start && OptionEquals(arguments[start], HelpName))
         {
-            this.AddErrorMessage("Specify the command name");
-            this.HelpCommandName = string.Empty;
+            if (arguments[start].IsOptionName() &&
+                (command.OptionSet.LongNameToOption.ContainsKey(HelpName) || command.OptionSet.ShortNameToOption.ContainsKey(HelpName)))
+            {// "app.exe command -help"
+            }
+            else
+            {// "app.exe command help"
+                this.HelpCommandName = command.CommandName;
+                return true;
+            }
+        }
+
+        command.OptionSet.ResetInstance();
+        if (!command.OptionSet.ParseCore(arguments, start, command.IsCommandGroup, processArguments))
+        {
+            this.HelpCommandName = commandSpecified ? command.CommandName : string.Empty;
             return false;
         }
 
-        if (this.NameToCommand.TryGetValue(commandName, out var command))
+        this.CurrentCommand = command;
+        return true;
+    }
+
+    private bool TryGetCommandOrAlias(string name, [MaybeNullWhen(false)] out Command command)
+        => this.NameToCommand.TryGetValue(name, out command) || this.AliasToCommand.TryGetValue(name, out command);
+
+    private bool TryProcessHelpAndVersion(string[] arguments)
+    {
+        if (arguments.Length == 0)
         {
-            if (commandSpecified && !command.IsCommandGroup &&
-                arguments.Length > start && OptionEquals(arguments[start], HelpName))
-            {
-                if (arguments[start].IsOptionName() &&
-                    (command.OptionSet.LongNameToOption.ContainsKey(HelpName) || command.OptionSet.ShortNameToOption.ContainsKey(HelpName)))
-                {// "app.exe command -help"
-                }
-                else
-                {// "app.exe command help"
-                    this.HelpCommandName = commandName;
-                    return true;
-                }
-            }
-
-            command.OptionSet.ResetInstance();
-            if (command.OptionSet.ParseCore(arguments, start, command.IsCommandGroup, processArguments))
-            {// Success
-                this.CurrentCommand = command;
-            }
-            else
-            {
-                ret = false;
-                this.HelpCommandName = commandSpecified ? commandName : string.Empty;
-            }
-        }
-        else
-        {// Command not found.
-            this.AddErrorMessage($"Command '{commandName}' is not found");
-            this.HelpCommandName = string.Empty;
-            ret = false;
+            return false;
         }
 
-        return ret;
-
-        void TryProcessHelpAndVersion()
-        {
-            if (arguments.Length == 0)
-            {
-                return;
-            }
-
-            if (OptionEquals(arguments[0], HelpName) ||
-                (this.ParserOptions.GenerateAliases && OptionEquals(arguments[0], HelpAlias)))
-            {// Help
-                if (arguments.Length >= 2 && !arguments[1].IsOptionName() && this.NameToCommand.ContainsKey(arguments[1]))
-                {// help command
-                    this.HelpCommandName = arguments[1];
-                }
-                else
-                {
-                    this.HelpCommandName = string.Empty;
-                }
-            }
-            else if (OptionEquals(arguments[0], VersionName))
-            {// Version
-                this.IsVersionRequested = true;
-            }
+        if (OptionEquals(arguments[0], HelpName) ||
+            (this.ParserOptions.GenerateAliases && OptionEquals(arguments[0], HelpAlias)))
+        {// Help
+            this.HelpCommandName = arguments.Length >= 2 && !arguments[1].IsOptionName() && this.NameToCommand.TryGetValue(arguments[1], out var command) ?
+                command.CommandName : // help command
+                string.Empty;
+            return true;
         }
+        else if (OptionEquals(arguments[0], VersionName))
+        {// Version
+            this.IsVersionRequested = true;
+            return true;
+        }
+
+        return false;
+    }
+
+    private void AppendList(StringBuilder sb)
+    {
+        var array = this.NameToCommand.Keys.ToArray();
+        Array.Sort(array, StringComparer.OrdinalIgnoreCase); // Same order as ShowCommandList(), independent of the current culture.
+        sb.AppendJoin(' ', array);
     }
 
     private void AppendCommandList(StringBuilder sb)
