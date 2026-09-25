@@ -1,6 +1,7 @@
 // Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System;
+using System.Globalization;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -94,6 +95,67 @@ public class OutputTest
     }
 
     [Fact]
+    public void UsageNamesTheResolvedCommand()
+    {
+        var parser = CreateParser();
+        Assert.True(parser.Parse("help"));
+        var output = Capture(() => parser.ShowHelp());
+        Assert.Contains(" <Command> -option value...", output);
+        Assert.DoesNotContain("  -option value...", output);
+
+        output = Capture(() => parser.ShowHelp("TEXT"));
+        Assert.Contains(" text -option value...", output);
+        Assert.DoesNotContain("TEXT", output);
+
+        output = Capture(() => parser.ShowHelp("unknown"));
+        Assert.Contains(" <Command> -option value...", output);
+        Assert.Contains("Commands:", output);
+        Assert.DoesNotContain("unknown", output);
+    }
+
+    [Fact]
+    public void GeneralHelpIncludesEveryCommandWhenOneHasAnEmptyName()
+    {
+        var parser = new SimpleParserBuilder().AddCommand<EmptyNameCommand>().AddCommand<ReviewRegressionTest.TextCommand, ReviewRegressionTest.TextOptions>()
+            .Build(SimpleParserOptions.Standard with { ReadCommandFromEnvironment = false });
+        Assert.True(parser.Parse("help"));
+        var output = Capture(() => parser.ShowHelp());
+        Assert.Contains("Commands:", output);
+        Assert.Contains("-text", output);
+    }
+
+    [Fact]
+    public void CommandListHelpIsSortedWithoutTrailingSpaces()
+    {
+        var parser = new SimpleParserBuilder()
+            .AddCommand<ReviewRegressionTest.TextCommand, ReviewRegressionTest.TextOptions>()
+            .AddCommand<ReviewRegressionTest.FirstDefault>()
+            .Build(SimpleParserOptions.Standard with { ReadCommandFromEnvironment = false, DisplayUsage = false, DisplayCommandListAsHelp = true });
+        Assert.Equal("first text" + Environment.NewLine, Capture(() => parser.ShowHelp(string.Empty)));
+        Assert.Equal("first text" + Environment.NewLine, Capture(() => parser.ShowHelp("unknown")));
+    }
+
+    [Fact]
+    public void HelpDefaultsUseTheInvariantCulture()
+    {
+        var parser = new SimpleParserBuilder().AddCommand<CultureCommand, CultureOptions>()
+            .Build(SimpleParserOptions.Standard with { ReadCommandFromEnvironment = false });
+        var previous = CultureInfo.CurrentCulture;
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("de-DE");
+            var output = Capture(() => parser.ShowHelp("culture"));
+            Assert.Contains("(Default: 1.5)", output);
+            Assert.True(parser.Parse("culture -ratio 1.5"));
+            Assert.Equal(1.5, ((CultureOptions)parser.CurrentCommand!.OptionSet.Instance!).Ratio);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = previous;
+        }
+    }
+
+    [Fact]
     public void OutputUsesTheConfiguredConsoleService()
     {
         var services = new ServiceCollection();
@@ -132,6 +194,24 @@ public class OutputTest
     public class DisplayCommand : ISimpleCommand<DisplayOptions>
     {
         public Task Execute(DisplayOptions options, string[] args, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    public class CultureOptions
+    {
+        [SimpleOption("ratio")]
+        public double Ratio { get; set; } = 1.5;
+    }
+
+    [SimpleCommand("culture")]
+    public class CultureCommand : ISimpleCommand<CultureOptions>
+    {
+        public Task Execute(CultureOptions options, string[] args, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    [SimpleCommand("", Description = "Empty name")]
+    public class EmptyNameCommand : ISimpleCommand
+    {
+        public Task Execute(string[] args, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private static SimpleParser CreateParser()
