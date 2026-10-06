@@ -137,7 +137,7 @@ public class SimpleParser : ISimpleParser
         => TryParseOptionsCore(commandLine, out options, instanceToUpdate, PreservedType.FromReflection);
 
     internal static bool TryParseOptionsCore<TOptions>(string commandLine, [MaybeNullWhen(false)] out TOptions options, TOptions? instanceToUpdate, Func<Type, PreservedType> resolveType)
-        => TryParseOptionsCore(commandLine.SplitArguments(), out options, instanceToUpdate, resolveType, true);
+        => TryParseOptionsCore(SimpleParserHelper.SplitParserArguments(commandLine, SimpleParserOptions.Standard), out options, instanceToUpdate, resolveType, true);
 
     internal static bool TryParseOptionsCore<TOptions>(string[] args, [MaybeNullWhen(false)] out TOptions options, TOptions? instanceToUpdate, Func<Type, PreservedType> resolveType, bool processArguments)
     {
@@ -792,7 +792,7 @@ public class SimpleParser : ISimpleParser
         }
 
         /// <summary>
-        /// Creates an instance of the option type (falls back to Tinyhand reconstruction when there is no parameterless constructor).
+        /// Creates an options instance, falling back to Tinyhand reconstruction if construction fails or is unavailable.
         /// </summary>
         /// <returns>A new instance, or <see langword="null"/> if the instance could not be created.</returns>
         private object? CreateInstance()
@@ -871,7 +871,7 @@ public class SimpleParser : ISimpleParser
         /// Initializes a new instance of the <see cref="Option"/> class.
         /// </summary>
         /// <param name="parser">The parser which collects error messages.</param>
-        /// <param name="optionsType">The type which declares the member.</param>
+        /// <param name="optionsType">The options type being inspected, including inherited members.</param>
         /// <param name="memberInfo">The field or property annotated with <see cref="SimpleOptionAttribute"/>.</param>
         /// <param name="attribute">The <see cref="SimpleOptionAttribute"/> of the member.</param>
         /// <param name="optionStack">The types being processed, used to detect a circular dependency.</param>
@@ -907,13 +907,9 @@ public class SimpleParser : ISimpleParser
                     throw new InvalidOperationException($"{optionsType.Name}.{propertyInfo.Name} is a getter-only property and inaccessible.");
                 }
             }
-            else if (this.FieldInfo is { } fieldInfo)
-            {
-                this.declaredType = fieldInfo.FieldType;
-            }
             else
             {
-                throw new InvalidOperationException($"'{memberInfo.Name}' ({optionsType.Name}) must be a field or a property.");
+                this.declaredType = this.FieldInfo!.FieldType;
             }
 
             // Nullable value types (int?, TestEnum?, ...) are handled as their underlying type.
@@ -1106,8 +1102,9 @@ public class SimpleParser : ISimpleParser
 
         /// <summary>
         /// Gets a value indicating whether the value is read from the environment variable
-        /// named after <see cref="ShortName"/> or <see cref="LongName"/> when the option is not specified.
+        /// named after <see cref="ShortName"/> or <see cref="LongName"/> when no input value was successfully parsed.
         /// </summary>
+        /// <remarks>The short name takes precedence. An invalid input value still causes command parsing to fail.</remarks>
         public bool ReadFromEnvironment { get; }
 
         /// <summary>
@@ -1126,7 +1123,7 @@ public class SimpleParser : ISimpleParser
         public Type DeclaredType => this.declaredType;
 
         /// <summary>
-        /// Gets the nested option set when <see cref="DeclaredType"/> is a class with its own options; otherwise, <see langword="null"/>.
+        /// Gets the nested option set for a nonscalar option; otherwise, <see langword="null"/>.
         /// </summary>
         public OptionSet? NestedOptionSet { get; }
 
@@ -1623,8 +1620,20 @@ public class SimpleParser : ISimpleParser
     /// <summary>
     /// Gets the latest raw command line, or array elements joined with spaces for diagnostics.
     /// </summary>
-    /// <remarks>Array elements are joined on first access, since the text is only needed for error output.</remarks>
-    public string OriginalCommandLine => this.originalCommandLine ??= string.Join(' ', this.originalArguments);
+    /// <remarks>Array elements are joined on first access, then the array reference is released. Do not modify the array before that access.</remarks>
+    public string OriginalCommandLine
+    {
+        get
+        {
+            if (this.originalCommandLine is null)
+            {
+                this.originalCommandLine = string.Join(' ', this.originalArguments);
+                this.originalArguments = [];
+            }
+
+            return this.originalCommandLine;
+        }
+    }
 
     /// <summary>
     /// Gets the name of the command executed when the command name is not specified,
@@ -1728,7 +1737,7 @@ public class SimpleParser : ISimpleParser
     private bool ParseCore(string[] arguments, string? commandLine, bool processArguments)
     {
         this.originalCommandLine = commandLine;
-        this.originalArguments = arguments;
+        this.originalArguments = commandLine is null ? arguments : [];
         this.HelpCommandName = null;
         this.IsVersionRequested = false;
         this.CurrentCommand = null;

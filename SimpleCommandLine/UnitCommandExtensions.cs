@@ -88,7 +88,7 @@ public static class UnitCommandExtensions
     /// <param name="context">The configuration context.</param>
     /// <returns>A builder for the parent's child commands.</returns>
     /// <remarks>Register the parent separately with AddCommand or AddSubcommand to choose its command list.</remarks>
-    [UnconditionalSuppressMessage("Trimming", "IL2087", Justification = "Arc.Unit 0.46 GetCommandGroup uses the type as a dictionary key and registers it with DI. The public constructors required by DI are preserved.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2087", Justification = "Arc.Unit GetCommandGroup uses the type only as a dictionary key; no additional members are accessed.")]
     public static SimpleCommandGroupBuilder GetSimpleCommandGroup<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TParentCommand>(this IUnitConfigurationContext context)
         where TParentCommand : ISimpleCommand
     {

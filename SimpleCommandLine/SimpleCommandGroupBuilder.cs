@@ -51,7 +51,7 @@ public sealed class SimpleCommandGroupBuilder
         return this.AddCommandType(typeof(TCommand), lifetime);
     }
 
-    [UnconditionalSuppressMessage("Trimming", "IL2067", Justification = "Arc.Unit 0.46 CommandGroup.AddCommand stores the type and registers a DI ServiceDescriptor. Public constructors are preserved; command execution uses registered typed delegates.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2067", Justification = "Arc.Unit CommandGroup.AddCommand stores the type and registers a DI ServiceDescriptor. Public constructors are preserved; command execution uses registered typed delegates.")]
     private bool AddCommandType([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type type, ServiceLifetime lifetime)
         => this.group.AddCommand(type, lifetime);
 

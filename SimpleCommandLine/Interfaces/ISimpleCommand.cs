@@ -8,7 +8,7 @@ namespace SimpleCommandLine;
 /// <summary>
 /// Executes a command with typed options and remaining arguments.
 /// </summary>
-/// <typeparam name="TOptions">The type of the options class.</typeparam>
+/// <typeparam name="TOptions">The options type with a public parameterless constructor.</typeparam>
 /// <remarks>Annotate the implementing class with <see cref="SimpleCommandAttribute"/>.</remarks>
 public interface ISimpleCommand<TOptions>
     where TOptions : new()

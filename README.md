@@ -105,7 +105,7 @@ A command class has `[SimpleCommand(...)]` and implements either:
 | `Description` | Text shown in help. |
 | `IsCommandGroup` | Marks a command group, such as `SimpleCommandGroup<TSelf>`. Accepts unknown options even with `RejectUnknownOptionNames` and leaves command-specific help for the child parser. |
 
-The first default candidate wins; otherwise, the first registered command is used. `RequireCommandName` disables the default. Command names take precedence over aliases. With `GenerateAliases`, hyphen-separated initials become aliases, such as `remove-file` to `rf`; conflicts with command names or existing aliases are skipped.
+The first default candidate wins; otherwise, the first registered command is used. `RequireCommandName` disables the default. When the default is used, an unrecognized first word remains an argument; it is not an unknown-command error. Command names take precedence over aliases. With `GenerateAliases`, hyphen-separated initials become aliases, such as `remove-file` to `rf`; conflicts with command names or existing aliases are skipped.
 
 The provider in `ServiceProvider` is asked for each command instance on first access. If it returns null, the parser uses a public parameterless constructor. The parser caches the instance, even for a transient DI registration.
 
@@ -143,7 +143,9 @@ Set ordinary defaults in member initializers or the options constructor. Repeate
 
 An unset required option fails parsing even if its member has an initializer. Unnamed values supply the first unset required option in base-to-derived reflection order; within each type, this may differ from source order when fields and properties are mixed. Use explicit option names when ordering matters, or set `AllowPositionalRequiredOptions = false`. An empty string is a valid value for a required string option.
 
-For `ReadFromEnvironment`, the short-name environment variable is checked first, then the long name if the short variable is absent. A successfully parsed input value takes precedence. An invalid supplied value still makes ordinary `Parse()` fail even if the environment provides a valid fallback.
+For `ReadFromEnvironment`, the short-name environment variable is checked first, then the long name if the short variable is absent. An invalid short-name value does not fall back to the long-name variable. A successfully parsed input value takes precedence. An invalid supplied value still makes ordinary `Parse()` fail even if the environment provides a valid fallback.
+
+Environment values use raw-value normalization, including quote removal and `ArgumentProcessing`, even when the command was supplied as an argument array.
 
 ```csharp
 [SimpleOption("api-key", ShortName = "API_KEY", ReadFromEnvironment = true)]
@@ -218,6 +220,8 @@ For types registered with Tinyhand, nested values first use Tinyhand string pars
 
 Quotes and the configured delimiter are removed before scalar conversion, including numeric and enum conversion. Quote characters preceded by a backslash do not open or close single/double-quoted text. This is the library's syntax, not a shell grammar.
 
+Supply option names and values as separate arguments. Assignment syntax (`--name=value`), bundled short flags (`-abc`), implicit boolean flags, and the `--` end-of-options marker are not supported. Unknown option names remain in `args` unless `RejectUnknownOptionNames` is enabled; a following unnamed value can still fill a required option.
+
 | `ArgumentProcessing` | Raw-value handling after removing enclosing quotes/delimiters |
 | --- | --- |
 | `ReplaceNewlinesWithSpace` | Removes `\r`, replaces `\n` with a space, and unescapes `\'` and `\"`. |
@@ -234,7 +238,7 @@ Each `string[]` element is already one argument. Spaces, empty values, commas, q
 parser.Parse(new[] { "greet", "-name", "Ada Lovelace", "-count", "2" });
 ```
 
-Nested expressions belong in one element, such as `"{-host 'two words' -port 100}"`. Do not add shell-style enclosing quotes to ordinary array values. If you intentionally have command-line fragments, join them explicitly and use the string overload. Earlier versions joined arrays automatically.
+Nested expressions belong in one element, such as `"{-host 'two words' -port 100}"`. Do not add shell-style enclosing quotes to ordinary array values. A leading hyphen is interpreted as an option prefix unless followed by a digit or `.`; raw input can enclose such a value in quotes. If you intentionally have command-line fragments, join them explicitly and use the string overload. Earlier versions joined arrays automatically.
 
 ### Multiple Commands
 
@@ -279,7 +283,7 @@ Build a parser once and use it sequentially. Each parse clears the previous comm
 | `DefaultCommandName` | Selected default name; null when disabled or no commands exist. |
 | `HelpCommandName` | Null for no help request, empty for all commands, or a specific command name. |
 | `IsVersionRequested` | Whether the latest parse requested version output. |
-| `OriginalCommandLine` | Raw input, or array elements joined with spaces for diagnostics. |
+| `OriginalCommandLine` | Raw input, or array elements joined with spaces on first access for diagnostics. |
 | `ParserOptions` / `RejectUnknownOptionNames` | Parser configuration and its unknown-option-name flag. |
 | `NameToCommand` / `AliasToCommand` | Case-insensitive command lookups. |
 | `TryGetCommand(name, out command)` | Looks up a full command name, not an alias. |
@@ -296,11 +300,11 @@ The low-level `OptionSet.Parse` and `Option.Parse` methods process raw tokens, u
 
 Parsing errors request help; `Parse()` itself does not print it. Registration errors and user-code exceptions can still throw. To display parser errors, call `parser.Parse(args)` followed by `await parser.Execute(token)`. To handle errors yourself, branch on the parse result and distinguish `CurrentCommand` from help/version requests.
 
-Parsers and builders contain mutable state. Complete command execution before parsing again on the same instance. Use separate parsers for concurrent work; DI may still share command instances, so their own concurrency rules apply.
+Parsers and builders contain mutable state. Complete command execution before parsing again on the same instance. Use separate parsers for concurrent work; DI may still share command instances, so their own concurrency rules apply. Do not modify a supplied argument array before reading `OriginalCommandLine`, because that property reads the array lazily.
 
 ## Standalone Options
 
-`SimpleParserBuilder.TryParseOptions<TOptions>` parses without a command and automatically registers the root type. Register nested types first. Both raw-string and pre-split-array overloads use `SimpleParserOptions.Standard`.
+`SimpleParserBuilder.TryParseOptions<TOptions>` parses without a command and automatically registers the root type. Register nested types first. Both raw-string and pre-split-array overloads use `SimpleParserOptions.Standard` and stop at the first command separator. Raw input after that separator is not tokenized.
 
 ```csharp
 var builder = new SimpleParserBuilder();
@@ -325,7 +329,7 @@ Pass an existing instance as the third argument to update it. Unspecified member
 | `AddOptionsType<TOptions>()` | Preserves an options type and its base types; call for every nested type. |
 | `Build(parserOptions)` | Creates an independent parser from a registration snapshot, in insertion order. |
 
-Repeated registration with the same command/options pairing is safe. A conflicting pairing throws. Later builder changes do not affect an existing parser. All nested types must be registered even when no value is supplied for them in a particular invocation.
+Repeated registration with the same command/options pairing is safe. A conflicting pairing throws without changing the builder. Repeated builds reuse an immutable registration snapshot until a command or options type is added; every parser has independent parse state. Later builder changes do not affect an existing parser. All nested types must be registered even when no value is supplied for them in a particular invocation.
 
 The `SimpleParser(IEnumerable<Type>, ...)` constructor, public `SimpleParser.Command` constructor, static `SimpleParser.ParseAndExecute` / `TryParseOptions`, and legacy command-group constructor use runtime discovery. They carry `RequiresUnreferencedCode` and are intended for untrimmed applications. Migrate those calls to typed registration for trimming or NativeAOT. DI providers and serializers must also support the publishing mode.
 
@@ -449,13 +453,13 @@ The constructor taking a standalone `SimpleParserBuilder` remains available. The
 | Method | Meaning |
 | --- | --- |
 | `GetCommandLineArguments()` | Cached process command line with the executable path removed. |
-| `ExtractArguments(commandLine)` | Removes an executable path from Environment.CommandLine-style text. |
+| `ExtractArguments(commandLine)` | Removes a quoted or whitespace-delimited executable path, skipping leading whitespace and trimming the remaining arguments. |
 | `PeekCommandName(commandLine)` | First whitespace-delimited word, or empty for blank input or a word starting with `-`; does not parse syntax. |
 | `SplitArguments(commandLine, delimiter)` | Raw tokens with enclosing quotes/braces retained. An empty delimiter argument selects triple quotes. |
 | `SplitCommandLines(commandLine, delimiter)` | Splits at unenclosed `\|` and rejoins tokens with spaces. Preserves empty segments; blank input returns an empty array. |
 | `SplitAtWhitespace(text)` | Splits at whitespace without interpreting quotes or braces. |
 | `JoinWithSpace(values)` | Joins with spaces without quoting; reparsing may lose argument boundaries. |
-| `TrimQuotes(text)` / `TrimQuotesAndBraces(text)` | Trims surrounding whitespace and removes recognized wrappers; does not unescape values. |
+| `TrimQuotes(text)` / `TrimQuotesAndBraces(text)` | Removes recognized wrappers and trims whitespace, including inside single/double quotes and braces. Triple-quoted interior whitespace is preserved; escapes are unchanged. |
 | `UnwrapDoubleQuotes(text)` / `UnwrapBraces(text)` | Removes a matching wrapper without trimming whitespace. |
 | `ProcessArgument(argument, parserOptions, processing)` | Unwraps raw values and applies newline/escape handling. |
 | `IsOptionName(text)` | Detects a leading `-`, except negative numeric forms. |
@@ -465,9 +469,9 @@ The constructor taking a standalone `SimpleParserBuilder` remains available. The
 
 ## Performance
 
-Build once and reuse the parser sequentially. Prefer `Parse(string[])` when arguments are already split: it keeps value strings unchanged and avoids tokenizing raw text. It still joins the array for `OriginalCommandLine` diagnostics. Each command parse creates fresh options, and returned remaining-argument arrays stay independent of later parses.
+Build once and reuse the parser sequentially. Prefer `Parse(string[])` when arguments are already split: it keeps value strings unchanged and avoids tokenizing raw text. It joins the array only if `OriginalCommandLine` diagnostics are requested, then releases its reference to that array. Each command parse creates fresh options, and returned remaining-argument arrays stay independent of later parses.
 
-Raw parsing stops tokenization at the first command separator. Quoted numeric and enum values that only need unwrapping are converted from spans without allocating an unquoted string. Tokenization uses stack buffers, renting larger buffers for long inputs or deep nesting. Remaining-argument scratch capacity is reused and its string references are cleared after normal completion. Primitive values other than booleans still require boxing for reflection-based member assignment.
+Raw parsing stops tokenization at the first command separator and does not retain its temporary token array for diagnostics. `SplitCommandLines()` constructs the final command strings directly from token ranges without allocating individual token strings. Quoted numeric and enum values that only need unwrapping are converted from spans without allocating an unquoted string. Tokenization uses stack buffers, renting larger buffers for long inputs or deep nesting. Remaining-argument scratch capacity is reused and its string references are cleared after normal completion. Primitive values other than booleans still require boxing for reflection-based member assignment.
 
 Run the dependency-free measurement harness in Release mode:
 
@@ -475,7 +479,7 @@ Run the dependency-free measurement harness in Release mode:
 dotnet run --project Benchmarks/Benchmarks.csproj -c Release
 ```
 
-It reports elapsed nanoseconds and managed bytes per operation after warmup. Parser construction is excluded, and environment command lookup and console output are disabled. Timings depend on the runtime and machine; compare repeated runs on the same host. This measures allocations, not retained memory or total application performance. See [measurement results and methodology](Benchmarks/README.md).
+It reports elapsed nanoseconds and managed bytes per operation after warmup. Parser construction is measured only in the build scenario; environment command lookup and console output are disabled. Timings depend on the runtime and machine; compare repeated runs on the same host. This measures allocations, not retained memory or total application performance. See [measurement results and methodology](Benchmarks/README.md).
 
 ## Tests and Coverage
 
@@ -486,7 +490,9 @@ dotnet build SimpleCommandLine.slnx -c Release
 dotnet test --project xUnitTest/xUnitTest.csproj -c Release --coverage --coverage-settings xUnitTest/coverage.config --coverage-output-format cobertura --coverage-output "$PWD/artifacts/coverage/coverage.cobertura.xml"
 ```
 
-Coverage includes `SimpleCommandLine.dll` and its generated code, excluding other assemblies. CI uploads the Cobertura report as `code-coverage`.
+Coverage includes `SimpleCommandLine.dll` and its generated code, excluding other assemblies. CI uploads the Cobertura report as `code-coverage`. The unit suite covers raw and array parsing, conversions, required/environment/nested options, output, registration, and Arc.Unit integration. It also runs the shared NativeAOT scenarios on the managed runtime; native publishing is checked separately.
+
+The 2026-10-06 review passed 242 tests, with 99.61% line coverage (1,265/1,270) and 97.10% branch coverage (938/966). The five uncovered lines are console/entry-assembly fallback paths and a no-op help callback. Windows x64 NativeAOT passed all 115 smoke checks.
 
 NativeAOT smoke tests treat compiler and trimming warnings as errors and run in CI on Windows x64 and Linux x64:
 

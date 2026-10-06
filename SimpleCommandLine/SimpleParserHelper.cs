@@ -4,6 +4,7 @@ using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using Arc;
 
 #pragma warning disable SA1124 // Do not use regions
@@ -66,6 +67,7 @@ public static class SimpleParserHelper
     /// </summary>
     /// <param name="input">The input string.</param>
     /// <returns>The trimmed string, unwrapped if it is enclosed in braces or in unescaped quotes.</returns>
+    /// <remarks>Also trims whitespace inside braces and single or double quotes; triple-quoted content is preserved.</remarks>
     public static string TrimQuotesAndBraces(this string input)
     {
         var span = TrimQuotesAndBraces(input.AsSpan());
@@ -77,6 +79,7 @@ public static class SimpleParserHelper
     /// </summary>
     /// <param name="input">The input span.</param>
     /// <returns>The trimmed span, unwrapped if it is enclosed in braces or in unescaped quotes.</returns>
+    /// <remarks>Also trims whitespace inside braces and single or double quotes; triple-quoted content is preserved.</remarks>
     public static ReadOnlySpan<char> TrimQuotesAndBraces(this ReadOnlySpan<char> input)
     {
         var span = input.Trim();
@@ -99,6 +102,7 @@ public static class SimpleParserHelper
     /// </summary>
     /// <param name="input">The input string.</param>
     /// <returns>The trimmed and unquoted string.</returns>
+    /// <remarks>Whitespace inside single or double quotes is trimmed; triple-quoted content is preserved.</remarks>
     public static string TrimQuotes(this string input)
     {
         var span = TrimQuotes(input.AsSpan());
@@ -111,6 +115,7 @@ public static class SimpleParserHelper
     /// </summary>
     /// <param name="input">The input span.</param>
     /// <returns>The trimmed and unquoted span.</returns>
+    /// <remarks>Whitespace inside single or double quotes is trimmed; triple-quoted content is preserved.</remarks>
     public static ReadOnlySpan<char> TrimQuotes(this ReadOnlySpan<char> input)
     {
         var span = input.Trim();
@@ -223,37 +228,36 @@ public static class SimpleParserHelper
     }
 
     /// <summary>
-    /// Removes the leading executable path (quoted or not) from a command line.
+    /// Removes the leading executable path (quoted or whitespace-delimited) and trims the remaining arguments.
     /// </summary>
     /// <param name="commandLine">The command line (<see cref="Environment.CommandLine"/> style).</param>
     /// <returns>The arguments, or <see cref="string.Empty"/> if there is none.</returns>
     public static string ExtractArguments(string commandLine)
     {
-        if (commandLine.Length == 0)
+        var span = commandLine.AsSpan().TrimStart();
+        if (span.IsEmpty)
         {
             return string.Empty;
         }
 
-        if (commandLine[0] != '"')
+        if (span[0] != '"')
         {// Path arguments
-            var firstSpace = commandLine.IndexOf(' ');
-            if (firstSpace < 0)
-            {// Path
-                return string.Empty;
+            var end = 0;
+            while (end < span.Length && !char.IsWhiteSpace(span[end]))
+            {
+                end++;
             }
-            else
-            {// arguments
-                return commandLine.Substring(firstSpace + 1).Trim();
-            }
+
+            return span.Slice(end).Trim().ToString();
         }
 
-        var quotePosition = commandLine.IndexOf('"', 1);
+        var quotePosition = span.Slice(1).IndexOf('"');
         if (quotePosition < 0)
         {// "Path
             return string.Empty;
         }
 
-        return commandLine.Substring(quotePosition + 1).Trim();
+        return span.Slice(quotePosition + 2).Trim().ToString();
     }
 
     /// <summary>
@@ -453,42 +457,55 @@ public static class SimpleParserHelper
 
     /// <summary>
     /// Splits a command line at the separator <see cref="SimpleParser.CommandSeparator"/> ('|') into individual command lines.<br/>
-    /// A separator inside quotes or braces is not treated as a separator.
+    /// A separator inside quotes, braces, or the configured delimiter is not treated as a separator.
     /// </summary>
     /// <param name="commandLine">The command line.</param>
     /// <param name="delimiter">The argument delimiter (<see cref="SimpleParser.DefaultArgumentDelimiter"/> if empty).</param>
     /// <returns>Command lines with tokens joined by spaces; enclosing quotes and braces are retained. Empty segments are preserved; blank input returns an empty array.</returns>
     public static string[] SplitCommandLines(this string commandLine, ReadOnlySpan<char> delimiter = default)
     {
-        var args = commandLine.SplitArguments(delimiter);
-        if (args.Length == 0)
+        if (string.IsNullOrEmpty(commandLine))
         {
             return [];
         }
 
-        var count = 1;
-        foreach (var arg in args)
+        var ranges = new RangeList(stackalloc int[DefaultArgumentCapacity * 2]);
+        try
         {
-            if (arg == SimpleParser.CommandSeparatorString)
+            SplitArgumentRanges(commandLine, delimiter.IsEmpty ? SimpleParser.DefaultArgumentDelimiter : delimiter, false, ref ranges);
+            if (ranges.Count == 0)
             {
-                count++;
+                return [];
             }
-        }
 
-        var result = new string[count];
-        var start = 0;
-        var index = 0;
-        for (var i = 0; i < args.Length; i++)
+            var count = 1;
+            for (var i = 0; i < ranges.Count; i++)
+            {
+                if (ranges.Get(i).Length == SeparatorMark)
+                {
+                    count++;
+                }
+            }
+
+            var result = new string[count];
+            var start = 0;
+            var index = 0;
+            for (var i = 0; i < ranges.Count; i++)
+            {
+                if (ranges.Get(i).Length == SeparatorMark)
+                {
+                    result[index++] = JoinArguments(commandLine, ranges.AsSpan(start, i - start));
+                    start = i + 1;
+                }
+            }
+
+            result[index] = JoinArguments(commandLine, ranges.AsSpan(start, ranges.Count - start));
+            return result;
+        }
+        finally
         {
-            if (args[i] == SimpleParser.CommandSeparatorString)
-            {
-                result[index++] = string.Join(' ', args.AsSpan(start, i - start));
-                start = i + 1;
-            }
+            ranges.Dispose();
         }
-
-        result[index] = string.Join(' ', args.AsSpan(start));
-        return result;
     }
 
     /// <summary>
@@ -496,7 +513,7 @@ public static class SimpleParserHelper
     /// </summary>
     /// <param name="argument">The argument.</param>
     /// <param name="parserOptions">The parser options which provide the argument delimiter.</param>
-    /// <param name="argumentProcessing">Specifies how newlines are handled.</param>
+    /// <param name="argumentProcessing">Specifies how newlines and escaped quotes are handled.</param>
     /// <returns>The normalized argument (the original instance if nothing has changed).</returns>
     /// <remarks><see cref="ArgumentProcessing.AsIs"/> preserves newlines and escapes, but still removes enclosing quotes or delimiters.</remarks>
     public static string ProcessArgument(string argument, SimpleParserOptions parserOptions, ArgumentProcessing argumentProcessing)
@@ -648,6 +665,39 @@ Exit:
         }
 
         var ranges = new RangeList(stackalloc int[DefaultArgumentCapacity * 2]);
+        try
+        {
+            SplitArgumentRanges(commandLine, delimiter, firstCommandOnly, ref ranges);
+
+            // Materialize the arguments (the exact size is known, so no intermediate list is needed).
+            if (ranges.Count == 0)
+            {
+                return [];
+            }
+
+            var result = new string[ranges.Count];
+            var rangeSpan = ranges.AsSpan(0, result.Length);
+            for (var i = 0; i < result.Length; i++)
+            {
+                var rangeStart = rangeSpan[i * 2];
+                var rangeLength = rangeSpan[(i * 2) + 1];
+                result[i] = rangeLength == SeparatorMark ?
+                    SimpleParser.CommandSeparatorString :
+                    commandLine.Slice(rangeStart, rangeLength).ToString();
+            }
+
+            return result;
+        }
+        finally
+        {
+            ranges.Dispose();
+        }
+    }
+
+    private static void SplitArgumentRanges(ReadOnlySpan<char> commandLine, ReadOnlySpan<char> delimiter, bool firstCommandOnly, ref RangeList ranges)
+    {
+        // Keep range fields local in the hot loop, then return buffer ownership in finally.
+        var argumentRanges = ranges;
         var start = 0;
         var position = 0;
         var nextPosition = 0;
@@ -778,7 +828,7 @@ Exit:
 AddString:
                 if (start < position)
                 {
-                    AddTrimmed(ref ranges, commandLine, start, position);
+                    AddTrimmed(ref argumentRanges, commandLine, start, position);
                 }
 
                 if (separator && currentChar == SimpleParser.CommandSeparator)
@@ -789,7 +839,7 @@ AddString:
                         break;
                     }
 
-                    ranges.Add(0, SeparatorMark);
+                    argumentRanges.Add(0, SeparatorMark);
                     position++;
                     nextPosition++;
                 }
@@ -805,32 +855,16 @@ AddString:
 
             if (start < position && position <= commandLine.Length)
             {
-                AddTrimmed(ref ranges, commandLine, start, position);
+                AddTrimmed(ref argumentRanges, commandLine, start, position);
             }
-
-            // Materialize the arguments (the exact size is known, so no intermediate list is needed).
-            if (ranges.Count == 0)
-            {
-                return [];
-            }
-
-            var result = new string[ranges.Count];
-            for (var i = 0; i < result.Length; i++)
-            {
-                var (rangeStart, rangeLength) = ranges.Get(i);
-                result[i] = rangeLength == SeparatorMark ?
-                    SimpleParser.CommandSeparatorString :
-                    commandLine.Slice(rangeStart, rangeLength).ToString();
-            }
-
-            return result;
         }
         finally
         {
-            ranges.Dispose();
+            ranges = argumentRanges;
             enclosed.Dispose();
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         static void AddTrimmed(ref RangeList ranges, ReadOnlySpan<char> commandLine, int start, int end)
         {
             while (start < end && char.IsWhiteSpace(commandLine[start]))
@@ -850,6 +884,43 @@ AddString:
         }
     }
 
+    private static string JoinArguments(ReadOnlySpan<char> commandLine, ReadOnlySpan<int> ranges)
+    {
+        if (ranges.IsEmpty)
+        {
+            return string.Empty;
+        }
+
+        var length = (ranges.Length / 2) - 1;
+        for (var i = 1; i < ranges.Length; i += 2)
+        {
+            length += ranges[i];
+        }
+
+        return string.Create(length, new CommandLineSegment(commandLine, ranges), static (destination, segment) =>
+        {
+            var position = 0;
+            for (var i = 0; i < segment.Ranges.Length; i += 2)
+            {
+                if (i != 0)
+                {
+                    destination[position++] = ' ';
+                }
+
+                var argument = segment.CommandLine.Slice(segment.Ranges[i], segment.Ranges[i + 1]);
+                argument.CopyTo(destination.Slice(position));
+                position += argument.Length;
+            }
+        });
+    }
+
+    private readonly ref struct CommandLineSegment(ReadOnlySpan<char> commandLine, ReadOnlySpan<int> ranges)
+    {
+        public ReadOnlySpan<char> CommandLine { get; } = commandLine;
+
+        public ReadOnlySpan<int> Ranges { get; } = ranges;
+    }
+
     /// <summary>
     /// A list of (start, length) ranges backed by a stack-allocated buffer.<br/>
     /// It rents a buffer when the number of arguments exceeds the initial capacity.
@@ -867,6 +938,8 @@ AddString:
         public readonly int Count => this.count >> 1;
 
         public readonly (int Start, int Length) Get(int index) => (this.buffer[index << 1], this.buffer[(index << 1) + 1]);
+
+        public readonly ReadOnlySpan<int> AsSpan(int start, int count) => this.buffer.Slice(start * 2, count * 2);
 
         public void Add(int start, int length)
         {

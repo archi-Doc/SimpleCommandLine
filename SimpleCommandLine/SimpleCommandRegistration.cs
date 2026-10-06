@@ -58,15 +58,22 @@ internal sealed class SimpleCommandRegistration
             throw new InvalidOperationException($"Type \"{commandType}\" must implement ISimpleCommand or ISimpleCommand<TOption>.");
         }
 
+        if (optionsType is null)
+        {
+            return new SimpleCommandRegistration(
+                commandType,
+                null,
+                typeof(ISimpleCommand),
+                static (command, options, args, cancellationToken) => ((ISimpleCommand)command).Execute(args, cancellationToken) ?? Task.CompletedTask);
+        }
+
         // Interface mapping also supports explicit and inherited implementations.
         var method = commandType.GetInterfaceMap(commandInterface).TargetMethods[0];
         var invoker = MethodInvoker.Create(method);
         return new SimpleCommandRegistration(
             commandType,
             optionsType,
-            optionsType is null ? typeof(ISimpleCommand) : typeof(ISimpleCommand<>),
-            (command, options, args, cancellationToken) => (Task?)(optionsType is null
-                ? invoker.Invoke(command, args, cancellationToken)
-                : invoker.Invoke(command, options, args, cancellationToken)) ?? Task.CompletedTask);
+            typeof(ISimpleCommand<>),
+            (command, options, args, cancellationToken) => (Task?)invoker.Invoke(command, options, args, cancellationToken) ?? Task.CompletedTask);
     }
 }

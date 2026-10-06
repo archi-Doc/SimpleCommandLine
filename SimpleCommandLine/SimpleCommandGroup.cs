@@ -14,7 +14,10 @@ namespace SimpleCommandLine;
 /// Dispatches remaining arguments to an Arc.Unit command group's cached parser.
 /// </summary>
 /// <typeparam name="TSelf">The type of the derived command group.</typeparam>
-/// <remarks>Annotate the derived class with <see cref="SimpleCommandAttribute"/> and set <see cref="SimpleCommandAttribute.IsCommandGroup"/> to true.</remarks>
+/// <remarks>
+/// Annotate the derived class with <see cref="SimpleCommandAttribute"/> and set <see cref="SimpleCommandAttribute.IsCommandGroup"/> to true.
+/// A group and its cached parser must not be used concurrently.
+/// </remarks>
 public abstract class SimpleCommandGroup<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TSelf> : ISimpleCommand
     where TSelf : SimpleCommandGroup<TSelf>
 {
@@ -26,8 +29,8 @@ public abstract class SimpleCommandGroup<[DynamicallyAccessedMembers(Dynamically
     /// <param name="lifetime">The service lifetime of the command.</param>
     /// <returns>The command group of <typeparamref name="TSelf"/>, which holds its child commands.</returns>
     /// <remarks>This method does not populate <see cref="SimpleCommandRegistry"/>. Use the generic <see cref="UnitCommandExtensions"/> for shared registration.</remarks>
-    [UnconditionalSuppressMessage("Trimming", "IL2067", Justification = "Arc.Unit 0.46 GetCommandGroup uses the type as a dictionary key and registers it with DI. The public constructors required by DI are preserved.")]
-    [UnconditionalSuppressMessage("Trimming", "IL2087", Justification = "Arc.Unit 0.46 GetCommandGroup uses the type as a key and AddCommand registers a DI ServiceDescriptor. Only public constructors are required; command dispatch is handled separately by SimpleParserBuilder.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2067", Justification = "Arc.Unit GetCommandGroup uses the type only as a dictionary key. AddCommand registers a DI ServiceDescriptor; its required public constructors are preserved.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2087", Justification = "Arc.Unit GetCommandGroup uses the type as a key and AddCommand registers a DI ServiceDescriptor. Only public constructors are required; command dispatch is handled separately by SimpleParserBuilder.")]
     public static CommandGroup RegisterAndGetChildGroup(IUnitConfigurationContext context, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type? parentCommandType = null, ServiceLifetime lifetime = ServiceLifetime.Scoped)
     {
         var commandType = typeof(TSelf);
@@ -96,7 +99,7 @@ public abstract class SimpleCommandGroup<[DynamicallyAccessedMembers(Dynamically
 
         if (parserOptions != null)
         {
-            this.ParserOptions = parserOptions with { ServiceProvider = parserOptions.ServiceProvider ?? context.ServiceProvider, };
+            this.ParserOptions = parserOptions.ServiceProvider is not null ? parserOptions : parserOptions with { ServiceProvider = context.ServiceProvider };
         }
         else
         {
