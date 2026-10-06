@@ -41,8 +41,10 @@ public class SimpleCommandAttribute : Attribute
     /// Initializes a new instance of the <see cref="SimpleCommandAttribute"/> class.
     /// </summary>
     /// <param name="commandName">The command name, trimmed of surrounding whitespace. An empty name makes it a default candidate.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="commandName"/> is null.</exception>
     public SimpleCommandAttribute(string commandName)
     {
+        ArgumentNullException.ThrowIfNull(commandName);
         this.CommandName = commandName.Trim();
     }
 }

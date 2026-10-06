@@ -10,7 +10,7 @@ namespace SimpleCommandLine;
 /// Registers commands and preserves their options metadata for trimming and NativeAOT.
 /// </summary>
 /// <remarks>
-/// Register nested types with <see cref="AddOptionsType{TOptions}"/>. Each <see cref="Build(SimpleParserOptions)"/> uses a snapshot;
+/// Register nested types with <see cref="AddOptionsType{TOptions}"/>. Builds reuse immutable registration snapshots;
 /// later registrations do not change existing parsers. Configure a builder from one thread at a time.
 /// </remarks>
 public sealed class SimpleParserBuilder
@@ -24,6 +24,11 @@ public sealed class SimpleParserBuilder
     public SimpleParserBuilder AddCommand<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TCommand>()
         where TCommand : ISimpleCommand
     {
+        if (this.IsRegistered(typeof(TCommand), null))
+        {
+            return this;
+        }
+
         this.AddRegistration(new SimpleCommandRegistration(
             typeof(TCommand),
             null,
@@ -45,6 +50,11 @@ public sealed class SimpleParserBuilder
         where TCommand : ISimpleCommand<TOptions>
         where TOptions : new()
     {
+        if (this.IsRegistered(typeof(TCommand), typeof(TOptions)))
+        {
+            return this;
+        }
+
         this.AddOptionsType<TOptions>();
         this.AddRegistration(new SimpleCommandRegistration(
             typeof(TCommand),
@@ -93,7 +103,7 @@ public sealed class SimpleParserBuilder
         string commandLine, [MaybeNullWhen(false)] out TOptions options, TOptions? instanceToUpdate = default)
     {
         this.AddOptionsType<TOptions>();
-        return SimpleParser.TryParseOptionsCore(commandLine, out options, instanceToUpdate, CreateResolver(this.optionsTypes));
+        return SimpleParser.TryParseOptionsCore(commandLine, out options, instanceToUpdate, this.resolveType ??= this.ResolveType);
     }
 
     /// <summary>
@@ -113,43 +123,58 @@ public sealed class SimpleParserBuilder
         string[] args, [MaybeNullWhen(false)] out TOptions options, TOptions? instanceToUpdate = default)
     {
         this.AddOptionsType<TOptions>();
-        return SimpleParser.TryParseOptionsCore(args, out options, instanceToUpdate, CreateResolver(this.optionsTypes), false);
+        return SimpleParser.TryParseOptionsCore(args, out options, instanceToUpdate, this.resolveType ??= this.ResolveType, false);
     }
 
     internal SimpleParser Build(SimpleParserOptions? parserOptions, IEnumerable<Type> commandTypes)
         => this.CreateRegistry().CreateParser(commandTypes, parserOptions);
 
-    internal SimpleCommandRegistry CreateRegistry() => new(this.commands, this.optionsTypes);
+    internal SimpleCommandRegistry CreateRegistry() => this.registry ??= new(this.commands, this.optionsTypes);
 
-    private static Func<Type, PreservedType> CreateResolver(Dictionary<Type, PreservedType> types)
-        => type => types.TryGetValue(type, out var preserved)
+    private PreservedType ResolveType(Type type)
+        => this.optionsTypes.TryGetValue(type, out var preserved)
             ? preserved
             : throw new InvalidOperationException($"Options type '{type}' is not registered. Call SimpleParserBuilder.AddOptionsType<{type.Name}>() before building the parser.");
 
     private void PreserveOptionsType([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] Type type)
     {
-        if (type == typeof(object) || this.optionsTypes.ContainsKey(type))
+        if (this.optionsTypes.ContainsKey(type))
         {
             return;
         }
 
         this.optionsTypes.Add(type, new PreservedType(type));
+        this.registry = null;
 
-        if (type.BaseType is { } baseType)
+        if (type.BaseType is { } baseType && baseType != typeof(object))
         {
             this.PreserveOptionsType(baseType);
         }
     }
 
+    private bool IsRegistered(Type commandType, Type? optionsType)
+    {
+        if (!this.commands.TryGetValue(commandType, out var registration))
+        {
+            return false;
+        }
+
+        if (registration.OptionsType != optionsType)
+        {
+            throw new InvalidOperationException($"Command type '{commandType}' is already registered with a different options type.");
+        }
+
+        return true;
+    }
+
     private void AddRegistration(SimpleCommandRegistration registration)
     {
-        if (!this.commands.TryAdd(registration.CommandType, registration) &&
-            this.commands[registration.CommandType].OptionsType != registration.OptionsType)
-        {
-            throw new InvalidOperationException($"Command type '{registration.CommandType}' is already registered with a different options type.");
-        }
+        this.commands.Add(registration.CommandType, registration);
+        this.registry = null;
     }
 
     private readonly Dictionary<Type, SimpleCommandRegistration> commands = new();
     private readonly Dictionary<Type, PreservedType> optionsTypes = new();
+    private SimpleCommandRegistry? registry;
+    private Func<Type, PreservedType>? resolveType;
 }

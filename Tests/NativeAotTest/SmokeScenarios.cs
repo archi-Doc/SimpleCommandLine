@@ -107,6 +107,11 @@ public static class SmokeScenarios
         Check(builder.TryParseOptions<OverriddenOptions>("-value 17", out var overridden) && overridden.Value == 17, "virtual option override metadata");
         Check(builder.TryParseOptions<SetterOverriddenOptions>("-value 5", out var setterOverridden) && setterOverridden.Value == 10, "setter-only override dispatches virtually");
         Check(new SimpleParserBuilder().Build(settings).Parse("help"), "empty native parser help");
+        Check(builder.TryParseOptions<object>([], out var emptyOptions) && emptyOptions is not null, "registered empty object options");
+        var objectParser = new SimpleParserBuilder().AddCommand<ObjectCommand, object>().Build(settings);
+        Check(objectParser.Parse("object"), "empty object command options");
+        await objectParser.Execute(cancellation.Token);
+        Check(ReferenceEquals(((ObjectCommand)objectParser.CurrentCommand!.CommandInstance).Received, objectParser.CurrentCommand.OptionSet.Instance), "typed object options dispatch");
 
         var unregistered = new SimpleParserBuilder().AddCommand<OptionsCommand, Options>();
         ExpectInvalid(() => unregistered.Build(), "AddOptionsType", "unregistered nested options fail clearly");
@@ -115,6 +120,9 @@ public static class SmokeScenarios
         var snapshot = snapshotBuilder.Build(settings);
         snapshotBuilder.AddCommand<OptionsCommand, Options>();
         Check(snapshot.NameToCommand.Count == 1, "builder snapshot");
+        ExpectInvalid(() => snapshotBuilder.Build(settings), "AddOptionsType", "new command invalidates registry snapshot");
+        snapshotBuilder.AddOptionsType<NestedOptions>().AddOptionsType<SerializedOptions>();
+        Check(snapshotBuilder.Build(settings).Parse("run -name restored"), "new options invalidate registry snapshot");
 
         ExpectInvalid(() => new SimpleParserBuilder().AddCommand<IndexerCommand, IndexerOptions>().Build(settings), "indexer", "reject indexed properties");
         ExpectInvalid(() => new SimpleParserBuilder().AddCommand<CircularCommand, CircularOptions>().Build(settings), "Circular", "reject circular options");
@@ -243,6 +251,18 @@ public static class SmokeScenarios
         {
             this.Received = options;
             this.Token = cancellationToken;
+            return Task.CompletedTask;
+        }
+    }
+
+    [SimpleCommand("object")]
+    private sealed class ObjectCommand : ISimpleCommand<object>
+    {
+        public object? Received { get; private set; }
+
+        public Task Execute(object options, string[] args, CancellationToken cancellationToken)
+        {
+            this.Received = options;
             return Task.CompletedTask;
         }
     }

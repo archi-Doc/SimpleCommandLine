@@ -12,17 +12,34 @@ var settings = SimpleParserOptions.Standard with
     ReadCommandFromEnvironment = false,
     SuppressConsoleOutput = true,
 };
-var parser = new SimpleParserBuilder().AddCommand<RunCommand, RunOptions>().Build(settings);
+var builder = new SimpleParserBuilder().AddCommand<RunCommand, RunOptions>();
+var parser = builder.Build(settings);
 string[] values = ["run", "-number", "42", "-enabled", "true", "-text", "two words"];
 var tail = "run -number 42 | " + string.Join(' ', Enumerable.Repeat("ignored", 200));
 var many = string.Join(' ', Enumerable.Range(0, 100));
 var deep = new string('{', 100) + "value" + new string('}', 100);
+var commands = string.Join(" | ", Enumerable.Repeat("run -number 42 -text 'two words'", 20));
+var optionsTail = "-number 42 | " + string.Join(' ', Enumerable.Repeat("ignored", 200));
+var reflectedParser = new SimpleParser([typeof(PlainCommand)], settings);
+reflectedParser.Parse("plain");
+if (!parser.Parse(values) || ((RunOptions)parser.CurrentCommand!.OptionSet.Instance!).Number != 42 ||
+    commands.SplitCommandLines().Length != 20 ||
+    !builder.TryParseOptions<RunOptions>(optionsTail, out var options) || options.Number != 42)
+{
+    throw new InvalidOperationException("Benchmark input validation failed.");
+}
+
 Measure("Parse array", () => parser.Parse(values));
 Measure("Parse raw", () => parser.Parse("run -number '42' -enabled true -text 'two words'"));
 Measure("Parse remaining", () => parser.Parse("run one two three four five six"));
 Measure("Parse first command", () => parser.Parse(tail));
 Measure("Split 100 arguments", () => many.SplitArguments());
 Measure("Split nesting 100", () => deep.SplitArguments());
+Measure("Split 20 commands", () => commands.SplitCommandLines());
+Measure("Standalone first command", () => builder.TryParseOptions<RunOptions>(optionsTail, out _));
+Measure("Build reused registry", () => builder.Build(settings));
+Measure("Repeat registration", () => builder.AddCommand<RunCommand, RunOptions>());
+Measure("Reflection plain execute", () => reflectedParser.Execute());
 Measure("Suppressed help", () => parser.ShowHelp());
 
 static void Measure(string name, Action action)
@@ -64,4 +81,10 @@ public class RunOptions
 public class RunCommand : ISimpleCommand<RunOptions>
 {
     public Task Execute(RunOptions options, string[] args, CancellationToken cancellationToken) => Task.CompletedTask;
+}
+
+[SimpleCommand("plain")]
+public class PlainCommand : ISimpleCommand
+{
+    public Task Execute(string[] args, CancellationToken cancellationToken) => Task.CompletedTask;
 }
